@@ -1,0 +1,52 @@
+# =================================== #
+# LISAI – Project-level configuration # 
+# =================================== #
+
+project:
+  name: lisai
+
+paths:
+  # Root paths depending on execution environment
+  data_root:
+    local: "E:/"
+    server: "\\\\deepltestalab\\E"
+
+  # Relative directories (resolved from data_root)
+  data_dir: "dl_monalisa/Data"
+  models_dir: "dl_monalisa/Models"
+  noise_models_dir: "dl_monalisa/NoiseModels"
+
+  # dataset_registry
+  dataset_registry: "data_dir/resgitry.yml"
+
+logging:
+  cfg_train_filename: "config_train.json"
+  loss_file_name: "loss.txt"
+  train_log_name: "train_log.log"
+
+models:
+  # Mapping between model keys and import paths
+  import_map:
+    unet: "unet.UNet_PosEncod"
+    unet3d: "unet3d.UNet_PosEncod"
+    rcan: "rcan.RCAN"
+    unet_rcan: "unet_rcan.UNetRCAN"
+    lvae: "lvae.LadderVAE"
+
+io_structure:
+  # Canonical saving/loading conventions
+  #
+  # Rules:
+  # - "subfolder" is optional
+  # - strings in quotes are literals
+  # - others are placeholders
+  # - code_dir is inferred automatically from the project root
+  model_saving: "models_dir/dataset_name/subfolder/exp_name"
+  predictreal_saving: "data_dir/dataset_name/inference/subfolder/exp_name"
+  dataset_loading: "data_dir/dataset_name/subfolder"
+  tensorboard_saving: "code_dir/tensorboard/dataset_name/subfolder"
+  noise_model: "noise_models_dir/noiseModel_name/GMM.npz"
+
+  
+
+

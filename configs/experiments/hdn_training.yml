@@ -1,0 +1,107 @@
+# ========================================================
+# General experiment settings
+# ========================================================
+experiment:
+  local: true
+  mode: train  # 'train', 'continue_training', 'retrain'
+  exp_name: HDN_single_GMMsigN2VAvgbis_KL07_noAugm
+  is_lvae: true
+
+# ========================================================
+# Paths
+# ========================================================
+paths:
+  data_root: ""               # used only if not canonical load
+  data_subfolder: preprocess/recon
+  model_subfolder: HDN
+  load_model_full_path: ""    # full path if loading non-canonical
+  save_validation_images: true
+
+# ========================================================
+# Dataset / DataLoader configuration
+# ========================================================
+data:
+  dataset_name: Vim_fixed_mltplSNR_30nm
+  canonical_load: true
+  prep_before: true
+  already_split: true
+  filters:
+    - tiff
+    - tif
+  
+  paired: false
+  target: null # for paired datasets
+  input: inp_single
+  mltpl_snr_prm":
+      snr_idx": 0
+
+  patch_size: 64
+  val_patch_size: 256
+  batch_size: 64
+
+  # options
+  initial_crop: null
+  augmentation: false
+  patch_thresh: 0.1 # None or float [0,1]
+  select_on_gt: false
+
+
+# ========================================================
+# Normalization / Noise
+# ========================================================
+normalization:
+  load_from_noise_model: true
+  norm_prm: null
+
+noise_model:
+  name: Noise0_SigN2Vavg_Clip-3_norm_bis
+
+# ========================================================
+# Model configuration
+# ========================================================
+model:
+  architecture: lvae
+  parameters:
+    num_latents: 5
+    z_dims: 32
+    blocks_per_layer: 6
+    batchnorm: true
+    free_bits: 1.0
+
+# ========================================================
+# Training configuration
+# ========================================================
+training:
+  n_epochs: 100
+  batch_size: 8
+  learning_rate: 0.0001
+  betaKL: 0.7
+  val_loss_patience: 30
+  scheduler: ReduceLROnPlateau
+  progress_bar: true
+  early_stop: false
+
+# ========================================================
+# Model loading (for continue_training / retrain)
+# ========================================================
+load_model:
+  canonical_load: true
+  dataset_name: null
+  subfolder: HDN
+  exp_name: null
+  model_name: null
+  model_full_path: null
+  load_method: state_dict  # 'state_dict' or 'full_model'
+
+# ========================================================
+# Saving configuration
+# ========================================================
+saving:
+  enabled: true
+  canonical_save: true
+  overwrite_best: true
+  save_last: true
+  entire_model: true
+  state_dict: true
+  validation_images: true
+  validation_freq: 10  # save every Xth epoch
