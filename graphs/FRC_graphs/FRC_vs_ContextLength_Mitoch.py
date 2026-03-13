@@ -2,7 +2,7 @@ import os,sys
 sys.path.append(os.getcwd())
 from lisai.graphs.utils.calculate_metrics import calculate_metrics
 from lisai.graphs.utils.boxplot import box_plot as new_box_plot
-from lisai.lib.utils.data_utils import crop_center,extract_patches
+from lisai.data.utils import crop_center, extract_patches
 
 import frc
 import numpy as np

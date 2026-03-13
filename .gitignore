@@ -1,0 +1,47 @@
+# Local machine config
+configs/local_config.yml
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test / lint / type-check caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+
+# Build and packaging artifacts
+build/
+dist/
+.eggs/
+*.egg-info/
+pip-wheel-metadata/
+
+# Notebook caches
+.ipynb_checkpoints/
+
+# IDE/editor settings
+.vscode/
+.idea/
+
+# codex guidance
+AGENTS.md
+
+# Local Codex metadata
+.codex/
+
+# Common OS artifacts
+.DS_Store
+Thumbs.db

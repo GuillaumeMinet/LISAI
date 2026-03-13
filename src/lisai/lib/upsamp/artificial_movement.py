@@ -1,8 +1,10 @@
-import numpy as np
+import math
 import random
 from typing import Union
-from tifffile import imsave
-import math
+
+import numpy as np
+from tifffile import imwrite
+
 directionList = ["h+","h-","v+","v-","h+v+","h+v-","h-v+","h-v-"]
 
 
@@ -180,7 +182,7 @@ def translation(imgs: Union[np.ndarray,list],speed:float,direction:str,
 
 # testing
 if __name__ == "__main__":
-    from tifffile import imread,imsave
+    from tifffile import imread, imwrite
     im1 = imread(r"E:\dl_monalisa\Data\Vim_fixed_mltplSNR_30nm\preprocess\recon\gt_avg\train\c00.tif")
     # im2 = imread(r"E:\dl_monalisa\Data\Vim_fixed_mltplSNR_30nm\preprocess\recon\gt_avg\train\c02.tif")
     
@@ -207,5 +209,5 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Movement type {movement_type} unknown")
     
-    imsave("movingIm_keepinputsize_centerNOTfixed.tif",movingImgs)
+    imwrite("movingIm_keepinputsize_centerNOTfixed.tif",movingImgs)
     # imsave("movingIm2.tif",movingImgs[1])

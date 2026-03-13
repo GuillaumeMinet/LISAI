@@ -2,7 +2,9 @@ import torch
 from torch import nn
 from torch.distributions import kl_divergence
 from torch.distributions.normal import Normal
+
 from .stable_dist_params import StableLogVar, StableMean
+
 
 class NormalStochasticBlock2d(nn.Module):
     """

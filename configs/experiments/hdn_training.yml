@@ -2,20 +2,19 @@
 # General experiment settings
 # ========================================================
 experiment:
-  local: true
   mode: train  # 'train', 'continue_training', 'retrain'
   exp_name: HDN_single_GMMsigN2VAvgbis_KL07_noAugm
-  is_lvae: true
+  overwrite: false # mainly for debug; to overwrite any exp_name with the same name
 
 # ========================================================
 # Paths
 # ========================================================
-paths:
-  data_root: ""               # used only if not canonical load
-  data_subfolder: preprocess/recon
-  model_subfolder: HDN
-  load_model_full_path: ""    # full path if loading non-canonical
-  save_validation_images: true
+routing:
+  data_subfolder: "preprocess/recon_data"
+  models_subfolder: "HDN"
+  tensorboard_subfolder: "HDN"
+  # used only for non-canonical loads => full path is used directly
+  dataset_full_path: ""
 
 # ========================================================
 # Dataset / DataLoader configuration
@@ -32,8 +31,8 @@ data:
   paired: false
   target: null # for paired datasets
   input: inp_single
-  mltpl_snr_prm":
-      snr_idx": 0
+  mltpl_snr_prm:
+      snr_idx: 0
 
   patch_size: 64
   val_patch_size: 256
@@ -77,6 +76,7 @@ training:
   learning_rate: 0.0001
   betaKL: 0.7
   val_loss_patience: 30
+  optimizer: Adam
   scheduler: ReduceLROnPlateau
   progress_bar: true
   early_stop: false
@@ -105,3 +105,10 @@ saving:
   state_dict: true
   validation_images: true
   validation_freq: 10  # save every Xth epoch
+
+# ========================================================
+# Tensorboard configuration
+# ========================================================
+tensorboard:
+  enabled: false
+  validation_images: true

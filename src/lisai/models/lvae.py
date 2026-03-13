@@ -2,12 +2,15 @@ import numpy as np
 import torch
 from torch import nn
 
-from lisai.lib.hdn.likelihoods import (GaussianLikelihood,
-                             NoiseModelLikelihood)
-from lisai.lib.hdn.utils import (crop_img_tensor, pad_img_tensor, Interpolate, free_bits_kl)
-from .lvae_layers import (TopDownLayer, BottomUpLayer,
-                          TopDownDeterministicResBlock,
-                          BottomUpDeterministicResBlock)
+from lisai.lib.hdn.likelihoods import GaussianLikelihood, NoiseModelLikelihood
+from lisai.lib.hdn.utils import Interpolate, crop_img_tensor, free_bits_kl, pad_img_tensor
+
+from .lvae_layers import (
+    BottomUpDeterministicResBlock,
+    BottomUpLayer,
+    TopDownDeterministicResBlock,
+    TopDownLayer,
+)
 
 
 class LadderVAE(nn.Module):

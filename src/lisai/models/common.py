@@ -2,15 +2,38 @@
 Common building blocks for unet,unet3d, and rcan.
 """
 
-import torch 
-import torch.nn as nn
-import math
 import logging
-import os,sys
-sys.path.append(os.getcwd() + './')
-from lisai.lib.utils.misc import find_closest_divisor
+import math
+
+import torch
+import torch.nn as nn
 
 logger = logging.getLogger("model common blocks")
+
+def _getDivisors(n) : 
+    divisors = []
+    i = 1
+    while i <= n : 
+        if (n % i==0) : 
+            divisors.append(i), 
+        i = i + 1
+    return divisors
+
+def _find_closest_divisor(a,b,smaller=False):
+    """
+    Rounds "b" to the closest divisor making it a divisor of "a".
+    If smaller = True, it forces a value < b.
+    """
+    if a % b == 0:
+        return b
+    all  = _getDivisors(a)
+    for idx,val in enumerate(all):
+        if b < val:
+            if idx == 0:
+                return b
+            if smaller or (val-b)>(b-all[idx-1]):
+                return all[idx-1]
+            return val
 
 def swish(x):
     return x*torch.sigmoid(x)
@@ -38,7 +61,7 @@ def get_timestep_embedding(timesteps, embedding_dim):
 def normalize(norm_type,channels,groups):
     if norm_type == 'group':
         if channels % groups != 0:
-            groups = find_closest_divisor(channels,groups)
+            groups = _find_closest_divisor(channels,groups)
         norm = torch.nn.GroupNorm(groups, channels)
     elif norm_type == 'batch':
         norm = torch.nn.BatchNorm2d(channels)

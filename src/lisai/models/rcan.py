@@ -1,13 +1,10 @@
-import torch 
-import torch.nn as nn
 import logging
-import os,sys
 
+import torch.nn as nn
+
+from lisai.models.common import RG, conv_block, upsamp_block
 
 logger = logging.getLogger("RCAN")
-
-sys.path.append(os.getcwd() + './')
-from lisai.models.common import conv_block,upsamp_block,RG
 
 
 class RCAN(nn.Module):

@@ -1,12 +1,12 @@
-import torch
+import math
+
 import numpy as np
-import time
+import torch
+import torch.nn.functional as F
+from matplotlib import pyplot as plt
+from sklearn.feature_extraction import image
 from torch import nn
 from tqdm import tqdm
-from glob import glob
-from sklearn.feature_extraction import image
-from matplotlib import pyplot as plt
-import math
 
 
 class Interpolate(nn.Module):

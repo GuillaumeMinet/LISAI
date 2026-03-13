@@ -1,9 +1,7 @@
 import numpy as np
-from cv2 import resize, INTER_NEAREST
-import os,sys
-sys.path.append(os.getcwd())
-from lisai.lib.utils.data_utils import make_single_4d
+from cv2 import INTER_NEAREST, resize
 
+from lisai.data.utils import make_single_4d
 
 _deterministic_mltpl_sampling = {
     2: {

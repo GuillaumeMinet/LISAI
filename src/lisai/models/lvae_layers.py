@@ -1,7 +1,5 @@
 import torch
 from torch import nn
-import os,sys
-sys.path.append(os.getcwd())
 
 from lisai.lib.hdn.nn import ResidualBlock, ResidualGatedBlock
 from lisai.lib.hdn.stochastic import NormalStochasticBlock2d

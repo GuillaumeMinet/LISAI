@@ -1,82 +1,108 @@
-import torch
+# src/lisai/training/trainers/standard.py
+
 import numpy as np
-from tqdm import tqdm
-from lisai.training.losses import get_loss_function
-from lisai.training.infra import tensorboard, validation_images
+import torch
+
 from .base import BaseTrainer
 
+try:
+    from tqdm import tqdm
+except Exception:
+    pass
+
 class StandardTrainer(BaseTrainer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Standard Loss setup
-        self.loss_function = get_loss_function(**self.training_prm.get("loss_function", {}))
+    @property
+    def is_lvae(self) -> bool:
+        return False
 
-    def _forward_pass(self, x, y, samp_pos):
-        prediction = self.model(x, samp_pos)
-        if self.loss_function is None:
-            raise ValueError("Loss function undefined")
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        # config-driven custom loss function
+        loss_cfg = self.cfg.loss_function
         
-        loss_val = self.loss_function(prediction, y)
-        return loss_val, prediction
+        if loss_cfg:
+            try:
+                from lisai.training.losses import get_loss_function
+                self.loss_function = get_loss_function(**loss_cfg)
+            except Exception:
+                self.logger.error(f"Invalid loss_function config: {loss_cfg}", exc_info=True)
+                raise
+        else:
+            self.loss_function = torch.nn.MSELoss()
+            self.logger.warning("Loss function config not found, falling back to MSE loss")
 
-    def train_epoch(self, epoch):
+    def train_epoch(self, epoch: int) -> dict:
         self.model.train()
-        train_loss = []
-        
+        self.model.to(self.device)
+        losses = []
+
         iter_loader = self.train_loader
         if self.pbar:
-            iter_loader = tqdm(iter_loader, leave=False, position=0, desc=f'Train Ep {epoch}')
+            iter_loader = tqdm(iter_loader, leave=False, position=0)
+            iter_loader.set_description(f"Training - Epoch {epoch}")
 
         for batch_id, batch in enumerate(iter_loader):
-            virtual_batches = self._split_batch(batch)
-            
-            for vb in zip(*virtual_batches):
-                x, y, samp_pos = self._prepare_batch(vb)
-                loss_val, _ = self._forward_pass(x, y, samp_pos)
+            if self.update_console:
+                self._update_console_new_batch(epoch,batch_id,len(iter_loader))
 
-                train_loss.append(loss_val.item())
-                
-                loss_val.backward()
-                self.optimizer.step()
-                self.optimizer.zero_grad()
+            virtual_batches = self._split_batch(batch, warn_once=(batch_id == 0))
 
-                if self.update_console:
-                    self.logger.info(f"Epoch {epoch} | Batch {batch_id}/{len(self.train_loader)}")
+            for (x, y, *samp_pos) in zip(*virtual_batches):
+                samp_pos = samp_pos[0] if (self.pos_encod and len(samp_pos) == 1) else None
+                x, y, samp_pos = self._prepare_batch(x, y, samp_pos)
 
-        return {'loss': np.mean(train_loss)}
+                pred = self.model(x, samp_pos)
+                loss = self.loss_function(pred, y)
 
-    def validate(self, epoch, save_imgs=False):
+                loss.backward()
+                losses.append(loss.item())
+
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+
+            if self.early_stop is not False and batch_id > 0:
+                break
+
+        return {"loss": float(np.mean(losses))}
+
+    def validate(self, epoch: int, save_imgs: bool = False) -> dict:
         self.model.eval()
-        val_loss = []
-        val_imgs = []
+        self.model.to(self.device)
+        losses = []
 
-        iter_loader = self.val_loader
-        if self.pbar:
-            iter_loader = tqdm(iter_loader, leave=False, position=0, desc=f'Val Ep {epoch}')
+        val_imgs = [] if save_imgs else None
 
         with torch.no_grad():
-            for batch in iter_loader:
-                virtual_batches = self._split_batch(batch)
-                
-                for vb in zip(*virtual_batches):
-                    x, y, samp_pos = self._prepare_batch(vb)
-                    loss_val, pred = self._forward_pass(x, y, samp_pos)
-                    
-                    val_loss.append(loss_val.item())
+            iter_val = self.val_loader
+            if self.pbar:
+                from tqdm import tqdm
+                iter_val = tqdm(iter_val, position=0, leave=False)
+                iter_val.set_description(f"Validation - Epoch {epoch}")
 
-                    if self.writer:
-                         tensorboard.log_images_to_tensorboard(self.writer, vb[0], vb[1], pred, epoch, self.volumetric)
+            for batch in iter_val:
+                virtual_batches = self._split_batch(batch)
+
+                for (x, y, *samp_pos) in zip(*virtual_batches):
+                    samp_pos = samp_pos[0] if (self.pos_encod and len(samp_pos) == 1) else None
+                    x, y, samp_pos = self._prepare_batch(x, y, samp_pos)
+
+                    pred = self.model(x, samp_pos)
+                    losses.append(self.loss_function(pred, y).item())
+
+                    # tensorboard images hook (legacy behavior)
+                    for cb in self.callbacks:
+                        cb.on_validation_batch_end(self, epoch, x, y, pred)
 
                     if save_imgs:
-                        val_imgs.append((vb[0], vb[1], pred))
+                        for i in range(x.shape[0]):
+                            if y is None:
+                                val_imgs.append((x[i], None, pred[i]))
+                            else:
+                                val_imgs.append((x[i], y[i], pred[i]))
 
         if save_imgs:
-             validation_images.save_validation_images(val_imgs, self.validation_images_folder, self.volumetric)
+            for cb in self.callbacks:
+                cb.on_validation_images_end(self, epoch, val_imgs)
 
-        return {'loss': np.mean(val_loss)}
-
-    def log_headers(self):
-        return ["Train_loss", "Val_loss"]
-
-    def log_values(self, train_metrics, val_metrics):
-        return [f"{train_metrics['loss']:.5f}", f"{val_metrics['loss']:.5f}"]
+        return {"loss": float(np.mean(losses))}

@@ -1,0 +1,98 @@
+# lisai/data/preprocess/pipelines/recon_timelapse_upsamp.py
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Dict
+
+import numpy as np
+import tifffile
+
+from lisai.infra.config import settings
+
+from ..core import MAIN_OUTPUT_KEY, FolderSource, Item, OutputDecl, OutputSpec, Source
+from ..run_preprocess import PreprocessRun
+from ..transformations import bleach_correct_simple_ratio, crop_center_stack, remove_first_frame
+from .base import BasePipeline, PipelineResult
+
+
+@dataclass
+class ReconTimelapseUpsampConfig:
+    """
+    Preprocess reconstructed timelapse stacks (T,Y,X) from dump/ into preprocess/recon/.
+
+    This pipeline is the refactored version of the legacy `recon_timelapse_upsamp` pipeline.
+
+    Operations (all optional):
+      - remove_first_frame
+      - bleach_correction (simple ratio)
+      - center crop
+      - clip negatives to 0
+    """
+    dump_subfolder: str = ""             # inside dataset dump dir
+    combine_subfolders: bool = False
+    crop_size: int | None = None
+    clip_neg: bool = False
+    remove_first: bool = False
+    bleach_correction: bool = False
+
+
+class ReconTimelapseUpsampPipeline(BasePipeline[ReconTimelapseUpsampConfig]):
+    Config = ReconTimelapseUpsampConfig
+    name = "recon_timelapse_upsamp"
+    supported_data_types = {"recon"}
+    supported_fmts = {"timelapse"}
+
+    def output_spec(self) -> OutputSpec:
+        return OutputSpec(
+            outputs=(OutputDecl(key=MAIN_OUTPUT_KEY, axes="TYX", role="inp"),),
+            save_at_root=True,
+        )
+
+    def build_source(self, *, run: PreprocessRun) -> Source:
+        dump_root = run.paths.dataset_dump_dir(
+            dataset_name=run.dataset_name,
+            data_type=run.data_type,
+            additional_subfolder=self.cfg.dump_subfolder if self.cfg.dump_subfolder else "",
+        )
+        exts = tuple(settings.data.data_types[run.data_type])
+        return FolderSource(root=dump_root, exts=exts, combine_subfolders=self.cfg.combine_subfolders)
+
+    def process_item(self, *, item: Item) -> Dict[str, np.ndarray]:
+        (p,) = item.paths
+        stack = tifffile.imread(p)
+
+        if stack.ndim != 3 or stack.shape[0] <= 1:
+            raise ValueError(
+                f"ReconTimelapseUpsampPipeline expects 3D stack (T,Y,X) with T>1, "
+                f"got shape={getattr(stack, 'shape', None)} for {p}"
+            )
+
+        if self.cfg.remove_first:
+            stack = remove_first_frame(stack)
+        if self.cfg.bleach_correction:
+            stack = bleach_correct_simple_ratio(stack)
+        if self.cfg.crop_size is not None:
+            stack = crop_center_stack(stack, self.cfg.crop_size)
+        if self.cfg.clip_neg:
+            stack = stack.copy()
+            stack[stack < 0] = 0
+
+        return {MAIN_OUTPUT_KEY: stack}
+
+    def template_kwargs(self, *, item: Item, outputs: dict[str, np.ndarray]) -> dict[str, object]:
+        # data.yml timelapse template expects n_timepoints.
+        stack = outputs[MAIN_OUTPUT_KEY]
+        if stack.ndim == 3:
+            return {"n_timepoints": int(stack.shape[0])}
+        return {}
+
+    def init_stats(self) -> dict[str, Any]:
+        return {"n_frames": 0}
+
+    def update_stats(self, *, stats: dict[str, Any], item, outputs: dict[str, Any]) -> dict[str, Any]:
+        stack = outputs[MAIN_OUTPUT_KEY]
+        stats["n_frames"] += int(stack.shape[0])
+        return stats
+
+    def make_result(self, *, n_files: int, stats: dict[str, Any]) -> PipelineResult:
+        return PipelineResult(n_files=n_files, n_frames=int(stats.get("n_frames", 0)))

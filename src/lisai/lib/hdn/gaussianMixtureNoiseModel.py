@@ -1,11 +1,8 @@
 import torch
-dtype = torch.float
-import matplotlib.pyplot as plt
 import numpy as np
-import pickle
-from torch.distributions import normal
-from scipy.stats import norm
-from tifffile import imread
+
+dtype = torch.float
+
 
 def fastShuffle(series, num):
     length = series.shape[0]
@@ -107,7 +104,7 @@ class GaussianMixtureNoiseModel:
         """
         value=0
         for i in range(weightParams.shape[0]):
-            value += weightParams[i] * (((signals - self.min_signal) / (self.max_signal - self.min_signal)) ** i);
+            value += weightParams[i] * (((signals - self.min_signal) / (self.max_signal - self.min_signal)) ** i)
         return value
         
    

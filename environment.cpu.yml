@@ -1,0 +1,29 @@
+name: lisai-cpu
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch
+  - torchvision
+  - cpuonly
+  - numpy
+  - scipy
+  - pyyaml
+  - pydantic>=2,<3
+  - tifffile
+  - tqdm
+  - tensorboard
+  - matplotlib
+  - scikit-image
+  - scikit-learn
+  - opencv
+  - h5py
+  - pillow
+  - pytest
+  - pip:
+      - pystackreg
+      # Optional, only if you run calibration code:
+      # - careamics

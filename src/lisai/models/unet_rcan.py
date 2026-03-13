@@ -1,14 +1,13 @@
-import torch 
-import torch.nn as nn
 import logging
-import os,sys
+
+import torch
+import torch.nn as nn
+from lisai.models.common import conv_block, upsamp_block
+from lisai.models.rcan import RCAN
+from lisai.models.unet import UNet_PosEncod as UNet
 
 logger = logging.getLogger("Model UNetRCAN")
 
-sys.path.append(os.getcwd() + './')
-from lisai.models.rcan import RCAN
-from lisai.models.unet import UNet_PosEncod as UNet
-from lisai.models.common import upsamp_block,conv_block
 
 class UNetRCAN(nn.Module):
     """

@@ -1,53 +1,39 @@
-# src/lisai/training/run_training.py
+from lisai.infra.config import resolve_config
 
-import logging
-from lisai.config.resolver import resolve_config
-from lisai.config.io import save_yaml
-from lisai.training import setup
-from lisai.training.trainers import get_trainer
+from . import setup
+from .trainers import get_trainer
+
 
 def run_training(config_path):
-    # 1. Configuration
     cfg = resolve_config(config_path)
-    
-    # 2. System Setup (Logger, Device, Saving Paths, Writer)
-    ctx = setup.system.initialize(cfg)
-    
-    # Save resolved config for reproducibility
-    if ctx.saving_prm.get("saving"):
-        save_yaml(cfg, ctx.save_folder / "config_resolved.yaml")
+    ctx = setup.initialize(cfg)
 
-    # 3. Data Setup (Loaders, Stats)
-    loaders, meta_data = setup.data.prepare(cfg, ctx.local)
+    loaders, meta_data = setup.prepare_data(cfg, ctx)
+    model, state_dict = setup.build_model(ctx.spec, ctx.device, meta_data.norm_prm)
 
-    # 4. Model Setup (Architecture, Noise Models, State Dict)
-    model, state_dict = setup.model.build(cfg, ctx.device, meta_data.norm_prm)
-
-    # 5. Trainer Initialization
     trainer = get_trainer(
+        architecture=cfg.model.architecture,
         model=model,
         train_loader=loaders.train,
         val_loader=loaders.val,
         device=ctx.device,
-        # Config sections
-        training_prm=cfg.get("training", {}),
-        data_prm=cfg.get("data", {}),
-        saving_prm=ctx.saving_prm,
-        # Experiment context
-        exp_name=ctx.exp_name,
-        mode=ctx.mode,
-        is_lvae=cfg.get("experiment", {}).get("is_lvae", False),
-        # Objects
+        cfg = cfg,
+        run_dir=ctx.run_dir,
+        volumetric=ctx.volumetric,
         writer=ctx.writer,
-        state_dict=state_dict
+        state_dict=state_dict,
+        callbacks=ctx.callbacks,
+
+        # optional logging filters
+        console_filter=ctx.console_filter,
+        file_filter=ctx.file_filter,
     )
 
-    # 6. Execution
     try:
         trainer.train()
-    except Exception as e:
+    except Exception:
         ctx.logger.error("Training crashed", exc_info=True)
-        raise e
+        raise
     finally:
         if ctx.writer:
             ctx.writer.close()

@@ -1,110 +1,147 @@
-import torch
+# src/lisai/training/trainers/lvae.py
+
 import numpy as np
-from tqdm import tqdm
-from lisai.training.infra import tensorboard, validation_images
-from lisai.lib.hdn.forwardpass import forward_pass as lvae_forward_pass
-from lisai.lib.hdn.forwardpass import forward_pass_tiling as lvae_forward_pass_tiling
+import torch
+
 from .base import BaseTrainer
 
+try:
+    pass
+except Exception:
+    pass
+
 class LVAETrainer(BaseTrainer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.betaKL = self.training_prm.get("betaKL", 1.0)
-        self._init_tiling()
+    @property
+    def is_lvae(self) -> bool:
+        return True
 
-    def _init_tiling(self):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.betaKL = self.training_prm.get("betaKL", 1)
+
+        # tiling validation logic
         self.tiling_validation = False
-        if self.data_prm.get("val_patch_size") is not None:
-            if self.data_prm.get("val_patch_size") != self.data_prm.get("patch_size"):
-                self.tiling_validation = True
-                self.tiling_patch = self.data_prm.get("patch_size")
-                if self.data_prm.get("downsampling", {}).get("downsamp_factor"):
-                    self.tiling_patch //= self.data_prm.get("downsampling").get("downsamp_factor")
+        self.tiling_patch = None
 
-    def _run_lvae_pass(self, x, y, validation=False):
-        """Helper to handle tiling vs standard LVAE pass"""
-        if validation and self.tiling_validation:
-            outputs = lvae_forward_pass_tiling(
-                x, None, self.device, self.model,
-                patch_size=getattr(self, "tiling_patch", None)
-            )
-        else:
-            outputs = lvae_forward_pass(
-                x, y if not validation else None,
-                self.device, self.model
-            )
-        
-        recons = outputs["recons_loss"]
-        kl = outputs["kl_loss"]
-        total_loss = recons + self.betaKL * kl
-        return total_loss, kl, recons, outputs["out_mean"]
+        val_patch_size = self.data_prm.get("val_patch_size")
+        patch_size = self.data_prm.get("patch_size")
 
-    def train_epoch(self, epoch):
+        if val_patch_size is not None and patch_size is not None and val_patch_size != patch_size:
+            self.tiling_validation = True
+            self.tiling_patch = patch_size
+            downs = self.data_prm.get("downsampling", {}).get("downsamp_factor")
+            if downs is not None:
+                self.tiling_patch = self.tiling_patch // downs
+
+        # import lvae specific forward pass
+        from lisai.lib.hdn.forwardpass import forward_pass as lvae_forward_pass
+        from lisai.lib.hdn.forwardpass import forward_pass_tiling as lvae_forward_pass_tiling
+        self._lvae_forward_pass = lvae_forward_pass
+        self._lvae_forward_pass_tiling = lvae_forward_pass_tiling
+
+    def train_epoch(self, epoch: int) -> dict:
         self.model.train()
-        losses = {'loss': [], 'kl': [], 'recons': []}
-        
+        self.model.to(self.device)
+
+        losses = []
+        kl_losses = []
+        recons_losses = []
+
         iter_loader = self.train_loader
         if self.pbar:
-            iter_loader = tqdm(iter_loader, leave=False, position=0, desc=f'Train Ep {epoch}')
+            from tqdm import tqdm
+            iter_loader = tqdm(iter_loader, leave=False, position=0)
+            iter_loader.set_description(f"Training - Epoch {epoch}")
 
         for batch_id, batch in enumerate(iter_loader):
-            virtual_batches = batching.create_virtual_batches(batch, self.batch_size)
-            
-            for vb in zip(*virtual_batches):
-                x, y, samp_pos = self._prepare_batch(vb) # inherited from Base
-                
-                loss_val, kl, recons, _ = self._run_lvae_pass(x, y, validation=False)
-                
-                losses['loss'].append(loss_val.item())
-                losses['kl'].append(kl.item())
-                losses['recons'].append(recons.item())
+            if self.update_console:
+                self._update_console_new_batch(epoch,batch_id,len(iter_loader))
 
-                loss_val.backward()
-                self.optimizer.step()
-                self.optimizer.zero_grad()
-        
-        return {k: np.mean(v) for k, v in losses.items()}
+            virtual_batches = self._split_batch(batch, warn_once=(batch_id == 0))
 
-    def validate(self, epoch, save_imgs=False):
+            for (x, y, *samp_pos) in zip(*virtual_batches):
+                # LVAE ignores samp_pos in forward passes
+                x, y, _ = self._prepare_batch(x, y, None)
+
+                outputs = self._lvae_forward_pass(x, y, self.device, self.model, gaussian_noise_std=None)
+                recons_loss = outputs["recons_loss"]
+                kl_loss = outputs["kl_loss"]
+                loss = recons_loss + self.betaKL * kl_loss
+
+                loss.backward()
+
+                losses.append(loss.item())
+                kl_losses.append(kl_loss.item())
+                recons_losses.append(recons_loss.item())
+
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+
+            if self.early_stop is not False and batch_id > 0:
+                break
+
+        return {
+            "loss": float(np.mean(losses)),
+            "kl_loss": float(np.mean(kl_losses)),
+            "recons_loss": float(np.mean(recons_losses)),
+        }
+
+    def validate(self, epoch: int, save_imgs: bool = False) -> dict:
         self.model.eval()
-        losses = {'loss': [], 'kl': [], 'recons': []}
-        val_imgs = []
+        self.model.to(self.device)
 
-        iter_loader = self.val_loader
-        if self.pbar:
-            iter_loader = tqdm(iter_loader, leave=False, position=0, desc=f'Val Ep {epoch}')
+        losses = []
+        kl_losses = []
+        recons_losses = []
+
+        val_imgs = [] if save_imgs else None
 
         with torch.no_grad():
-            for batch in iter_loader:
-                virtual_batches = batching.create_virtual_batches(batch, self.batch_size)
-                
-                for vb in zip(*virtual_batches):
-                    x, y, samp_pos = self._prepare_batch(vb)
-                    loss_val, kl, recons, pred = self._run_lvae_pass(x, y, validation=True)
+            iter_val = self.val_loader
+            if self.pbar:
+                from tqdm import tqdm
+                iter_val = tqdm(iter_val, position=0, leave=False)
+                iter_val.set_description(f"Validation - Epoch {epoch}")
 
-                    losses['loss'].append(loss_val.item())
-                    losses['kl'].append(kl.item())
-                    losses['recons'].append(recons.item())
+            for batch in iter_val:
+                virtual_batches = self._split_batch(batch)
 
-                    if self.writer:
-                         tensorboard.log_images_to_tensorboard(self.writer, vb[0], vb[1], pred, epoch, self.volumetric)
+                for (x, y, *samp_pos) in zip(*virtual_batches):
+                    x, y, _ = self._prepare_batch(x, y, None)
+
+                    if self.tiling_validation:
+                        outputs = self._lvae_forward_pass_tiling(
+                            x, None, self.device, self.model, gaussian_noise_std=None, patch_size=self.tiling_patch
+                        )
+                    else:
+                        outputs = self._lvae_forward_pass(x, None, self.device, self.model, gaussian_noise_std=None)
+
+                    recons_loss = outputs["recons_loss"]
+                    kl_loss = outputs["kl_loss"]
+                    loss = recons_loss + self.betaKL * kl_loss
+                    prediction = outputs["out_mean"]
+
+                    losses.append(loss.item())
+                    kl_losses.append(kl_loss.item())
+                    recons_losses.append(recons_loss.item())
+
+                    for cb in self.callbacks:
+                        cb.on_validation_batch_end(self, epoch, x, y, prediction)
 
                     if save_imgs:
-                        val_imgs.append((vb[0], vb[1], pred))
+                        for i in range(x.shape[0]):
+                            if y is None:
+                                val_imgs.append((x[i], None, prediction[i]))
+                            else:
+                                val_imgs.append((x[i], y[i], prediction[i]))
 
         if save_imgs:
-             validation_images.save_validation_images(val_imgs, self.validation_images_folder, self.volumetric)
+            for cb in self.callbacks:
+                cb.on_validation_images_end(self, epoch, val_imgs)
 
-        return {k: np.mean(v) for k, v in losses.items()}
-
-    def log_headers(self):
-        return ["Train_loss", "Val_loss", "Recons", "KL"]
-
-    def log_values(self, train_metrics, val_metrics):
-        # Specific formatting for LVAE logs
-        return [
-            f"{train_metrics['loss']:.5f}", 
-            f"{val_metrics['loss']:.5f}",
-            f"{train_metrics['recons']:.5f}", 
-            f"{train_metrics['kl']:.5f}"
-        ]
+        return {
+            "loss": float(np.mean(losses)),
+            "kl_loss": float(np.mean(kl_losses)),
+            "recons_loss": float(np.mean(recons_losses)),
+        }

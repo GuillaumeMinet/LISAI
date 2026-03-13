@@ -1,0 +1,30 @@
+name: lisai-cuda
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch
+  - torchvision
+  - pytorch-cuda=12.1
+  - numpy
+  - scipy
+  - pyyaml
+  - pydantic>=2,<3
+  - tifffile
+  - tqdm
+  - tensorboard
+  - matplotlib
+  - scikit-image
+  - scikit-learn
+  - opencv
+  - h5py
+  - pillow
+  - pytest
+  - pip:
+      - pystackreg
+      # Optional, only if you run calibration code:
+      # - careamics

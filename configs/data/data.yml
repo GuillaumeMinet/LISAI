@@ -8,18 +8,20 @@
 # - supported data types
 # ============================================================
 
-data_formats:
+format:
   single:
-    raw: "*name*.hdf5"
-    recon: "*name*.tif"
+    raw: "{sample_id}.hdf5"
+    recon: "{sample_id}.tif"
 
   mltpl_snr:
-    raw: "*name*/*snrlvl*.hdf5"
-    recon: "*name*.tif"
+    # Logic: folder/file
+    raw: "{sample_id}/{snr_level}.hdf5"
+    recon: "{sample_id}.tif"
 
   timelapse:
-    raw: "*name*_t*number-of-timepoints*/*timepoint*.hdf5"
-    recon: "*name*_t*number-of-timepoints*.tif"
+    # Logic: "c13_t05/01.hdf5" for raw, "c13_t05.tif" for recon
+    raw: "{sample_id}_t{n_timepoints:02d}/{timepoint}.hdf5" 
+    recon: "{sample_id}_t{n_timepoints:02d}.tif"
 
 subfolders:
   dump: "dump"
@@ -27,12 +29,8 @@ subfolders:
   noise_models: "noise_models"
 
 data_types:
-  raw:
-    - ".hdf5"
-    - ".h5"
-  recon:
-    - ".tiff"
-    - ".tif"
+  raw: [".hdf5", ".h5"]
+  recon: [".tiff", ".tif"]
 
 logs:
   raw_preprocess: "raw_preprocess_log.txt"

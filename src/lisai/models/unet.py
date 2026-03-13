@@ -1,14 +1,16 @@
-import torch 
-import torch.nn as nn
-import math
-import warnings
-import os,sys
 import logging
 
-logger = logging.getLogger("UNet")
+import torch
+import torch.nn as nn
+from lisai.models.common import (
+    conv_block,
+    downsamp_block,
+    get_timestep_embedding,
+    swish,
+    upsamp_block,
+)
 
-sys.path.append(os.getcwd() + './')
-from lisai.models.common import swish,upsamp_block,downsamp_block,conv_block,get_timestep_embedding
+logger = logging.getLogger("UNet")
 
 
 class UNet_PosEncod(nn.Module):

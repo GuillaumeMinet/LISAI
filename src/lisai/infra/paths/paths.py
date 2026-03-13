@@ -1,0 +1,162 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from lisai.infra.config.settings import settings
+
+from .checkpoint_naming import model_filename
+
+
+@dataclass(frozen=True)
+class TemplateKeys:
+    dataset_registry: str = "dataset_registry"
+    dataset_loading: str = "dataset_loading"
+    run_dir: str = "run_dir"
+    tensorboard_runs_dir: str = "tensorboard_runs_dir"
+    predictreal_saving: str = "predictreal_saving"
+    noise_model: str = "noise_model"
+
+
+class Paths:
+    """ 
+    Paths provides the canonical API to resolve filesystem locations.
+
+    It formats path templates defined in project configuration using
+    runtime context (dataset, run, etc.) and centralizes all filesystem
+    structure logic to avoid hardcoded paths across the codebase.
+    """
+    def __init__(self, stg=settings, keys: TemplateKeys | None = None):
+        self.settings = stg
+        self.keys = keys or TemplateKeys()
+
+    # Canonical template paths
+    def dataset_registry_path(self) -> Path:
+        return self.settings.get_template_path(self.keys.dataset_registry)
+
+    def dataset_dir(self, *, dataset_name: str, data_subfolder: str = "") -> Path:
+        return self.settings.get_template_path(
+            self.keys.dataset_loading,
+            dataset_name=dataset_name,
+            data_subfolder=data_subfolder,
+        )
+
+    def run_dir(self, *, dataset_name: str, models_subfolder: str, exp_name: str) -> Path:
+        return self.settings.get_template_path(
+            self.keys.run_dir,
+            dataset_name=dataset_name,
+            models_subfolder=models_subfolder,
+            exp_name=exp_name,
+        )
+
+    def tensorboard_dir(self, *, dataset_name: str, tensorboard_subfolder: str = "") -> Path:
+        return self.settings.get_template_path(
+            self.keys.tensorboard_runs_dir,
+            dataset_name=dataset_name,
+            tensorboard_subfolder=tensorboard_subfolder,
+        )
+
+    def inference_dir(self, *, dataset_name: str, inference_subfolder: str, exp_name: str) -> Path:
+        return self.settings.get_template_path(
+            self.keys.predictreal_saving,
+            dataset_name=dataset_name,
+            inference_subfolder=inference_subfolder,
+            exp_name=exp_name,
+        )
+
+    def noise_model_path(self, *, noiseModel_name: str) -> Path:
+        return self.settings.get_template_path(
+            self.keys.noise_model,
+            noiseModel_name=noiseModel_name,
+        )
+
+    # Run layout subdirectories
+    def _subdir(self, run_dir: str | Path, key: str, default: str) -> Path:
+        subdirs = self.settings.project.run_layout.subdirs
+        name = subdirs.get(key, default)
+        return Path(run_dir) / name
+
+    def checkpoints_dir(self, *, run_dir: str | Path) -> Path:
+        return self._subdir(run_dir, "checkpoints", "checkpoints")
+
+    def validation_images_dir(self, *, run_dir: str | Path) -> Path:
+        return self._subdir(run_dir, "validation_images", "validation_images")
+
+    def retrain_origin_dir(self, *, run_dir: str | Path) -> Path:
+        return self._subdir(run_dir, "retrain_origin", "retrain_origin")
+
+    # Run layout artifact files
+    def _artifact(self, run_dir: str | Path, key: str, default: str) -> Path:
+        artifacts = self.settings.project.run_layout.artifacts
+        name = artifacts.get(key, default)
+        return Path(run_dir) / name
+
+    def loss_file_path(self, *, run_dir: str | Path) -> Path:
+        return self._artifact(run_dir, "loss_file", "loss.txt")
+
+    def log_file_path(self, *, run_dir: str | Path) -> Path:
+        return self._artifact(run_dir, "train_log", "train_log.log")
+
+    def cfg_train_path(self, *, run_dir: str | Path) -> Path:
+        return self._artifact(run_dir, "config_train", "config_train.yaml")
+
+    # retrain origin artifacts
+    def _origin_artifact(self, run_dir: str | Path, key: str, default: str) -> Path:
+        artifacts = self.settings.project.run_layout.retrain_origin_artifacts
+        name = artifacts.get(key, default)
+        return self.retrain_origin_dir(run_dir=run_dir) / name
+
+    def retrain_origin_loss_path(self, *, run_dir: str | Path) -> Path:
+        return self._origin_artifact(run_dir, "loss_file", "origin_loss.txt")
+
+    def retrain_origin_log_path(self, *, run_dir: str | Path) -> Path:
+        return self._origin_artifact(run_dir, "train_log", "origin_log.log")
+
+    def retrain_origin_cfg_path(self, *, run_dir: str | Path) -> Path:
+        return self._origin_artifact(run_dir, "config_train", "origin_config.yaml")
+
+    # preprocess paths
+    def dataset_dump_dir(self, *, dataset_name: str, data_type: str = "", additional_subfolder:str =""):
+        """ dataset_dir / dump"""
+        ds_path = self.dataset_dir(dataset_name=dataset_name)
+        dump_subfolder = self.settings.data.subfolders.get("dump","dump")
+        return ds_path / dump_subfolder / data_type / additional_subfolder
+
+    def dataset_preprocess_dir(self, *, dataset_name: str, data_type: str = ""):
+        """ dataset_dir / preprocess """
+        ds_path = self.dataset_dir(dataset_name=dataset_name)
+        preprocess_subfolder = self.settings.data.subfolders.get("preprocess","preprocess")
+        return ds_path / preprocess_subfolder / data_type
+    
+    def preprocessed_image_full_path(self, *, dataset_name:str, fmt:str,data_type:str = "",
+                                     additional_subfolder:str="",**kwargs):
+        """ 
+        dataset_dir / preprocess / subfolder / filename
+        e.g. : <data_root>/preprocess/gt_avg/c05.tif
+        """
+        base_dir = self.dataset_preprocess_dir(dataset_name=dataset_name, data_type=data_type)
+        filename =  self.settings.get_data_filename(fmt=fmt,data_type=data_type,**kwargs)
+        return base_dir / additional_subfolder / filename
+    
+    # Checkpoint path helper
+    def checkpoint_path(
+        self,
+        *,
+        run_dir: str | Path,
+        load_method: str | None = None,
+        best_or_last: str | None = None,
+        train_mode: str | None = None,
+        epoch_number: int | None = None,
+        model_name: str | None = None,
+    ) -> Path:
+        run_dir = Path(run_dir)
+        if not model_name:
+            if not load_method:
+                raise ValueError("checkpoint_path requires load_method when model_name is not provided.")
+            model_name = model_filename(
+                load_method=load_method,
+                best_or_last=best_or_last,
+                train_mode=train_mode,
+                epoch_number=epoch_number,
+            )
+        return self.checkpoints_dir(run_dir=run_dir) / model_name

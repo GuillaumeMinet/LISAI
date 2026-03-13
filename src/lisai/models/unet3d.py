@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
-import math
-import warnings
-import os, sys
 
-sys.path.append(os.getcwd() + './')
-from lisai.models.common import swish,upsamp_block_3d,downsamp_block_3d,conv_block_3d,get_timestep_embedding
+from lisai.models.common import (
+    conv_block_3d,
+    downsamp_block_3d,
+    get_timestep_embedding,
+    swish,
+    upsamp_block_3d,
+)
 
 
 class UNet_PosEncod(nn.Module):

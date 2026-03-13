@@ -1,40 +1,55 @@
-from types import SimpleNamespace
-from lisai.lib.utils import get_paths
-from lisai.data.data_prep.make_loaders import make_training_loaders
+from __future__ import annotations
 
-def prepare(cfg, local):
+import logging
+from types import SimpleNamespace
+from typing import TYPE_CHECKING
+
+from lisai.data.data_prep import make_training_loaders
+from lisai.infra.config import load_yaml
+
+if TYPE_CHECKING:
+    from lisai.infra.config.schema import ResolvedExperiment
+
+    from .context import TrainingContext
+
+logger = logging.getLogger("lisai.prepare_data")
+
+def prepare_data(cfg: ResolvedExperiment, ctx: TrainingContext):
     """
     Resolves data paths, handles volumetric logic, creates loaders.
+    cfg is ResolvedExperiment (Pydantic).
     """
-    data_prm = cfg.get("data", {})
-    norm_prm = cfg.get("normalization", {}).get("norm_prm")
+    # normalization params
+    norm_prm = (cfg.normalization or {}).get("norm_prm")
 
-    # 1. Dynamic Logic: Handle Volumetric Flag
-    # If unet3d is selected, force volumetric data loading
-    if cfg.get("model", {}).get("architecture") == "unet3d":
-        data_prm["volumetric"] = True
-    else:
-        data_prm["volumetric"] = False
+    # resolve path using routing
+    data_dir = ctx.paths.dataset_dir(
+        dataset_name=cfg.data.dataset_name,
+        data_subfolder=cfg.routing.data_subfolder,
+    )
+
+    # get dataset info from registry
+    registry = {}
+    try:
+        registry = load_yaml(ctx.paths.dataset_registry_path())
+    except FileNotFoundError:
+        logger.warning("Dataset registry not found")
     
-    # Update config in place so Trainer sees the correct flag later
-    cfg["data"]["volumetric"] = data_prm["volumetric"]
+    dataset_info = registry.get(cfg.data.dataset_name,None)
 
-    # 2. Resolve Path
-    data_dir = get_paths.get_dataset_path(local=local, **data_prm)
-
-    # 3. Create Loaders
-    train_loader, val_loader, model_norm_prm, patch_info = make_training_loaders(
+    # create loaders
+    data_cfg = cfg.data.resolved(
         data_dir=data_dir,
         norm_prm=norm_prm,
-        **data_prm
+        dataset_info=dataset_info,
+        volumetric=ctx.volumetric,
     )
 
-    # Return grouped results
-    loaders = SimpleNamespace(train=train_loader, val=val_loader)
-    
-    meta = SimpleNamespace(
-        norm_prm=model_norm_prm,
-        patch_info=patch_info
+    train_loader, val_loader, model_norm_prm, patch_info = make_training_loaders(
+        config=data_cfg,
     )
-    
+
+    loaders = SimpleNamespace(train=train_loader, val=val_loader)
+    meta = SimpleNamespace(norm_prm=model_norm_prm, patch_info=patch_info)
+
     return loaders, meta

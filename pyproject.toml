@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lisai"
+version = "0.1.0"
+description = "LISAI training and data processing package"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "scipy",
+  "torch",
+  "torchvision",
+  "PyYAML",
+  "pydantic>=2,<3",
+  "tifffile",
+  "tqdm",
+]
+
+[project.optional-dependencies]
+train = [
+  "tensorboard",
+  "h5py",
+]
+full = [
+  "tensorboard",
+  "h5py",
+  "matplotlib",
+  "scikit-image",
+  "scikit-learn",
+  "opencv-python",
+  "pillow",
+  "pystackreg",
+]
+dev = [
+  "pytest",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lisai*"]
+
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = [
+  "graphs",
+  ".git",
+  ".venv",
+  "build",
+  "dist",
+]
+
+[tool.ruff.lint]
+# Minimal, high-signal rules:
+# E4/E7/E9 = serious pycodestyle errors
+# F = pyflakes (undefined names, unused imports, etc.)
+# I = import sorting
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# Keep package exports easy during refactor
+"__init__.py" = ["F401"]

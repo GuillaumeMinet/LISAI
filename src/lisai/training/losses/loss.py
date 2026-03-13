@@ -2,13 +2,14 @@
 Custom loss functions
 """
 
+import logging
+
 import numpy as np
 import torch
 import torch.nn as nn
-from torchvision import transforms
-from torch.nn.modules import Module
 from torch import Tensor
-import logging
+from torch.nn.modules import Module
+from torchvision import transforms
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
