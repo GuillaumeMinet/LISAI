@@ -25,7 +25,7 @@ load_yaml = yaml_mod.load_yaml
 
 DATA_YAML = Path("configs/data/data.yml")
 TEMPLATE_VALUES = {
-    "name": "sample_name",
+    "sample_id": "sample_name",
     "snr_level": "snr_10",
     "n_timepoints": 5,
     "timepoint": "01",
