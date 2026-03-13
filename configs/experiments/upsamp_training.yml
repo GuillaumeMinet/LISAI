@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schema/experiment.schema.json
 # ========================================================
 # General experiment settings
 # ========================================================

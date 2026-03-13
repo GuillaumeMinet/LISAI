@@ -1,0 +1,673 @@
+{
+  "$defs": {
+    "ExperimentDataSection": {
+      "additionalProperties": true,
+      "properties": {
+        "dataset_name": {
+          "default": "unknown_dataset",
+          "title": "Dataset Name",
+          "type": "string"
+        },
+        "canonical_load": {
+          "default": true,
+          "title": "Canonical Load",
+          "type": "boolean"
+        },
+        "prep_before": {
+          "default": true,
+          "title": "Prep Before",
+          "type": "boolean"
+        },
+        "already_split": {
+          "default": true,
+          "title": "Already Split",
+          "type": "boolean"
+        },
+        "paired": {
+          "default": false,
+          "title": "Paired",
+          "type": "boolean"
+        },
+        "input": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "inp": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inp"
+        },
+        "gt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gt"
+        },
+        "data_format": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Data Format"
+        },
+        "filters": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Filters",
+          "type": "array"
+        },
+        "batch_size": {
+          "default": 1,
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "patch_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Patch Size"
+        },
+        "val_patch_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Val Patch Size"
+        },
+        "patch_thresh": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Patch Thresh"
+        },
+        "select_on_gt": {
+          "default": false,
+          "title": "Select On Gt",
+          "type": "boolean"
+        },
+        "augmentation": {
+          "default": false,
+          "title": "Augmentation",
+          "type": "boolean"
+        },
+        "initial_crop": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Initial Crop"
+        },
+        "mltpl_noise": {
+          "default": false,
+          "title": "Mltpl Noise",
+          "type": "boolean"
+        },
+        "masking": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Masking"
+        },
+        "downsampling": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Downsampling"
+        },
+        "artificial_movement": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artificial Movement"
+        },
+        "inp_transform": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inp Transform"
+        },
+        "gt_transform": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gt Transform"
+        },
+        "timelapse_prm": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timelapse Prm"
+        },
+        "mltpl_snr_prm": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mltpl Snr Prm"
+        },
+        "norm_prm": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Norm Prm"
+        },
+        "model_norm_prm": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Norm Prm"
+        },
+        "avgObs_per_noise": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Avgobs Per Noise"
+        },
+        "stdObs_per_noise": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stdobs Per Noise"
+        }
+      },
+      "title": "ExperimentDataSection",
+      "type": "object"
+    },
+    "ExperimentLoadModelSection": {
+      "additionalProperties": true,
+      "properties": {
+        "canonical_load": {
+          "default": true,
+          "title": "Canonical Load",
+          "type": "boolean"
+        },
+        "dataset_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dataset Name"
+        },
+        "subfolder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subfolder"
+        },
+        "exp_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exp Name"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "model_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Name"
+        },
+        "model_full_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Full Path"
+        },
+        "load_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "state_dict",
+                "full_model"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Load Method"
+        },
+        "best_or_last": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Or Last"
+        },
+        "epoch_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epoch Number"
+        }
+      },
+      "title": "ExperimentLoadModelSection",
+      "type": "object"
+    },
+    "ExperimentSection": {
+      "additionalProperties": true,
+      "properties": {
+        "mode": {
+          "default": "train",
+          "enum": [
+            "train",
+            "continue_training",
+            "retrain"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "exp_name": {
+          "default": "unnamed_experiment",
+          "title": "Exp Name",
+          "type": "string"
+        },
+        "overwrite": {
+          "default": false,
+          "title": "Overwrite",
+          "type": "boolean"
+        }
+      },
+      "title": "ExperimentSection",
+      "type": "object"
+    },
+    "ModelSection": {
+      "additionalProperties": true,
+      "properties": {
+        "architecture": {
+          "default": "",
+          "title": "Architecture",
+          "type": "string"
+        },
+        "parameters": {
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "title": "ModelSection",
+      "type": "object"
+    },
+    "NoiseModelSection": {
+      "additionalProperties": true,
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        }
+      },
+      "title": "NoiseModelSection",
+      "type": "object"
+    },
+    "RoutingSection": {
+      "additionalProperties": true,
+      "properties": {
+        "data_subfolder": {
+          "default": "",
+          "title": "Data Subfolder",
+          "type": "string"
+        },
+        "models_subfolder": {
+          "default": "",
+          "title": "Models Subfolder",
+          "type": "string"
+        },
+        "tensorboard_subfolder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tensorboard Subfolder"
+        },
+        "inference_subfolder": {
+          "default": "",
+          "title": "Inference Subfolder",
+          "type": "string"
+        }
+      },
+      "title": "RoutingSection",
+      "type": "object"
+    },
+    "SavingSection": {
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "canonical_save": {
+          "default": true,
+          "title": "Canonical Save",
+          "type": "boolean"
+        },
+        "validation_images": {
+          "default": true,
+          "title": "Validation Images",
+          "type": "boolean"
+        },
+        "validation_freq": {
+          "default": 10,
+          "title": "Validation Freq",
+          "type": "integer"
+        }
+      },
+      "title": "SavingSection",
+      "type": "object"
+    },
+    "TensorboardSection": {
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "TensorboardSection",
+      "type": "object"
+    },
+    "TrainingSection": {
+      "additionalProperties": true,
+      "properties": {
+        "n_epochs": {
+          "default": 1,
+          "title": "N Epochs",
+          "type": "integer"
+        },
+        "batch_size": {
+          "default": 1,
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "learning_rate": {
+          "default": 0.0001,
+          "title": "Learning Rate",
+          "type": "number"
+        },
+        "optimizer": {
+          "default": "Adam",
+          "title": "Optimizer",
+          "type": "string"
+        },
+        "scheduler": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scheduler"
+        },
+        "progress_bar": {
+          "default": false,
+          "title": "Progress Bar",
+          "type": "boolean"
+        },
+        "early_stop": {
+          "default": false,
+          "title": "Early Stop",
+          "type": "boolean"
+        },
+        "pos_encod": {
+          "default": false,
+          "title": "Pos Encod",
+          "type": "boolean"
+        }
+      },
+      "title": "TrainingSection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "User-authored experiment YAML schema.",
+  "properties": {
+    "experiment": {
+      "$ref": "#/$defs/ExperimentSection"
+    },
+    "routing": {
+      "$ref": "#/$defs/RoutingSection"
+    },
+    "data": {
+      "$ref": "#/$defs/ExperimentDataSection"
+    },
+    "model": {
+      "$ref": "#/$defs/ModelSection"
+    },
+    "training": {
+      "$ref": "#/$defs/TrainingSection"
+    },
+    "normalization": {
+      "title": "Normalization",
+      "type": "object"
+    },
+    "loss_function": {
+      "title": "Loss Function",
+      "type": "object"
+    },
+    "noise_model": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NoiseModelSection"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Noise Model"
+    },
+    "saving": {
+      "$ref": "#/$defs/SavingSection"
+    },
+    "tensorboard": {
+      "$ref": "#/$defs/TensorboardSection"
+    },
+    "load_model": {
+      "$ref": "#/$defs/ExperimentLoadModelSection"
+    }
+  },
+  "title": "ExperimentConfig",
+  "type": "object"
+}

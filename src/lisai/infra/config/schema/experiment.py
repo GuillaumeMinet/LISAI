@@ -15,6 +15,9 @@ class ExperimentSection(BaseModel):
     mode: Mode = "train"
     exp_name: str = "unnamed_experiment"
     overwrite: bool = False
+
+
+class ResolvedExperimentSection(ExperimentSection):
     origin_run_dir: Optional[str] = None
 
 
@@ -32,8 +35,8 @@ class RoutingSection(BaseModel):
         return self
 
 
-class DataSection(BaseModel):
-    model_config = ConfigDict(extra="allow")
+class ExperimentDataSection(BaseModel):
+    model_config = ConfigDict(extra="allow", protected_namespaces=())
 
     dataset_name: str = "unknown_dataset"
     canonical_load: bool = True
@@ -78,11 +81,6 @@ class DataSection(BaseModel):
     avgObs_per_noise: Optional[list[float]] = None
     stdObs_per_noise: Optional[list[float]] = None
 
-    # Runtime flag propagated from system setup
-    volumetric: bool = False
-    data_dir: Optional[Path] = Field(default=None, exclude=True)
-    dataset_info: Optional[Dict[str, Any]] = Field(default=None, exclude=True)
-
     @model_validator(mode="after")
     def _normalize_aliases(self):
         if self.target is None and self.gt is not None:
@@ -101,8 +99,9 @@ class DataSection(BaseModel):
 
     @property
     def resolved_data_format(self) -> str:
-        if self.dataset_info is not None and self.dataset_info.get("data_format") is not None:
-            return self.dataset_info["data_format"]
+        dataset_info = getattr(self, "dataset_info", None)
+        if dataset_info is not None and dataset_info.get("data_format") is not None:
+            return dataset_info["data_format"]
         if self.data_format is not None:
             return self.data_format
         warnings.warn("Data format not specified, put to 'single' by default.")
@@ -118,12 +117,6 @@ class DataSection(BaseModel):
         split: Optional[str] = None,
         volumetric: Optional[bool] = None,
     ) -> "DataSection":
-        """
-        Return a resolved copy for data loading, with runtime fields injected.
-        # """
-        # if not self.input:
-        #     raise ValueError("`data.input` must be provided for data loading.")
-
         updates: Dict[str, Any] = {"data_dir": Path(data_dir)}
         if dataset_info is not None:
             updates["dataset_info"] = dict(dataset_info)
@@ -136,7 +129,13 @@ class DataSection(BaseModel):
         if volumetric is not None:
             updates["volumetric"] = volumetric
 
-        return self.model_copy(update=updates, deep=True)
+        return DataSection.model_validate(self.model_dump(exclude_none=False) | updates)
+
+
+class DataSection(ExperimentDataSection):
+    volumetric: bool = False
+    data_dir: Optional[Path] = Field(default=None, exclude=True)
+    dataset_info: Optional[Dict[str, Any]] = Field(default=None, exclude=True)
 
 
 class ModelSection(BaseModel):
@@ -170,6 +169,25 @@ class TensorboardSection(BaseModel):
     enabled: bool = False
 
 
+class NoiseModelSection(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    name: Optional[str] = None
+
+
+class ExperimentLoadModelSection(BaseModel):
+    model_config = ConfigDict(extra="allow", protected_namespaces=())
+    canonical_load: bool = True
+    dataset_name: Optional[str] = None
+    subfolder: Optional[str] = None
+    exp_name: Optional[str] = None
+    name: Optional[str] = None
+    model_name: Optional[str] = None
+    model_full_path: Optional[str] = None
+    load_method: Optional[CheckpointMethod] = None
+    best_or_last: Optional[str] = None
+    epoch_number: Optional[int] = None
+
+
 class LoadCheckpoint(BaseModel):
     model_config = ConfigDict(extra="allow")
     method: Optional[CheckpointMethod] = None
@@ -186,20 +204,40 @@ class LoadModelSection(BaseModel):
     checkpoint: LoadCheckpoint = Field(default_factory=LoadCheckpoint)
 
 
-class ResolvedExperiment(BaseModel):
+class ExperimentConfig(BaseModel):
     """
-    This is what resolve_config returns.
-    It is intentionally permissive (extra=allow) on sections that evolve.
+    User-authored experiment YAML schema.
     """
     model_config = ConfigDict(extra="allow")
 
     experiment: ExperimentSection = Field(default_factory=ExperimentSection)
+    routing: RoutingSection = Field(default_factory=RoutingSection)
+    data: ExperimentDataSection = Field(default_factory=ExperimentDataSection)
+    model: ModelSection = Field(default_factory=ModelSection)
+    training: TrainingSection = Field(default_factory=TrainingSection)
+    normalization: Dict[str, Any] = Field(default_factory=dict)
+    loss_function: Dict[str, Any] = Field(default_factory=dict)
+    noise_model: NoiseModelSection | str | None = None
+
+    saving: SavingSection = Field(default_factory=SavingSection)
+    tensorboard: TensorboardSection = Field(default_factory=TensorboardSection)
+    load_model: ExperimentLoadModelSection = Field(default_factory=ExperimentLoadModelSection)
+
+
+class ResolvedExperiment(BaseModel):
+    """
+    Runtime config after merge + normalization.
+    """
+    model_config = ConfigDict(extra="allow")
+
+    experiment: ResolvedExperimentSection = Field(default_factory=ResolvedExperimentSection)
     routing: RoutingSection = Field(default_factory=RoutingSection)
     data: DataSection = Field(default_factory=DataSection)
     model: ModelSection = Field(default_factory=ModelSection)
     training: TrainingSection = Field(default_factory=TrainingSection)
     normalization: Dict[str, Any] = Field(default_factory=dict)
     loss_function: Dict[str, Any] = Field(default_factory=dict)
+    noise_model: NoiseModelSection | str | None = None
 
     saving: SavingSection = Field(default_factory=SavingSection)
     tensorboard: TensorboardSection = Field(default_factory=TensorboardSection)

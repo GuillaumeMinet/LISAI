@@ -6,7 +6,7 @@ from pathlib import Path
 from lisai.infra.paths import Paths
 
 from .merge import deep_merge
-from .schema import ResolvedExperiment
+from .schema import ExperimentConfig, ResolvedExperiment
 from .settings import settings
 from .yaml import load_yaml
 
@@ -49,21 +49,30 @@ def _normalize_load_model(mode: str, cfg: dict, paths: Paths) -> dict:
         raw = {}
     else:
         raw = cfg.get("load_model") or {}
-        enabled = bool(raw)
+        enabled = bool(raw.get("enabled", raw))
+
+    checkpoint = raw.get("checkpoint") or {}
 
     out = {
         "enabled": enabled,
-        "source": None,
-        "run_dir": None,
+        "source": raw.get("source"),
+        "run_dir": raw.get("run_dir"),
         "checkpoint": {
-            "method": raw.get("load_method", raw.get("method")),
-            "selector": raw.get("best_or_last", raw.get("selector")),
-            "epoch": raw.get("epoch_number", raw.get("epoch")),
-            "filename": raw.get("model_name", raw.get("filename")),
+            "method": raw.get("load_method", raw.get("method", checkpoint.get("method"))),
+            "selector": raw.get("best_or_last", raw.get("selector", checkpoint.get("selector"))),
+            "epoch": raw.get("epoch_number", raw.get("epoch", checkpoint.get("epoch"))),
+            "filename": raw.get("model_name", raw.get("filename", checkpoint.get("filename"))),
         },
     }
 
     if not enabled:
+        cfg["load_model"] = out
+        return out
+
+    if out["run_dir"]:
+        out["run_dir"] = str(Path(out["run_dir"]).resolve())
+        if out["source"] is None:
+            out["source"] = "path"
         cfg["load_model"] = out
         return out
 
@@ -130,6 +139,7 @@ def resolve_config(
     project_cfg = load_yaml(project_cfg_path)
     data_cfg = load_yaml(data_cfg_path)
     exp_cfg = load_yaml(experiment_cfg_path)
+    ExperimentConfig.model_validate(exp_cfg)
 
     cfg = deep_merge(project_cfg, data_cfg)
     cfg = deep_merge(cfg, exp_cfg)
