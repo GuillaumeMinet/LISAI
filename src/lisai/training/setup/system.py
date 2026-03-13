@@ -53,6 +53,9 @@ def initialize(cfg: ResolvedExperiment) -> TrainingContext:
         level=logging.INFO,
         log_file=log_file,
         use_tqdm=use_tqdm,
+        file_format="%(asctime)s %(message)s",
+        file_datefmt="%Y-%m-%d %H:%M:%S",
+        file_enabled=False,
     )
 
     ctx.logger = logger

@@ -1,4 +1,5 @@
 import logging
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -28,6 +29,7 @@ class BaseTrainer(ABC):
         writer=None,
         state_dict=None,
         callbacks=None,
+        patch_info=None,
         console_filter=None,
         file_filter=None,
     ):
@@ -38,7 +40,6 @@ class BaseTrainer(ABC):
 
         self.cfg = cfg
         self.mode = cfg.experiment.mode
-        self.exp_name = cfg.experiment.exp_name
         self.volumetric = volumetric
 
         self.training_prm = cfg.training.model_dump()
@@ -47,11 +48,14 @@ class BaseTrainer(ABC):
         self.tensorboard_prm = cfg.tensorboard.model_dump()
 
         self.run_dir = Path(run_dir) if run_dir is not None else None
+        self.exp_name = self.run_dir.name if self.run_dir is not None else cfg.experiment.exp_name
         self.writer = writer
 
         self.callbacks = callbacks or []
+        self.patch_info = patch_info or self.data_prm.get("patch_info")
         self.console_filter = console_filter
         self.file_filter = file_filter
+        self._training_log_initialized = False
         
         # training parameters
         self.batch_size = self.training_prm.get("batch_size")
@@ -213,6 +217,7 @@ class BaseTrainer(ABC):
     def train(self):
         last_completed_epoch = int(self.state_dict.get("epoch", -1))
         start_epoch = max(last_completed_epoch + 1, 0)
+        self._initialize_log_file()
         
         if start_epoch >= self.n_epochs:
             self.logger.info(
@@ -221,6 +226,8 @@ class BaseTrainer(ABC):
             return
 
         best_loss = self.state_dict.get("best_loss", float("inf"))
+        last_train_loss = self.state_dict.get("train_loss")
+        last_val_loss = self.state_dict.get("val_loss")
         iter_epoch = range(start_epoch, self.n_epochs)
         if self.pbar:
             iter_epoch = tqdm(iter_epoch, position=1, total=self.n_epochs, initial=start_epoch)
@@ -230,6 +237,8 @@ class BaseTrainer(ABC):
 
         for epoch in iter_epoch:
             try:
+                train_loss = None
+                val_loss = None
                 save_val_imgs = bool(self.saving_prm.get("validation_images", False)) and (
                     epoch % int(self.saving_prm.get("validation_freq", 10)) == 0
                 )
@@ -239,6 +248,8 @@ class BaseTrainer(ABC):
 
                 train_loss = train_metrics["loss"]
                 val_loss = val_metrics["loss"]
+                last_train_loss = train_loss
+                last_val_loss = val_loss
 
                 self.state_dict.update(
                     {
@@ -291,15 +302,15 @@ class BaseTrainer(ABC):
                     break
 
             except KeyboardInterrupt:
-                self.logger.info(f"Training manually stopped during epoch {epoch}.")
+                self._log_keyboard_interrupt(epoch, best_loss, last_train_loss, last_val_loss)
                 return
             except Exception as e:
-                self.logger.error(f"Training stopped during epoch {epoch} because of error: {type(e)} {e}")
+                self.logger.error(
+                    f"Training stopped during epoch {epoch}, because of error:\n{type(e)}\n{e}\n"
+                )
                 raise
 
-        self.logger.info(
-            f"Finished training: {epoch+1}/{self.n_epochs} epochs. best_val_loss: {best_loss} current_val_loss: {val_loss}"
-        )
+        self._log_training_finished(epoch, best_loss, last_val_loss)
 
     
     # update console helper
@@ -310,6 +321,107 @@ class BaseTrainer(ABC):
         self.logger.info(f"epochs: {epoch}/{self.n_epochs}, batch_id: {batch_id}/{total_batches}")
         if self.file_filter is not None:
             self.file_filter.enable = True
+
+    def _initialize_log_file(self):
+        if self._training_log_initialized:
+            return
+
+        self._training_log_initialized = True
+        if self.file_filter is not None:
+            self.file_filter.enable = True
+
+        header = self._build_training_log_header()
+        if not header:
+            return
+
+        console_enabled = None
+        if self.console_filter is not None:
+            console_enabled = self.console_filter.enable
+            self.console_filter.enable = False
+
+        try:
+            self.logger.info(header)
+        finally:
+            if self.console_filter is not None and console_enabled is not None:
+                self.console_filter.enable = console_enabled
+
+    def _build_training_log_header(self) -> str:
+        if self.run_dir is None:
+            return ""
+
+        computer = os.environ.get("COMPUTERNAME", "Unknown")
+        gpu = self._device_name()
+        patch_txt = self._patch_info_text()
+
+        if self.mode == "train":
+            return (
+                f"\nExperiment name: {self.exp_name}\n"
+                f"Computer: {computer}\n"
+                f"Running on: {gpu}\n\n"
+                f"{patch_txt}"
+            )
+
+        if self.mode == "retrain":
+            return (
+                f"\nExperiment name: {self.exp_name}\n"
+                f"Computer: {computer}\n"
+                f"Running on: {gpu}\n\n"
+                "Retrain mode - starting from previously trained model.\n"
+                "Check cfg file and 'retrain_origin_model' folder for details. \n\n"
+                f"{patch_txt}"
+            )
+
+        if self.mode == "continue_training":
+            return f"Continue training  mode. Computer: {computer}, with {gpu}.\n"
+
+        return ""
+
+    def _patch_info_text(self) -> str:
+        if not self.patch_info:
+            return ""
+
+        train_patch = self.patch_info.get("train_patch")
+        val_patch = self.patch_info.get("val_patch")
+        if train_patch is None or val_patch is None:
+            return ""
+
+        return (
+            f"Training patches: {train_patch}.\n"
+            f"Validation patches {val_patch}.\n\n"
+        )
+
+    def _device_name(self) -> str:
+        if getattr(self.device, "type", None) != "cuda":
+            return "CPU"
+
+        try:
+            device_index = self.device.index if self.device.index is not None else torch.cuda.current_device()
+            return torch.cuda.get_device_name(device_index)
+        except Exception:
+            return "CPU"
+
+    def _log_keyboard_interrupt(self, epoch: int, best_loss: float, train_loss, val_loss):
+        if train_loss is None or val_loss is None:
+            self.logger.info(f"Training manually stopped during epoch {epoch}.")
+            return
+
+        self.logger.info(
+            f"Training manually stopped during epoch {epoch}.\n"
+            f"Model perf: best_val_loss: {best_loss} - "
+            f"current_train_loss: {train_loss} - "
+            f"current_val_loss: {val_loss}.\n"
+        )
+
+    def _log_training_finished(self, epoch: int, best_loss: float, val_loss):
+        if val_loss is None:
+            self.logger.info(f"Finished training: {epoch+1}/{self.n_epochs} epochs.")
+            return
+
+        self.logger.info(
+            f"Finished training: {epoch+1}/{self.n_epochs} epochs.\n"
+            f"Model perf: best_val_loss: {best_loss} - "
+            f"current_val_loss: {val_loss}.\n"
+        )
 
     # must be implemented in children
     @abstractmethod

@@ -15,6 +15,10 @@ def setup_logger(
     level: int = logging.INFO,
     log_file: Path | None = None,
     use_tqdm: bool = True,
+    file_format: str = "%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+    file_datefmt: str | None = None,
+    file_mode: str = "a",
+    file_enabled: bool = True,
 ):
     """
     Creates/overwrites a logger with:
@@ -33,7 +37,7 @@ def setup_logger(
         logger.removeHandler(h)
 
     console_filter = EnableFilter(True)
-    file_filter = EnableFilter(True)
+    file_filter = EnableFilter(file_enabled)
 
     # Console handler
     ch = CustomStreamHandler(use_tqdm=use_tqdm)
@@ -56,8 +60,8 @@ def setup_logger(
         log_file = Path(log_file)
         log_file.parent.mkdir(parents=True, exist_ok=True)
 
-        fh = logging.FileHandler(str(log_file))
-        fh.setFormatter(logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s"))
+        fh = logging.FileHandler(str(log_file), mode=file_mode)
+        fh.setFormatter(logging.Formatter(file_format, file_datefmt))
         fh.addFilter(file_filter)
         fh.setLevel(level)
         logger.addHandler(fh)

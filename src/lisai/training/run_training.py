@@ -23,6 +23,7 @@ def run_training(config_path):
         writer=ctx.writer,
         state_dict=state_dict,
         callbacks=ctx.callbacks,
+        patch_info=meta_data.patch_info,
 
         # optional logging filters
         console_filter=ctx.console_filter,
