@@ -120,9 +120,9 @@ class DataSection(BaseModel):
     ) -> "DataSection":
         """
         Return a resolved copy for data loading, with runtime fields injected.
-        """
-        if not self.input:
-            raise ValueError("`data.input` must be provided for data loading.")
+        # """
+        # if not self.input:
+        #     raise ValueError("`data.input` must be provided for data loading.")
 
         updates: Dict[str, Any] = {"data_dir": Path(data_dir)}
         if dataset_info is not None:

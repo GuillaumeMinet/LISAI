@@ -30,7 +30,6 @@ def load_full_datasets(
     Loads all datasets: train and validation if arg:`for_training` is True,
     only the test dataset otherwise.
     """
-
     data_dir = config.data_dir
     input_name = config.input
     target_name = config.target
@@ -340,7 +339,6 @@ def load_image(
 
     elif data_format == "timelapse":
         assert len(inp_img.shape) == 3
-
         prm = config.timelapse_prm
         if prm is None:
             return inp_img, gt_img
@@ -355,9 +353,9 @@ def load_image(
                     inp_img = inp_img[idx]
                 inp_img = inp_img[:nFrames]
 
-            if prm.get("context_length", None) is None:
-                inp_img = np.expand_dims(inp_img, axis=1)  # [time,1,h,w] => considered as [snr,1,h,w]
-                return inp_img, None
+        if prm.get("context_length", None) is None or prm.get("context_length", None) == "None":
+            inp_img = np.expand_dims(inp_img, axis=1)  # [time,1,h,w] => considered as [snr,1,h,w]
+            return inp_img, None
 
         if prm.get("context_length", None) is not None:
             context_length = prm.get("context_length")
