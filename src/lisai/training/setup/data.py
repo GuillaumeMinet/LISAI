@@ -14,31 +14,34 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("lisai.prepare_data")
 
-def prepare_data(cfg: ResolvedExperiment, ctx: TrainingContext):
+
+def prepare_data(
+    cfg: ResolvedExperiment,
+    ctx: TrainingContext,
+    *,
+    data_norm_prm: dict | None = None,
+):
     """
     Resolves data paths, handles volumetric logic, creates loaders.
     cfg is ResolvedExperiment (Pydantic).
-    nn_norm_prm: noise model normalization param
     """
-    # normalization params
-    norm_prm = (cfg.normalization or {}).get("norm_prm")
-    
-    # resolve path using routing
+    norm_prm = data_norm_prm
+    if norm_prm is None:
+        norm_prm = (cfg.normalization or {}).get("norm_prm")
+
     data_dir = ctx.paths.dataset_dir(
         dataset_name=cfg.data.dataset_name,
         data_subfolder=cfg.routing.data_subfolder,
     )
 
-    # get dataset info from registry
     registry = {}
     try:
         registry = load_yaml(ctx.paths.dataset_registry_path())
     except FileNotFoundError:
         logger.warning("Dataset registry not found")
-    
-    dataset_info = registry.get(cfg.data.dataset_name,None)
 
-    # create loaders
+    dataset_info = registry.get(cfg.data.dataset_name, None)
+
     data_cfg = cfg.data.resolved(
         data_dir=data_dir,
         norm_prm=norm_prm,

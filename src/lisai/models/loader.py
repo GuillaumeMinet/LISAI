@@ -129,7 +129,7 @@ def prepare_model_for_training(
     spec: ModelSpec,
     device: torch.device,
     model_norm_prm: dict | None = None,
-    noise_model: None
+    noise_model=None,
 ):
     """
     Build (and optionally load) model based on ModelSpec.

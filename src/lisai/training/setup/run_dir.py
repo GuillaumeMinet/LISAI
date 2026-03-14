@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
     from .context import TrainingContext
 
+
 def _safe_copy(src: Path, dst: Path):
     try:
         if src.exists():
@@ -30,26 +31,21 @@ def prepare_run_dir(
       - if continue_training: reuse origin run directory
       - else create a new directory under canonical model root
       - if retrain: copy origin artifacts into retrain_origin/
-      - save cleaned config into the run dir (config_train filename)
     """
-    # saving disabled => no run dir
     if not bool(cfg.saving.enabled):
         return None, cfg.experiment.exp_name
 
     mode = cfg.experiment.mode
 
-    # origin folder is computed once in resolve_config
     origin_dir = None
     if mode in {"continue_training", "retrain"}:
         if not cfg.experiment.origin_run_dir:
             raise ValueError(f"Mode '{mode}' requires experiment.origin_run_dir")
         origin_dir = Path(cfg.experiment.origin_run_dir)
 
-    # continue_training: reuse origin folder
     if mode == "continue_training":
         return origin_dir, origin_dir.name
 
-    # train / retrain: create new folder
     run_dir, exp_name = create_run_dir(
         paths=ctx.paths,
         ds_name=cfg.data.dataset_name,
@@ -58,11 +54,9 @@ def prepare_run_dir(
         overwrite=bool(cfg.experiment.overwrite),
     )
 
-    # Create artifact subfolders (config-driven via settings.project.run_layout)
     ctx.paths.checkpoints_dir(run_dir=run_dir).mkdir(parents=True, exist_ok=True)
     ctx.paths.validation_images_dir(run_dir=run_dir).mkdir(parents=True, exist_ok=True)
 
-    # retrain: copy origin artifacts
     if mode == "retrain":
         retrain_origin_dir = ctx.paths.retrain_origin_dir(run_dir=run_dir)
         retrain_origin_dir.mkdir(parents=True, exist_ok=False)
@@ -80,9 +74,31 @@ def prepare_run_dir(
             ctx.paths.retrain_origin_cfg_path(run_dir=run_dir),
         )
 
-    # Save cleaned config
-    clean_cfg = prune_config_for_saving(cfg)
-    cfg_path = ctx.paths.cfg_train_path(run_dir=run_dir)
-    save_yaml(clean_cfg, cfg_path)
-
     return run_dir, exp_name
+
+
+def save_training_config(
+    cfg: ResolvedExperiment,
+    ctx: TrainingContext,
+    data_norm_prm: dict | None = None,
+    model_norm_prm: dict | None = None,
+) -> Path | None:
+    """
+    Save the effective training config once runtime-derived normalization is known.
+    """
+    if ctx.run_dir is None or cfg.experiment.mode == "continue_training":
+        return None
+
+    clean_cfg = prune_config_for_saving(cfg)
+
+    if data_norm_prm is not None:
+        normalization = dict(clean_cfg.get("normalization") or {})
+        normalization["norm_prm"] = dict(data_norm_prm)
+        clean_cfg["normalization"] = normalization
+
+    if model_norm_prm is not None:
+        clean_cfg["model_norm_prm"] = dict(model_norm_prm)
+
+    cfg_path = ctx.paths.cfg_train_path(run_dir=ctx.run_dir)
+    save_yaml(clean_cfg, cfg_path)
+    return cfg_path

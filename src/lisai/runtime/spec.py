@@ -84,6 +84,15 @@ class RunSpec:
     def model_architecture(self) -> str:
         return self.cfg.model.architecture
 
+    @property
+    def noise_model_name(self) -> Optional[str]:
+        noise_model = getattr(self.cfg, "noise_model", None)
+        if isinstance(noise_model, dict):
+            return noise_model.get("name")
+        if isinstance(noise_model, str):
+            return noise_model
+        return getattr(noise_model, "name", None)
+
     def model_spec(self) -> ModelSpec:
         # extract patch_size / downsamp for LVAE img_shape
         patch_size = getattr(self.cfg.data, "patch_size", None)
@@ -98,14 +107,6 @@ class RunSpec:
             # if data.downsampling became a typed object later, support attribute form
             ds_factor = getattr(downsampling, "downsamp_factor", 1) or 1
 
-        # noise model name (keep flexible: can be absent)
-        noise_model = getattr(self.cfg, "noise_model", None)
-        nm_name = None
-        if isinstance(noise_model, dict):
-            nm_name = noise_model.get("name")
-        else:
-            nm_name = getattr(noise_model, "name", None)
-
         ckpt = self.cfg.load_model.checkpoint if self.cfg.load_model else None
 
         return ModelSpec(
@@ -113,7 +114,7 @@ class RunSpec:
             parameters=self.cfg.model.parameters or {},
             mode=self.cfg.experiment.mode,
             normalization=self.cfg.normalization or {},
-            noise_model_name=nm_name,
+            noise_model_name=self.noise_model_name,
             patch_size=int(patch_size) if patch_size is not None else None,
             downsamp_factor=int(ds_factor) if ds_factor is not None else 1,
             origin_run_dir=self.origin_run_dir,
