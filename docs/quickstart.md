@@ -77,6 +77,12 @@ python -c "from lisai.training.run_training import run_training; print('training
 ## 7) Run training
 
 ```powershell
+lisai train hdn_training.yml
+```
+
+Legacy invocation still works if you prefer it:
+
+```powershell
 python src/scripts/train.py --config configs/experiments/hdn_training.yml
 ```
 
@@ -89,6 +95,6 @@ python src/scripts/train.py --config configs/experiments/hdn_training.yml
 
 ```powershell
 conda activate lisai-cpu    # or lisai-cuda
-pip install -e . --no-deps  # only needed again if packaging metadata changed
-python src/scripts/train.py --config <your-config.yml>
+pip install -e . --no-deps  # run again if packaging metadata changed, e.g. after adding the CLI
+lisai train <your-config.yml>
 ```

@@ -10,6 +10,7 @@ def run_training(config_path):
 
     loaders, meta_data = setup.prepare_data(cfg, ctx)
     model, state_dict = setup.build_model(ctx.spec, ctx.device, meta_data.norm_prm)
+    patch_info = getattr(meta_data, "patch_info", None)
 
     trainer = get_trainer(
         architecture=cfg.model.architecture,
@@ -23,7 +24,7 @@ def run_training(config_path):
         writer=ctx.writer,
         state_dict=state_dict,
         callbacks=ctx.callbacks,
-        patch_info=meta_data.patch_info,
+        patch_info=patch_info,
 
         # optional logging filters
         console_filter=ctx.console_filter,

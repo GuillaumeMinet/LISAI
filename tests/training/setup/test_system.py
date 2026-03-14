@@ -69,12 +69,25 @@ def test_initialize_falls_back_to_cpu_and_builds_validation_callback(
         def tensorboard_dir(self, *, dataset_name, tensorboard_subfolder):
             return tmp_path / "tensorboard" / dataset_name / tensorboard_subfolder
 
-    def fake_setup_logger(*, name, level, log_file, use_tqdm):
+    def fake_setup_logger(
+        *,
+        name,
+        level,
+        log_file,
+        use_tqdm,
+        file_format=None,
+        file_datefmt=None,
+        file_enabled=True,
+        **_,
+    ):
         captured["setup_logger"] = {
             "name": name,
             "level": level,
             "log_file": Path(log_file),
             "use_tqdm": use_tqdm,
+            "file_format": file_format,
+            "file_datefmt": file_datefmt,
+            "file_enabled": file_enabled,
         }
         return fake_logger, console_filter, file_filter
 
@@ -108,6 +121,9 @@ def test_initialize_falls_back_to_cpu_and_builds_validation_callback(
     assert captured["setup_logger"]["name"] == "lisai"
     assert captured["setup_logger"]["log_file"] == run_dir / "train.log"
     assert captured["setup_logger"]["use_tqdm"] is True
+    assert captured["setup_logger"]["file_format"] == "%(asctime)s %(message)s"
+    assert captured["setup_logger"]["file_datefmt"] == "%Y-%m-%d %H:%M:%S"
+    assert captured["setup_logger"]["file_enabled"] is False
 
     assert any("CUDA requested but not available" in msg for msg in fake_logger.warning_calls)
 
@@ -149,7 +165,26 @@ def test_initialize_creates_tensorboard_writer_and_tensorboard_callback(
             }
             return tb_root
 
-    def fake_setup_logger(*, name, level, log_file, use_tqdm):
+    def fake_setup_logger(
+        *,
+        name,
+        level,
+        log_file,
+        use_tqdm,
+        file_format=None,
+        file_datefmt=None,
+        file_enabled=True,
+        **_,
+    ):
+        captured["setup_logger"] = {
+            "name": name,
+            "level": level,
+            "log_file": Path(log_file),
+            "use_tqdm": use_tqdm,
+            "file_format": file_format,
+            "file_datefmt": file_datefmt,
+            "file_enabled": file_enabled,
+        }
         return fake_logger, console_filter, file_filter
 
     def fake_create_tb_folder(root, exp_name, exist_ok):
@@ -195,3 +230,4 @@ def test_initialize_creates_tensorboard_writer_and_tensorboard_callback(
         "exp_name": "exp_unique",
         "exist_ok": True,
     }
+    assert captured["setup_logger"]["file_enabled"] is False

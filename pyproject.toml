@@ -18,6 +18,9 @@ dependencies = [
   "tqdm",
 ]
 
+[project.scripts]
+lisai = "lisai.cli:main"
+
 [project.optional-dependencies]
 train = [
   "tensorboard",
