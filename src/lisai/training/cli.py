@@ -2,34 +2,78 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable, Sequence
 
 from .run_training import run_training
+
+EXPERIMENT_CONFIG_SUFFIXES = (".yml", ".yaml")
 
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
-def resolve_config_path(config_arg: str, *, cwd: Path | None = None) -> Path:
-    config_path = Path(config_arg).expanduser()
-    if config_path.exists():
-        return config_path.resolve()
+def _candidate_paths(path: Path) -> tuple[Path, ...]:
+    candidates = [path]
+    if not path.suffix:
+        candidates.extend(path.with_suffix(suffix) for suffix in EXPERIMENT_CONFIG_SUFFIXES)
+    return tuple(candidates)
 
-    search_roots = []
-    base_cwd = Path.cwd() if cwd is None else Path(cwd)
-    search_roots.append(base_cwd / "configs" / "experiments")
 
-    repo_experiments = _repo_root() / "configs" / "experiments"
-    if repo_experiments not in search_roots:
-        search_roots.append(repo_experiments)
-
-    for root in search_roots:
-        candidate = root / config_arg
+def _first_existing_path(candidates: Iterable[Path]) -> Path | None:
+    for candidate in candidates:
         if candidate.exists():
             return candidate.resolve()
+    return None
 
-    return config_path
+
+def _search_roots(*, cwd: Path) -> tuple[Path, ...]:
+    roots = [cwd / "configs" / "experiments"]
+
+    repo_experiments = _repo_root() / "configs" / "experiments"
+    if repo_experiments not in roots:
+        roots.append(repo_experiments)
+
+    return tuple(roots)
+
+
+def _available_training_configs(search_roots: Iterable[Path]) -> list[str]:
+    available: set[str] = set()
+    for root in search_roots:
+        if not root.is_dir():
+            continue
+        for suffix in EXPERIMENT_CONFIG_SUFFIXES:
+            available.update(path.name for path in root.glob(f"*{suffix}") if path.is_file())
+    return sorted(available)
+
+
+def _missing_config_error(config_arg: str, *, search_roots: Iterable[Path]) -> FileNotFoundError:
+    available = _available_training_configs(search_roots)
+    lines = [f"Training config not found: {config_arg}"]
+    if available:
+        lines.append("Available configs:")
+        lines.extend(f"  - {config_name}" for config_name in available)
+    else:
+        lines.append("No training configs were found under configs/experiments.")
+    return FileNotFoundError("\n".join(lines))
+
+
+def resolve_config_path(config_arg: str, *, cwd: Path | None = None) -> Path:
+    config_path = Path(config_arg).expanduser()
+    resolved = _first_existing_path(_candidate_paths(config_path))
+    if resolved is not None:
+        return resolved
+
+    base_cwd = Path.cwd() if cwd is None else Path(cwd)
+    search_roots = _search_roots(cwd=base_cwd)
+
+    if not config_path.is_absolute():
+        for root in search_roots:
+            resolved = _first_existing_path(_candidate_paths(root / config_path))
+            if resolved is not None:
+                return resolved
+
+    raise _missing_config_error(config_arg, search_roots=search_roots)
 
 
 def _get_config_arg(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
@@ -57,13 +101,13 @@ def add_train_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPar
     parser.add_argument(
         "config",
         nargs="?",
-        help="Path to a YAML config file, or a config name from configs/experiments.",
+        help="Path to a YAML config file, or a config name from configs/experiments with or without .yml/.yaml.",
     )
     parser.add_argument(
         "-c",
         "--config",
         dest="config_option",
-        help="Path to a YAML config file, or a config name from configs/experiments.",
+        help="Path to a YAML config file, or a config name from configs/experiments with or without .yml/.yaml.",
     )
     return parser
 
