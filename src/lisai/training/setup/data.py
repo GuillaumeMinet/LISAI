@@ -18,10 +18,11 @@ def prepare_data(cfg: ResolvedExperiment, ctx: TrainingContext):
     """
     Resolves data paths, handles volumetric logic, creates loaders.
     cfg is ResolvedExperiment (Pydantic).
+    nn_norm_prm: noise model normalization param
     """
     # normalization params
     norm_prm = (cfg.normalization or {}).get("norm_prm")
-
+    
     # resolve path using routing
     data_dir = ctx.paths.dataset_dir(
         dataset_name=cfg.data.dataset_name,
@@ -50,6 +51,6 @@ def prepare_data(cfg: ResolvedExperiment, ctx: TrainingContext):
     )
 
     loaders = SimpleNamespace(train=train_loader, val=val_loader)
-    meta = SimpleNamespace(norm_prm=model_norm_prm, patch_info=patch_info)
+    meta = SimpleNamespace(model_norm_prm=model_norm_prm, patch_info=patch_info)
 
     return loaders, meta

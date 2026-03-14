@@ -72,9 +72,9 @@ def prep_data(config: DataSection, *, for_training: bool, model_norm_prm=None):
         resolved_model_norm_prm = calculate_dataset_normalization(*list_datasets)
 
         # if norm_prm is None or not norm_prm.get("normalize_data",False):
-        #     model_norm_prm = calculate_dataset_normalization(*list_datasets)
+        #     resolved_model_norm_prm = calculate_dataset_normalization(*list_datasets)
         # else:
-        #     model_norm_prm = {"data_mean": 0,"data_std": 1,
+        #     resolved_model_norm_prm = {"data_mean": 0,"data_std": 1,
         #                       "data_mean_gt": 0 if paired else None,
         #                       "data_std_gt": 1 if paired else None}
     else:

@@ -7,9 +7,15 @@ from .trainers import get_trainer
 def run_training(config_path):
     cfg = resolve_config(config_path)
     ctx = setup.initialize(cfg)
+    
+    noise_model = None
+    if ctx.spec.model_architecture == "lvae":
+        noise_model, data_norm_prm = setup.prepare_noise_model(cfg,ctx.device,ctx.paths)
+        if data_norm_prm is not None:
+            cfg.normalization["norm_prm"] = data_norm_prm
 
     loaders, meta_data = setup.prepare_data(cfg, ctx)
-    model, state_dict = setup.build_model(ctx.spec, ctx.device, meta_data.norm_prm)
+    model, state_dict = setup.build_model(ctx.spec, ctx.device, meta_data.model_norm_prm, noise_model)
     patch_info = getattr(meta_data, "patch_info", None)
 
     trainer = get_trainer(
@@ -41,3 +47,4 @@ def run_training(config_path):
             ctx.writer.close()
 
     return trainer
+

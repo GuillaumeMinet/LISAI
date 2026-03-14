@@ -16,6 +16,7 @@ from lisai.runtime.inference import build_inference_spec, iter_inference_checkpo
 from lisai.runtime.spec import ModelSpec
 
 from .registry import get_model_class
+from .load_nm import load_noise_model
 
 logger = logging.getLogger("lisai.model")
 
@@ -38,30 +39,6 @@ def _model_norm_from_model(model) -> dict[str, Any] | None:
         "data_std_gt": _to_scalar(getattr(model, "data_std_gt", None)),
     }
 
-
-def load_noise_model(noise_model_name: str | None, device: torch.device):
-    if not noise_model_name:
-        return None, None
-
-    paths = Paths(settings)
-    nm_path = paths.noise_model_path(noiseModel_name=noise_model_name)
-
-    if not Path(nm_path).exists():
-        raise FileNotFoundError(f"Noise model not found: {nm_path}")
-
-    from lisai.lib.hdn.gaussianMixtureNoiseModel import GaussianMixtureNoiseModel
-
-    nm_params = np.load(nm_path)
-    noise_model = GaussianMixtureNoiseModel(params=nm_params, device=device)
-    logger.info(f"Loaded noise GMM: {noise_model_name}")
-
-    norm_path = Path(nm_path).parent / "norm_prm.json"
-    nm_norm_prm = None
-    if norm_path.exists():
-        with open(norm_path) as f:
-            nm_norm_prm = json.load(f)
-
-    return noise_model, nm_norm_prm
 
 
 def init_model(
@@ -152,6 +129,7 @@ def prepare_model_for_training(
     spec: ModelSpec,
     device: torch.device,
     model_norm_prm: dict | None = None,
+    noise_model: None
 ):
     """
     Build (and optionally load) model based on ModelSpec.
@@ -161,20 +139,9 @@ def prepare_model_for_training(
 
     if not arch:
         raise ValueError("ModelSpec.architecture is empty")
-
-    # LVAE: noise model + norm strategy
-    noise_model = None
-    if arch == "lvae":
-        noise_model, nm_norm_prm = load_noise_model(spec.noise_model_name, device)
-
-        load_from_nm = bool((spec.normalization or {}).get("load_from_noise_model", False))
-        if load_from_nm:
-            if nm_norm_prm is None:
-                raise ValueError("load_from_noise_model=True but norm_prm.json not found next to noise model.")
-            model_norm_prm = nm_norm_prm
-
-        if model_norm_prm is None:
-            model_norm_prm = (spec.normalization or {}).get("norm_prm")
+    
+    if arch == "lvae" and noise_model is None:
+        raise ValueError("Need noise model to perform lvae training")
 
     should_load = spec.mode in {"continue_training", "retrain"}
 
@@ -268,7 +235,8 @@ def get_model_for_inference(
 
         noise_model = None
         if is_lvae:
-            noise_model, nm_norm_prm = load_noise_model(spec.noise_model_name, device)
+            paths = Paths(settings)
+            noise_model, nm_norm_prm = load_noise_model(spec.noise_model_name, device, paths)
             if model_norm_prm is None and nm_norm_prm is not None:
                 model_norm_prm = dict(nm_norm_prm)
 
@@ -309,3 +277,6 @@ def get_model_for_inference(
             training_cfg["model_norm_prm"] = inferred_model_norm
 
     return model, training_cfg, is_lvae
+
+
+
