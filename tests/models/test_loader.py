@@ -1,12 +1,27 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pytest
 import torch
 
 from lisai.models import loader
-from lisai.runtime.spec import ModelSpec
+
+
+@dataclass(frozen=True)
+class DummyTrainingSpec:
+    architecture: str
+    parameters: dict[str, Any]
+    mode: str
+    patch_size: int | None = None
+    downsamp_factor: int | None = 1
+    origin_run_dir: Path | None = None
+    checkpoint_method: str | None = None
+    checkpoint_selector: str | None = None
+    checkpoint_epoch: int | None = None
+    checkpoint_filename: str | None = None
 
 
 class DummyModel:
@@ -22,15 +37,16 @@ class DummyModel:
         return self
 
 
-def _base_spec(**overrides) -> ModelSpec:
+
+def _base_spec(**overrides) -> DummyTrainingSpec:
     data = {
         "architecture": "unet",
         "parameters": {},
         "mode": "train",
-        "normalization": {},
     }
     data.update(overrides)
-    return ModelSpec(**data)
+    return DummyTrainingSpec(**data)
+
 
 
 def test_origin_checkpoint_path_prefers_explicit_filename(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -61,11 +77,13 @@ def test_origin_checkpoint_path_prefers_explicit_filename(monkeypatch: pytest.Mo
     assert "load_method" not in calls["kwargs"]
 
 
+
 def test_prepare_model_for_training_requires_architecture():
     spec = _base_spec(architecture="")
 
     with pytest.raises(ValueError, match="architecture"):
         loader.prepare_model_for_training(spec=spec, device=torch.device("cpu"))
+
 
 
 def test_prepare_model_for_training_full_model_load_returns_loaded_object(
@@ -99,6 +117,7 @@ def test_prepare_model_for_training_full_model_load_returns_loaded_object(
     assert state is None
 
 
+
 def test_prepare_model_for_training_loads_model_state_dict_and_returns_checkpoint_state(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
@@ -126,6 +145,7 @@ def test_prepare_model_for_training_loads_model_state_dict_and_returns_checkpoin
     assert out_model is model
     assert model.loaded_state == loaded_state["model_state_dict"]
     assert out_state == loaded_state
+
 
 
 def test_prepare_model_for_training_plain_state_dict_returns_none_checkpoint_state(

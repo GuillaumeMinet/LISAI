@@ -4,7 +4,7 @@ import json
 import logging
 import warnings
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Protocol
 
 import numpy as np
 import torch
@@ -13,12 +13,24 @@ from lisai.config import settings
 from lisai.infra.paths import Paths
 from lisai.runtime._old_runs_compatibility import extract_norm_prm
 from lisai.runtime.inference import build_inference_spec, iter_inference_checkpoint_candidates
-from lisai.runtime.spec import ModelSpec
 
 from .registry import get_model_class
 from .load_nm import load_noise_model
 
 logger = logging.getLogger("lisai.model")
+
+
+class TrainingModelLoadSpec(Protocol):
+    architecture: str
+    parameters: Mapping[str, Any] | None
+    mode: str
+    patch_size: int | None
+    downsamp_factor: int | None
+    origin_run_dir: Path | None
+    checkpoint_method: str | None
+    checkpoint_selector: str | None
+    checkpoint_epoch: int | None
+    checkpoint_filename: str | None
 
 
 def _to_scalar(value: Any) -> Any:
@@ -89,7 +101,7 @@ def _compute_img_shape(patch_size: int | None, downsamp_factor: int | None) -> i
         return None
 
 
-def _origin_checkpoint_path(spec: ModelSpec) -> Path:
+def _origin_checkpoint_path(spec: TrainingModelLoadSpec) -> Path:
     if spec.origin_run_dir is None:
         raise ValueError("origin_run_dir is required to load a checkpoint.")
 
@@ -126,19 +138,19 @@ def _origin_checkpoint_path(spec: ModelSpec) -> Path:
 
 def prepare_model_for_training(
     *,
-    spec: ModelSpec,
+    spec: TrainingModelLoadSpec,
     device: torch.device,
     model_norm_prm: dict | None = None,
     noise_model=None,
 ):
     """
-    Build (and optionally load) model based on ModelSpec.
+    Build (and optionally load) model based on the provided training load spec.
     """
     arch = spec.architecture
     model_prm = spec.parameters or {}
 
     if not arch:
-        raise ValueError("ModelSpec.architecture is empty")
+        raise ValueError("Model load spec architecture is empty")
     
     if arch == "lvae" and noise_model is None:
         raise ValueError("Need noise model to perform lvae training")
@@ -277,6 +289,7 @@ def get_model_for_inference(
             training_cfg["model_norm_prm"] = inferred_model_norm
 
     return model, training_cfg, is_lvae
+
 
 
 
