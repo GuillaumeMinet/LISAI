@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from lisai.infra.config import settings
+from lisai.config import settings
 
 from .core import DatasetRegistry, PreprocessConfig, PreprocessSaver
 from .pipelines import PIPELINES_REGISTRY

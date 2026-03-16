@@ -24,13 +24,13 @@ class LVAETrainer(BaseTrainer):
         self.tiling_validation = False
         self.tiling_patch = None
 
-        val_patch_size = self.data_prm.get("val_patch_size")
-        patch_size = self.data_prm.get("patch_size")
+        val_patch_size = self.data_cfg.val_patch_size
+        patch_size = self.data_cfg.patch_size
 
         if val_patch_size is not None and patch_size is not None and val_patch_size != patch_size:
             self.tiling_validation = True
             self.tiling_patch = patch_size
-            downs = self.data_prm.get("downsampling", {}).get("downsamp_factor")
+            downs = self.data_cfg.downsampling_factor
             if downs is not None:
                 self.tiling_patch = self.tiling_patch // downs
 

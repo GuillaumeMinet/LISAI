@@ -4,8 +4,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .schema import DataConfig, ProjectConfig
-from .yaml import load_yaml, save_yaml
+from .models import DataConfig, ProjectConfig
+from .io.yaml import load_yaml, save_yaml
 
 
 class AttrDict(dict):

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 
-from lisai.infra.config.schema import ResolvedExperiment
+from lisai.config.models import ResolvedExperiment
 from lisai.training.checkpointing import CheckpointManager
 
 try:
@@ -43,7 +43,7 @@ class BaseTrainer(ABC):
         self.volumetric = volumetric
 
         self.training_prm = cfg.training.model_dump()
-        self.data_prm = cfg.data.model_dump()
+        self.data_cfg = cfg.data
         self.saving_prm = cfg.saving.model_dump()
         self.tensorboard_prm = cfg.tensorboard.model_dump()
 
@@ -52,7 +52,7 @@ class BaseTrainer(ABC):
         self.writer = writer
 
         self.callbacks = callbacks or []
-        self.patch_info = patch_info or self.data_prm.get("patch_info")
+        self.patch_info = patch_info or getattr(self.data_cfg, "patch_info", None)
         self.console_filter = console_filter
         self.file_filter = file_filter
         self._training_log_initialized = False

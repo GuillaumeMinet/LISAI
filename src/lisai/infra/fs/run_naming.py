@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from lisai.infra.config import settings
+from lisai.config import settings
 
 
 def get_unique_exp_name(save_dir: Path, exp_name: str) -> str:

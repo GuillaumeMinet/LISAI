@@ -40,7 +40,7 @@ data:
   patch_size: 96
   val_patch_size: 240
   batch_size: 64
-
+  
   downsampling:
     downsamp_factor: 2
     downsamp_method: "random"

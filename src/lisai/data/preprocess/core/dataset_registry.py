@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from lisai.infra.config.yaml import load_yaml, save_yaml
+from lisai.config.io.yaml import load_yaml, save_yaml
 
 
 class PipelineResultLike(Protocol):

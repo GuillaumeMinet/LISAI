@@ -5,10 +5,10 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from lisai.data.data_prep import make_training_loaders
-from lisai.infra.config import load_yaml
+from lisai.config import load_yaml
 
 if TYPE_CHECKING:
-    from lisai.infra.config.schema import ResolvedExperiment
+    from lisai.config.models import ResolvedExperiment
 
     from .context import TrainingContext
 

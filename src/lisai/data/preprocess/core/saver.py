@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import tifffile
 
-from lisai.infra.config import settings
+from lisai.config import settings
 from lisai.infra.fs.folders import ensure_folder
 
 from .output_spec import OutputSpec

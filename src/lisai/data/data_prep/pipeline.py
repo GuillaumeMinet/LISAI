@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from lisai.infra.config.schema.experiment import DataSection
+from lisai.config.models.training import DataSection
 
 from .dataset_io import load_full_datasets
 from .transforms import apply_additional_transforms, apply_inp_transformations

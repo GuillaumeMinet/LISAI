@@ -4,11 +4,11 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from lisai.infra.config import prune_config_for_saving, save_yaml
+from lisai.config import prune_config_for_saving, save_yaml
 from lisai.infra.fs import create_run_dir
 
 if TYPE_CHECKING:
-    from lisai.infra.config.schema import ResolvedExperiment
+    from lisai.config.models import ResolvedExperiment
 
     from .context import TrainingContext
 

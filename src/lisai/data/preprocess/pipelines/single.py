@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict
 import numpy as np
 import tifffile
 
-from lisai.infra.config import settings
+from lisai.config import settings
 
 from ..core import MAIN_OUTPUT_KEY, FolderSource, Item, OutputDecl, OutputSpec, Source
 from ..transformations import crop_center_2d

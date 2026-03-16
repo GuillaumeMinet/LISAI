@@ -9,7 +9,7 @@ from typing import Any, Mapping
 import numpy as np
 import torch
 
-from lisai.infra.config import settings
+from lisai.config import settings
 from lisai.infra.paths import Paths
 from lisai.runtime._old_runs_compatibility import extract_norm_prm
 from lisai.runtime.inference import build_inference_spec, iter_inference_checkpoint_candidates

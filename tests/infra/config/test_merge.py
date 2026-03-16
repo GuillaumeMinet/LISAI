@@ -1,4 +1,4 @@
-from lisai.infra.config.merge import deep_merge
+from lisai.config.io.merge import deep_merge
 
 
 def test_deep_merge_recursively_merges_without_mutating_inputs():

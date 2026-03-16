@@ -8,8 +8,8 @@ from string import Formatter
 
 import pytest
 
-CONFIG_DIR = Path(__file__).resolve().parents[3] / "src" / "lisai" / "infra" / "config"
-CONFIG_PACKAGE = "lisai.infra.config"
+CONFIG_DIR = Path(__file__).resolve().parents[3] / "src" / "lisai" / "config"
+CONFIG_PACKAGE = "lisai.config"
 
 
 if CONFIG_PACKAGE not in sys.modules:
@@ -17,8 +17,8 @@ if CONFIG_PACKAGE not in sys.modules:
     config_pkg.__path__ = [str(CONFIG_DIR)]
     sys.modules[CONFIG_PACKAGE] = config_pkg
 
-settings_mod = importlib.import_module("lisai.infra.config.settings")
-yaml_mod = importlib.import_module("lisai.infra.config.yaml")
+settings_mod = importlib.import_module("lisai.config.settings")
+yaml_mod = importlib.import_module("lisai.config.io.yaml")
 Settings = settings_mod.Settings
 load_yaml = yaml_mod.load_yaml
 

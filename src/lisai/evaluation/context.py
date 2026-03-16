@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from lisai.defaults import DEFAULT_TILING_SIZE
-from lisai.infra.config import load_yaml, settings
+from lisai.config import load_yaml, settings
 from lisai.infra.paths import Paths
 from lisai.runtime._old_runs_compatibility import (
     extract_data_prm,

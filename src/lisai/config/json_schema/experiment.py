@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .experiment import ExperimentConfig
+from ..models import ExperimentConfig
 
 
 def experiment_json_schema() -> dict:

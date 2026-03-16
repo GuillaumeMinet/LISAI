@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from lisai.infra.config import load_yaml, settings
+from lisai.config import load_yaml, settings
 from lisai.infra.paths import Paths
 
 

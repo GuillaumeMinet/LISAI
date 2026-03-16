@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from lisai.infra.config.yaml import load_yaml, save_yaml
+from lisai.config.io.yaml import load_yaml, save_yaml
 
 
 def test_yaml_round_trip(tmp_path: Path):

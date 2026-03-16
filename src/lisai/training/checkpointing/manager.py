@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 
-from lisai.infra.config import settings
+from lisai.config import settings
 from lisai.infra.paths import Paths, model_filename
 
 

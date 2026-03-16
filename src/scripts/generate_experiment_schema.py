@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lisai.infra.config.schema import write_experiment_json_schema
+from lisai.config.json_schema import write_experiment_json_schema
 
 
 def main():

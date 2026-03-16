@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from lisai.infra.config.schema import ResolvedExperiment
+from lisai.config.models import ResolvedExperiment
 
 
 @dataclass(frozen=True)
@@ -94,18 +94,8 @@ class RunSpec:
         return getattr(noise_model, "name", None)
 
     def model_spec(self) -> ModelSpec:
-        # extract patch_size / downsamp for LVAE img_shape
-        patch_size = getattr(self.cfg.data, "patch_size", None)
-        if patch_size is None:
-            patch_size = getattr(self.cfg.data, "val_patch_size", None)
-
-        ds_factor = 1
-        downsampling = getattr(self.cfg.data, "downsampling", None)
-        if isinstance(downsampling, dict):
-            ds_factor = downsampling.get("downsamp_factor") or 1
-        else:
-            # if data.downsampling became a typed object later, support attribute form
-            ds_factor = getattr(downsampling, "downsamp_factor", 1) or 1
+        patch_size = self.cfg.data.model_patch_size
+        ds_factor = self.cfg.data.downsampling_factor
 
         ckpt = self.cfg.load_model.checkpoint if self.cfg.load_model else None
 

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
-
-from lisai.infra.paths import Paths
+from typing import TYPE_CHECKING
 
 from .merge import deep_merge
-from .schema import ExperimentConfig, ResolvedExperiment
-from .settings import settings
+from ..models import ExperimentConfig, ResolvedExperiment
 from .yaml import load_yaml
+
+if TYPE_CHECKING:
+    from lisai.infra.paths import Paths
 
 
 def _dget(d: dict, path: str, default=None):
@@ -144,6 +145,9 @@ def resolve_config(
     cfg = deep_merge(project_cfg, data_cfg)
     cfg = deep_merge(cfg, exp_cfg)
 
+    from lisai.infra.paths import Paths
+    from ..settings import settings
+
     paths = Paths(settings)
     mode = _normalize_mode(cfg)
 
@@ -178,3 +182,4 @@ def prune_config_for_saving(cfg: ResolvedExperiment) -> dict:
         out.pop("tensorboard", None)
 
     return out
+

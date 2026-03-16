@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from lisai.models import load_noise_model
 
 if TYPE_CHECKING:
-    from lisai.infra.config.schema import ResolvedExperiment
+    from lisai.config.models import ResolvedExperiment
     from lisai.infra.paths import Paths
 
 

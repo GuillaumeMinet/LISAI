@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from lisai.infra.config import settings
+from lisai.config import settings
 from lisai.infra.paths import Paths
 from lisai.runtime._old_runs_compatibility import (
     extract_data_prm,

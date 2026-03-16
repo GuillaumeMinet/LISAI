@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-import lisai.infra.config.resolver as resolver_mod
-from lisai.infra.config import save_yaml, settings
-from lisai.infra.config.resolver import prune_config_for_saving, resolve_config
-from lisai.infra.config.schema import ResolvedExperiment
+import lisai.config.io.resolver as resolver_mod
+from lisai.config import save_yaml, settings
+from lisai.config.io.resolver import prune_config_for_saving, resolve_config
+from lisai.config.models import ResolvedExperiment
 from lisai.infra.paths import Paths
 
 PROJECT_CFG = Path("configs/project/project.yml")

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from lisai.infra.config.schema.experiment import DataSection
+from lisai.config.models.training import DataSection
 
 
 def test_data_section_maps_legacy_aliases_and_keeps_extra():

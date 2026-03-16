@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 import numpy as np
 import tifffile
 
-from lisai.infra.config import settings
+from lisai.config import settings
 
 from ..core import FolderSource, Item, OutputDecl, OutputSpec, Source
 from ..run_preprocess import PreprocessRun

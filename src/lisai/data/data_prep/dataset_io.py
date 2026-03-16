@@ -14,7 +14,7 @@ from lisai.data.utils import (
     make_pair_4d,
     select_patches,
 )
-from lisai.infra.config.schema.experiment import DataSection
+from lisai.config.models.training import DataSection
 from lisai.lib.upsamp.artificial_movement import apply_movement
 
 logger = logging.getLogger("lisai.data_prep")
@@ -226,7 +226,7 @@ def load_all_data(
 
         # artificial movement
         if config.artificial_movement is not None:
-            prm = config.artificial_movement
+            prm = config.artificial_movement.model_dump(exclude_none=True)
             inp_img, gt_img = apply_movement((inp_img, gt_img), prm, volumetric=config.volumetric)
 
         # clip neg (must be done before sig2obs normalization)
@@ -343,56 +343,55 @@ def load_image(
         if prm is None:
             return inp_img, gt_img
 
-        if prm.get("timelapse_max_frames", None) is not None:
+        if prm.timelapse_max_frames is not None:
             assert not paired, "timelapse max frames not implemented for paired dataset"
-            nFrames = prm.get("timelapse_max_frames")
+            nFrames = prm.timelapse_max_frames
             if inp_img.shape[0] > nFrames:
-                if prm.get("shuffle", False):
+                if prm.shuffle:
                     idx = np.arange(inp_img.shape[0])
                     np.random.shuffle(idx)
                     inp_img = inp_img[idx]
                 inp_img = inp_img[:nFrames]
 
-        if prm.get("context_length", None) is None or prm.get("context_length", None) == "None":
+        if prm.context_length is None:
             inp_img = np.expand_dims(inp_img, axis=1)  # [time,1,h,w] => considered as [snr,1,h,w]
             return inp_img, None
 
-        if prm.get("context_length", None) is not None:
-            context_length = prm.get("context_length")
-            if context_length == 1:
-                return inp_img, gt_img
+        context_length = prm.context_length
+        if context_length == 1:
+            return inp_img, gt_img
 
-            if inp_img.shape[0] < context_length:
-                name_file = Path(inp_file).name
-                print(
-                    f"Skipping {name_file} because #frames ({inp_img.shape[0]})<context_length ({context_length})"
-                )
-                return None, None
+        if inp_img.shape[0] < context_length:
+            name_file = Path(inp_file).name
+            print(
+                f"Skipping {name_file} because #frames ({inp_img.shape[0]})<context_length ({context_length})"
+            )
+            return None, None
 
-            side_frames = int((context_length - 1) / 2)
-            inp_imgs = []
-            gt_imgs = [] if paired else None
-            for idx in range(side_frames, inp_img.shape[0] - side_frames):
-                start = idx - side_frames
-                stop = idx + side_frames + 1
-                inp_imgs.append(inp_img[start:stop])
-                if paired:
-                    if config.volumetric:
-                        gt_imgs.append(gt_img[start:stop])  # volumetric target
-                    else:
-                        gt_imgs.append(gt_img[idx : idx + 1])  # single frame target
-            inp_imgs = np.stack(inp_imgs, axis=0)
+        side_frames = int((context_length - 1) / 2)
+        inp_imgs = []
+        gt_imgs = [] if paired else None
+        for idx in range(side_frames, inp_img.shape[0] - side_frames):
+            start = idx - side_frames
+            stop = idx + side_frames + 1
+            inp_imgs.append(inp_img[start:stop])
             if paired:
-                gt_imgs = np.stack(gt_imgs, axis=0)
-            return inp_imgs, gt_imgs
+                if config.volumetric:
+                    gt_imgs.append(gt_img[start:stop])  # volumetric target
+                else:
+                    gt_imgs.append(gt_img[idx : idx + 1])  # single frame target
+        inp_imgs = np.stack(inp_imgs, axis=0)
+        if paired:
+            gt_imgs = np.stack(gt_imgs, axis=0)
+        return inp_imgs, gt_imgs
 
     elif data_format == "mltpl_snr":
         prm = config.mltpl_snr_prm
-        if prm is None or prm.get("snr_idx") is None:
+        if prm is None or prm.snr_idx is None:
             warnings.warn("`snr_idx` parameter not found.")
             return inp_img, gt_img
 
-        snr = prm.get("snr_idx")
+        snr = prm.snr_idx
         mltplnoise = False
         if isinstance(snr, int):
             assert len(np.shape(inp_img)) == 3 and np.shape(inp_img)[0] > 1

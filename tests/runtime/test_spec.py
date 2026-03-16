@@ -1,4 +1,4 @@
-from lisai.infra.config.schema.experiment import ResolvedExperiment
+from lisai.config.models import ResolvedExperiment
 from lisai.runtime.spec import RunSpec
 
 

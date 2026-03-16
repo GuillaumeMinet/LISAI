@@ -5,12 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from lisai.infra.config import load_yaml
-from lisai.infra.config.schema import (
-    ExperimentConfig,
-    experiment_json_schema,
-    write_experiment_json_schema,
-)
+from lisai.config import load_yaml
+from lisai.config.json_schema import experiment_json_schema, write_experiment_json_schema
+from lisai.config.models import ExperimentConfig
 
 
 @pytest.mark.parametrize(

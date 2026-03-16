@@ -1,5 +1,170 @@
 {
   "$defs": {
+    "ArtificialMovementParams": {
+      "additionalProperties": false,
+      "description": "Parameters controlling synthetic motion applied to timelapse sequences.",
+      "properties": {
+        "movement_type": {
+          "const": "translation",
+          "default": "translation",
+          "description": "Synthetic motion model applied to the stack. Only 'translation' is currently supported.",
+          "title": "Movement Type",
+          "type": "string"
+        },
+        "speed": {
+          "description": "Base movement speed in pixels per frame.",
+          "title": "Speed",
+          "type": "number"
+        },
+        "direction": {
+          "description": "Movement direction. Use 'random' to sample directions dynamically.",
+          "enum": [
+            "random",
+            "h+",
+            "h-",
+            "v+",
+            "v-",
+            "h+v+",
+            "h+v-",
+            "h-v+",
+            "h-v-"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "nFrames": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional number of frames to move. Use null to use the full input sequence length.",
+          "title": "Nframes"
+        },
+        "dynamic_direction": {
+          "default": false,
+          "description": "Whether direction can change over time. Requires direction='random'.",
+          "title": "Dynamic Direction",
+          "type": "boolean"
+        },
+        "variable_speed": {
+          "default": false,
+          "description": "Whether movement speed can vary during the sequence.",
+          "title": "Variable Speed",
+          "type": "boolean"
+        },
+        "keep_center_fixed": {
+          "default": false,
+          "description": "Whether the effective crop should stay centered while movement is applied.",
+          "title": "Keep Center Fixed",
+          "type": "boolean"
+        },
+        "keep_input_size": {
+          "default": false,
+          "description": "Whether the transformed output should preserve the original input size.",
+          "title": "Keep Input Size",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "speed",
+        "direction"
+      ],
+      "title": "ArtificialMovementParams",
+      "type": "object"
+    },
+    "DownsamplingMultipleParams": {
+      "additionalProperties": false,
+      "description": "Parameters specific to the 'multiple' downsampling method.",
+      "properties": {
+        "fill_factor": {
+          "description": "Fraction of pixels kept in each generated sparse observation, in the interval (0, 1].",
+          "title": "Fill Factor",
+          "type": "number"
+        },
+        "random": {
+          "default": false,
+          "description": "Whether each generated observation should use a random sparse sampling mask.",
+          "title": "Random",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "fill_factor"
+      ],
+      "title": "DownsamplingMultipleParams",
+      "type": "object"
+    },
+    "DownsamplingParams": {
+      "additionalProperties": false,
+      "description": "Parameters controlling synthetic low-resolution input generation for upsampling training.",
+      "properties": {
+        "supervised_training": {
+          "default": true,
+          "description": "Whether the downsampled input is paired with a supervised target during training.",
+          "title": "Supervised Training",
+          "type": "boolean"
+        },
+        "downsamp_factor": {
+          "description": "Spatial downsampling factor applied to the input.",
+          "title": "Downsamp Factor",
+          "type": "integer"
+        },
+        "downsamp_method": {
+          "description": "Downsampling strategy. Supported values are blur, multiple, random, real, and all.",
+          "enum": [
+            "blur",
+            "multiple",
+            "random",
+            "real",
+            "all"
+          ],
+          "title": "Downsamp Method",
+          "type": "string"
+        },
+        "multiple_prm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DownsamplingMultipleParams"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Extra parameters used when downsamp_method is 'multiple'."
+        },
+        "sampling_strategy": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Explicit real-sampling positions as two rows: y indices then x indices.",
+          "title": "Sampling Strategy"
+        }
+      },
+      "required": [
+        "downsamp_factor",
+        "downsamp_method"
+      ],
+      "title": "DownsamplingParams",
+      "type": "object"
+    },
     "ExperimentDataSection": {
       "additionalProperties": true,
       "properties": {
@@ -161,45 +326,10 @@
           "title": "Mltpl Noise",
           "type": "boolean"
         },
-        "masking": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Masking"
-        },
-        "downsampling": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Downsampling"
-        },
-        "artificial_movement": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Artificial Movement"
-        },
         "inp_transform": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -212,6 +342,7 @@
         "gt_transform": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -224,18 +355,31 @@
         "timelapse_prm": {
           "anyOf": [
             {
-              "type": "object"
+              "$ref": "#/$defs/TimelapseParams"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Timelapse Prm"
+          "description": "Timelapse-specific loading options, used for temporal datasets."
         },
         "mltpl_snr_prm": {
           "anyOf": [
             {
+              "$ref": "#/$defs/MultipleSnrParams"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Multi-SNR selection options, used when a dataset contains several noise levels per sample."
+        },
+        "masking": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -243,11 +387,36 @@
             }
           ],
           "default": null,
-          "title": "Mltpl Snr Prm"
+          "title": "Masking"
+        },
+        "downsampling": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DownsamplingParams"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Upsampling-training settings for generating downsampled model inputs."
+        },
+        "artificial_movement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtificialMovementParams"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Upsampling-training settings for adding synthetic motion to temporal inputs."
         },
         "norm_prm": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -260,6 +429,7 @@
         "model_norm_prm": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -463,11 +633,46 @@
           "type": "string"
         },
         "parameters": {
+          "additionalProperties": true,
           "title": "Parameters",
           "type": "object"
         }
       },
       "title": "ModelSection",
+      "type": "object"
+    },
+    "MultipleSnrParams": {
+      "additionalProperties": false,
+      "description": "Options used when selecting a noise level from multi-SNR datasets.",
+      "properties": {
+        "snr_idx": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "enum": [
+                "last",
+                "random"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Noise level selection strategy: a single index, a list of indices, 'last', 'random', or null.",
+          "title": "Snr Idx"
+        }
+      },
+      "title": "MultipleSnrParams",
       "type": "object"
     },
     "NoiseModelSection": {
@@ -562,6 +767,46 @@
       "title": "TensorboardSection",
       "type": "object"
     },
+    "TimelapseParams": {
+      "additionalProperties": false,
+      "description": "Options used when loading timelapse datasets.",
+      "properties": {
+        "timelapse_max_frames": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional maximum number of frames to load from each timelapse stack.",
+          "title": "Timelapse Max Frames"
+        },
+        "context_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Odd temporal window size centered on the current frame. Use null to keep the full sequence.",
+          "title": "Context Length"
+        },
+        "shuffle": {
+          "default": false,
+          "description": "Whether timelapse frames should be shuffled before sampling.",
+          "title": "Shuffle",
+          "type": "boolean"
+        }
+      },
+      "title": "TimelapseParams",
+      "type": "object"
+    },
     "TrainingSection": {
       "additionalProperties": true,
       "properties": {
@@ -618,7 +863,7 @@
     }
   },
   "additionalProperties": true,
-  "description": "User-authored experiment YAML schema.",
+  "description": "User-authored training experiment YAML schema.",
   "properties": {
     "experiment": {
       "$ref": "#/$defs/ExperimentSection"
@@ -636,10 +881,12 @@
       "$ref": "#/$defs/TrainingSection"
     },
     "normalization": {
+      "additionalProperties": true,
       "title": "Normalization",
       "type": "object"
     },
     "loss_function": {
+      "additionalProperties": true,
       "title": "Loss Function",
       "type": "object"
     },

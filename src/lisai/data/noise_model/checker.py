@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from lisai.data.utils import crop_center
-from lisai.infra.config import settings
+from lisai.config import settings
 from lisai.infra.paths import Paths
 from lisai.lib.hdn import histNoiseModel
 from lisai.lib.hdn.gaussianMixtureNoiseModel import GaussianMixtureNoiseModel

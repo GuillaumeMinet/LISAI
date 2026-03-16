@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from lisai.infra.config import settings
+from lisai.config import settings
 from lisai.infra.fs import create_tb_folder
 from lisai.infra.logging import setup_logger
 from lisai.infra.paths import Paths
@@ -16,7 +16,7 @@ from .context import TrainingContext
 from .run_dir import prepare_run_dir
 
 if TYPE_CHECKING:
-    from lisai.infra.config.schema import ResolvedExperiment
+    from lisai.config.models import ResolvedExperiment
 
 def initialize(cfg: ResolvedExperiment) -> TrainingContext:
     """

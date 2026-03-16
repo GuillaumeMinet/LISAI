@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from lisai.infra.config.settings import settings
-
 from .checkpoint_naming import model_filename
 
 
@@ -26,7 +24,11 @@ class Paths:
     runtime context (dataset, run, etc.) and centralizes all filesystem
     structure logic to avoid hardcoded paths across the codebase.
     """
-    def __init__(self, stg=settings, keys: TemplateKeys | None = None):
+    def __init__(self, stg=None, keys: TemplateKeys | None = None):
+        if stg is None:
+            from lisai.config.settings import settings as default_settings
+
+            stg = default_settings
         self.settings = stg
         self.keys = keys or TemplateKeys()
 
@@ -160,3 +162,4 @@ class Paths:
                 epoch_number=epoch_number,
             )
         return self.checkpoints_dir(run_dir=run_dir) / model_name
+

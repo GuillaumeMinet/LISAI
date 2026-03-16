@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable
 if TYPE_CHECKING:
     import torch
 
-    from lisai.infra.config.schema import ResolvedExperiment
+    from lisai.config.models import ResolvedExperiment
     from lisai.infra.paths import Paths
     from lisai.runtime.spec import RunSpec
 

@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from lisai.infra.config.schema.experiment import DataSection
+from lisai.config.models.training import DataSection
 
 from .pipeline import prep_data
 

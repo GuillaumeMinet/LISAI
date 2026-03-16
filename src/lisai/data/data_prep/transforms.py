@@ -1,7 +1,7 @@
 from copy import deepcopy
 
 from lisai.data.utils import simple_transforms
-from lisai.infra.config.schema.experiment import DataSection
+from lisai.config.models.training import DataSection
 from lisai.lib.upsamp.inp_generators import generate_downsamp_inp, generate_masked_inp
 
 
@@ -22,7 +22,7 @@ def apply_inp_transformations(
     elif config.downsampling is not None:
         masking = False
         downsampling = True
-        transform_prm = deepcopy(config.downsampling)
+        transform_prm = deepcopy(config.downsampling.model_dump(exclude_none=True))
     else:
         raise ValueError("No input transformation provided (masking/downsampling).")
 

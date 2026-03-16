@@ -1,4 +1,4 @@
-from lisai.infra.config import resolve_config
+from lisai.config import resolve_config
 
 from . import setup
 from .trainers import get_trainer

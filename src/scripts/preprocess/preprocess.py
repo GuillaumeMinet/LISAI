@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 
 from lisai.data.preprocess import PreprocessRun
-from lisai.infra.config import load_yaml, settings
+from lisai.config import load_yaml, settings
 from lisai.infra.paths import Paths
 
 

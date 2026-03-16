@@ -19,7 +19,7 @@ from lisai.evaluation.io import (
     save_outputs,
 )
 from lisai.evaluation.metrics import compute as metrics
-from lisai.infra.config.schema.experiment import DataSection
+from lisai.config.models.training import DataSection
 from lisai.models.loader import get_model_for_inference
 
 
