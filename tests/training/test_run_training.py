@@ -39,26 +39,25 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
     cfg = SimpleNamespace(model=SimpleNamespace(architecture="unet"))
     writer = DummyWriter()
     logger = DummyLogger()
-    ctx = SimpleNamespace(
-        spec="SPEC",
+    runtime = SimpleNamespace(
         device="cpu",
         run_dir=Path("run_a"),
-        volumetric=False,
         writer=writer,
         callbacks=["cb"],
         console_filter="console_filter",
         file_filter="file_filter",
         logger=logger,
+        paths="paths",
     )
     loaders = SimpleNamespace(train="train_loader", val="val_loader")
-    meta_data = SimpleNamespace(norm_prm={"data_mean": 0.0})
+    meta_data = SimpleNamespace(model_norm_prm={"data_mean": 0.0}, patch_info=None)
     trainer = DummyTrainer()
     captured = {}
 
     fake_setup = SimpleNamespace(
-        initialize=lambda c: ctx,
-        prepare_data=lambda c, x: (loaders, meta_data),
-        build_model=lambda spec, device, norm_prm: ("model_obj", {"epoch": 0}),
+        prepare_data=lambda c, x, **kwargs: (loaders, meta_data),
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_or_spec, device, norm_prm, noise_model: ("model_obj", {"epoch": 0}),
     )
 
     def fake_get_trainer(**kwargs):
@@ -66,6 +65,7 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
         return trainer
 
     monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", fake_get_trainer)
 
@@ -79,34 +79,35 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
     assert captured["kwargs"]["train_loader"] == "train_loader"
     assert captured["kwargs"]["val_loader"] == "val_loader"
     assert captured["kwargs"]["state_dict"] == {"epoch": 0}
+    assert captured["kwargs"]["patch_info"] is None
 
 
 def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.MonkeyPatch):
     cfg = SimpleNamespace(model=SimpleNamespace(architecture="unet"))
     writer = DummyWriter()
     logger = DummyLogger()
-    ctx = SimpleNamespace(
-        spec="SPEC",
+    runtime = SimpleNamespace(
         device="cpu",
         run_dir=Path("run_b"),
-        volumetric=False,
         writer=writer,
         callbacks=[],
         console_filter=None,
         file_filter=None,
         logger=logger,
+        paths="paths",
     )
     loaders = SimpleNamespace(train="train_loader", val="val_loader")
-    meta_data = SimpleNamespace(norm_prm={"data_mean": 0.0})
+    meta_data = SimpleNamespace(model_norm_prm={"data_mean": 0.0}, patch_info=None)
     trainer = DummyTrainer(raise_on_train=RuntimeError("boom"))
 
     fake_setup = SimpleNamespace(
-        initialize=lambda c: ctx,
-        prepare_data=lambda c, x: (loaders, meta_data),
-        build_model=lambda spec, device, norm_prm: ("model_obj", None),
+        prepare_data=lambda c, x, **kwargs: (loaders, meta_data),
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_or_spec, device, norm_prm, noise_model: ("model_obj", None),
     )
 
     monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
 

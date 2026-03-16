@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("lisai.setup_noise_model")
 
 
-def _extract_noise_model_name(cfg: ResolvedExperiment) -> str | None:
+def resolve_noise_model_name(cfg: ResolvedExperiment) -> str | None:
     noise_model = getattr(cfg, "noise_model", None)
     if isinstance(noise_model, dict):
         return noise_model.get("name")
@@ -45,7 +45,7 @@ def resolve_noise_model_metadata(cfg: ResolvedExperiment, lisai_paths: Paths):
     if not bool((cfg.normalization or {}).get("load_from_noise_model", False)):
         return None
 
-    noise_model_name = _extract_noise_model_name(cfg)
+    noise_model_name = resolve_noise_model_name(cfg)
     if not noise_model_name:
         raise KeyError("Noise model name not found in config")
 

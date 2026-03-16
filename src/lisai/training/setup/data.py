@@ -4,20 +4,19 @@ import logging
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
-from lisai.data.data_prep import make_training_loaders
 from lisai.config import load_yaml
+from lisai.data.data_prep import make_training_loaders
 
 if TYPE_CHECKING:
     from lisai.config.models import ResolvedExperiment
-
-    from .context import TrainingContext
+    from lisai.training.runtime import TrainingRuntime
 
 logger = logging.getLogger("lisai.prepare_data")
 
 
 def prepare_data(
     cfg: ResolvedExperiment,
-    ctx: TrainingContext,
+    runtime: TrainingRuntime,
     *,
     data_norm_prm: dict | None = None,
 ):
@@ -25,18 +24,20 @@ def prepare_data(
     Resolves data paths, handles volumetric logic, creates loaders.
     cfg is ResolvedExperiment (Pydantic).
     """
+    is_volumetric = cfg.model.architecture == "unet3d"
+
     norm_prm = data_norm_prm
     if norm_prm is None:
         norm_prm = (cfg.normalization or {}).get("norm_prm")
 
-    data_dir = ctx.paths.dataset_dir(
+    data_dir = runtime.paths.dataset_dir(
         dataset_name=cfg.data.dataset_name,
         data_subfolder=cfg.routing.data_subfolder,
     )
 
     registry = {}
     try:
-        registry = load_yaml(ctx.paths.dataset_registry_path())
+        registry = load_yaml(runtime.paths.dataset_registry_path())
     except FileNotFoundError:
         logger.warning("Dataset registry not found")
 
@@ -46,7 +47,7 @@ def prepare_data(
         data_dir=data_dir,
         norm_prm=norm_prm,
         dataset_info=dataset_info,
-        volumetric=ctx.volumetric,
+        volumetric=is_volumetric,
     )
 
     train_loader, val_loader, model_norm_prm, patch_info = make_training_loaders(

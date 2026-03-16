@@ -7,7 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import lisai.training.setup.system as system_mod
+import lisai.training.runtime as runtime_mod
+import lisai.training.setup.run_dir as run_dir_mod
 
 
 class FakeLogger:
@@ -50,7 +51,7 @@ def _make_cfg(
     )
 
 
-def test_initialize_falls_back_to_cpu_and_builds_validation_callback(
+def test_initialize_runtime_falls_back_to_cpu_and_builds_validation_callback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     run_dir = tmp_path / "run_a"
@@ -91,11 +92,10 @@ def test_initialize_falls_back_to_cpu_and_builds_validation_callback(
         }
         return fake_logger, console_filter, file_filter
 
-    monkeypatch.setattr(system_mod, "Paths", lambda _settings: FakePaths())
-    monkeypatch.setattr(system_mod, "RunSpec", lambda cfg: "RUN_SPEC")
-    monkeypatch.setattr(system_mod, "prepare_run_dir", lambda cfg, ctx: (run_dir, "exp_unique"))
-    monkeypatch.setattr(system_mod, "setup_logger", fake_setup_logger)
-    monkeypatch.setattr(system_mod.torch.cuda, "is_available", lambda: False)
+    monkeypatch.setattr(runtime_mod, "Paths", lambda _settings: FakePaths())
+    monkeypatch.setattr(run_dir_mod, "prepare_run_dir", lambda cfg, ctx: (run_dir, "exp_unique"))
+    monkeypatch.setattr(runtime_mod, "setup_logger", fake_setup_logger)
+    monkeypatch.setattr(runtime_mod.torch.cuda, "is_available", lambda: False)
 
     cfg = _make_cfg(
         architecture="unet3d",
@@ -106,17 +106,16 @@ def test_initialize_falls_back_to_cpu_and_builds_validation_callback(
         validation_freq=7,
     )
 
-    ctx = system_mod.initialize(cfg)
+    ctx = runtime_mod.initialize_runtime(cfg)
 
-    assert ctx.spec == "RUN_SPEC"
-    assert ctx.exp_name == "exp_unique"
+    assert ctx.run_name == "exp_unique"
     assert ctx.run_dir == run_dir
-    assert ctx.volumetric is True
     assert str(ctx.device) == "cpu"
     assert ctx.writer is None
     assert len(ctx.callbacks) == 1
-    assert isinstance(ctx.callbacks[0], system_mod.ValidationImagesCallback)
+    assert isinstance(ctx.callbacks[0], runtime_mod.ValidationImagesCallback)
     assert ctx.callbacks[0].freq == 7
+    assert ctx.callbacks[0].volumetric is True
 
     assert captured["setup_logger"]["name"] == "lisai"
     assert captured["setup_logger"]["log_file"] == run_dir / "train.log"
@@ -133,7 +132,7 @@ def test_initialize_falls_back_to_cpu_and_builds_validation_callback(
     assert file_filter.enable is False
 
 
-def test_initialize_creates_tensorboard_writer_and_tensorboard_callback(
+def test_initialize_runtime_creates_tensorboard_writer_and_tensorboard_callback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     run_dir = tmp_path / "run_b"
@@ -196,12 +195,11 @@ def test_initialize_creates_tensorboard_writer_and_tensorboard_callback(
         return tb_folder, "exp_unique"
 
     monkeypatch.setitem(sys.modules, "torch.utils.tensorboard", fake_tb_module)
-    monkeypatch.setattr(system_mod, "Paths", lambda _settings: FakePaths())
-    monkeypatch.setattr(system_mod, "RunSpec", lambda cfg: "RUN_SPEC")
-    monkeypatch.setattr(system_mod, "prepare_run_dir", lambda cfg, ctx: (run_dir, "exp_unique"))
-    monkeypatch.setattr(system_mod, "setup_logger", fake_setup_logger)
-    monkeypatch.setattr(system_mod, "create_tb_folder", fake_create_tb_folder)
-    monkeypatch.setattr(system_mod.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(runtime_mod, "Paths", lambda _settings: FakePaths())
+    monkeypatch.setattr(run_dir_mod, "prepare_run_dir", lambda cfg, ctx: (run_dir, "exp_unique"))
+    monkeypatch.setattr(runtime_mod, "setup_logger", fake_setup_logger)
+    monkeypatch.setattr(runtime_mod, "create_tb_folder", fake_create_tb_folder)
+    monkeypatch.setattr(runtime_mod.torch.cuda, "is_available", lambda: True)
 
     cfg = _make_cfg(
         architecture="unet",
@@ -213,13 +211,13 @@ def test_initialize_creates_tensorboard_writer_and_tensorboard_callback(
         validation_images=True,
     )
 
-    ctx = system_mod.initialize(cfg)
+    ctx = runtime_mod.initialize_runtime(cfg)
 
     assert isinstance(ctx.writer, FakeSummaryWriter)
     assert Path(ctx.writer.log_dir) == tb_folder
     assert len(ctx.callbacks) == 2
-    assert isinstance(ctx.callbacks[0], system_mod.TensorBoardCallback)
-    assert isinstance(ctx.callbacks[1], system_mod.ValidationImagesCallback)
+    assert isinstance(ctx.callbacks[0], runtime_mod.TensorBoardCallback)
+    assert isinstance(ctx.callbacks[1], runtime_mod.ValidationImagesCallback)
 
     assert captured["tensorboard_dir"] == {
         "dataset_name": "dataset_x",
