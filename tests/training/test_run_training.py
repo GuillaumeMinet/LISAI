@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 import lisai.training.run_training as run_training_mod
+from lisai.training.setup.data import PreparedTrainingData
 
 
 class DummyWriter:
@@ -35,6 +36,7 @@ class DummyTrainer:
             raise self.raise_on_train
 
 
+
 def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPatch):
     cfg = SimpleNamespace(model=SimpleNamespace(architecture="unet"))
     writer = DummyWriter()
@@ -49,13 +51,18 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
         logger=logger,
         paths="paths",
     )
-    loaders = SimpleNamespace(train="train_loader", val="val_loader")
-    meta_data = SimpleNamespace(model_norm_prm={"data_mean": 0.0}, patch_info=None)
+    prepared_data = PreparedTrainingData(
+        train_loader="train_loader",
+        val_loader="val_loader",
+        data_norm_prm={"data_mean": 0.0},
+        model_norm_prm={"data_mean": 0.0},
+        patch_info=None,
+    )
     trainer = DummyTrainer()
     captured = {}
 
     fake_setup = SimpleNamespace(
-        prepare_data=lambda c, x, **kwargs: (loaders, meta_data),
+        prepare_data=lambda c, x: prepared_data,
         save_training_config=lambda *args, **kwargs: None,
         build_model=lambda cfg_or_spec, device, norm_prm, noise_model: ("model_obj", {"epoch": 0}),
     )
@@ -82,6 +89,7 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
     assert captured["kwargs"]["patch_info"] is None
 
 
+
 def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.MonkeyPatch):
     cfg = SimpleNamespace(model=SimpleNamespace(architecture="unet"))
     writer = DummyWriter()
@@ -96,12 +104,17 @@ def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.Mo
         logger=logger,
         paths="paths",
     )
-    loaders = SimpleNamespace(train="train_loader", val="val_loader")
-    meta_data = SimpleNamespace(model_norm_prm={"data_mean": 0.0}, patch_info=None)
+    prepared_data = PreparedTrainingData(
+        train_loader="train_loader",
+        val_loader="val_loader",
+        data_norm_prm={"data_mean": 0.0},
+        model_norm_prm={"data_mean": 0.0},
+        patch_info=None,
+    )
     trainer = DummyTrainer(raise_on_train=RuntimeError("boom"))
 
     fake_setup = SimpleNamespace(
-        prepare_data=lambda c, x, **kwargs: (loaders, meta_data),
+        prepare_data=lambda c, x: prepared_data,
         save_training_config=lambda *args, **kwargs: None,
         build_model=lambda cfg_or_spec, device, norm_prm, noise_model: ("model_obj", None),
     )

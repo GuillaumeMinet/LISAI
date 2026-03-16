@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
-from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from lisai.config import load_yaml
 from lisai.data.data_prep import make_training_loaders
+
+from .noise_model import resolve_noise_model_metadata
 
 if TYPE_CHECKING:
     from lisai.config.models import ResolvedExperiment
@@ -14,21 +16,33 @@ if TYPE_CHECKING:
 logger = logging.getLogger("lisai.prepare_data")
 
 
+@dataclass
+class PreparedTrainingData:
+    """Typed output of training data preparation."""
+
+    train_loader: Any
+    val_loader: Any
+    data_norm_prm: dict | None
+    model_norm_prm: dict | None
+    patch_info: Any | None
+
+
+
 def prepare_data(
     cfg: ResolvedExperiment,
     runtime: TrainingRuntime,
-    *,
-    data_norm_prm: dict | None = None,
-):
+) -> PreparedTrainingData:
     """
-    Resolves data paths, handles volumetric logic, creates loaders.
-    cfg is ResolvedExperiment (Pydantic).
+    Resolve training data configuration, normalization, and loaders.
     """
+    is_lvae = cfg.model.architecture == "lvae"
     is_volumetric = cfg.model.architecture == "unet3d"
 
-    norm_prm = data_norm_prm
-    if norm_prm is None:
-        norm_prm = (cfg.normalization or {}).get("norm_prm")
+    data_norm_prm = None
+    if is_lvae:
+        data_norm_prm = resolve_noise_model_metadata(cfg, runtime.paths)
+    if data_norm_prm is None:
+        data_norm_prm = (cfg.normalization or {}).get("norm_prm")
 
     data_dir = runtime.paths.dataset_dir(
         dataset_name=cfg.data.dataset_name,
@@ -45,7 +59,7 @@ def prepare_data(
 
     data_cfg = cfg.data.resolved(
         data_dir=data_dir,
-        norm_prm=norm_prm,
+        norm_prm=data_norm_prm,
         dataset_info=dataset_info,
         volumetric=is_volumetric,
     )
@@ -54,7 +68,10 @@ def prepare_data(
         config=data_cfg,
     )
 
-    loaders = SimpleNamespace(train=train_loader, val=val_loader)
-    meta = SimpleNamespace(model_norm_prm=model_norm_prm, patch_info=patch_info)
-
-    return loaders, meta
+    return PreparedTrainingData(
+        train_loader=train_loader,
+        val_loader=val_loader,
+        data_norm_prm=data_norm_prm,
+        model_norm_prm=model_norm_prm,
+        patch_info=patch_info,
+    )
