@@ -1,0 +1,120 @@
+apply:
+  # Output folder for predictions.
+  # Use "default" to save next to the input data with an auto-generated folder name.
+  save_folder: default
+
+  # If true, write predictions back into the input location instead of creating a separate folder.
+  in_place: false
+
+  # Specific checkpoint epoch to load.
+  # Use null to select the checkpoint via best_or_last instead.
+  epoch_number: null
+
+  # Which checkpoint to load when epoch_number is null.
+  # Supported values are "best" and "last".
+  best_or_last: best
+
+  # File extensions accepted when data_path points to a directory.
+  filters:
+    - tiff
+    - tif
+
+  # Optional substrings; matching filenames are skipped during apply.
+  skip_if_contain: null
+
+  # Optional center crop applied before inference.
+  # Use null to keep full size, a single integer for a square crop, or H,W from CLI.
+  crop_size: null
+
+  # If true, pad predictions back to the original spatial size after crop_size inference.
+  keep_original_shape: true
+
+  # Tile size used for patch-wise inference.
+  # Use null to fall back to the model/runtime default.
+  tiling_size: null
+
+  # Optional index used to select one stack/channel before converting inputs to 4D.
+  stack_selection_idx: null
+
+  # Optional maximum number of timelapse frames to process.
+  timelapse_max: null
+
+  # Number of stochastic samples drawn for LVAE models.
+  lvae_num_samples: 20
+
+  # If true, save individual LVAE samples in addition to the main prediction.
+  lvae_save_samples: true
+
+  # If true, convert predictions back from normalized model space to data space before saving.
+  denormalize_output: true
+
+  # If true, also save the input tensor/image alongside predictions.
+  save_inp: false
+
+  # Optional spatial downsampling factor applied to the input before inference.
+  # this is not needed if you acquired already sub-sampled data
+  downsamp: null
+
+  # If true, create an additional color-coded visualization for volumetric outputs.
+  apply_color_code: false
+
+  color_code_prm:
+    # Matplotlib colormap name used for volumetric color coding.
+    colormap: turbo
+
+    # Contrast boost for the color-coded visualization.
+    saturation: 0.35
+
+    # If true, append a colorbar to the color-coded visualization.
+    add_colorbar: true
+
+    # Physical or logical spacing between z slices, used for the colorbar scale.
+    zstep: 0.4
+
+  # If true, missing timelapse context frames are replaced with dark frames instead of skipping edges.
+  dark_frame_context_length: false
+
+evaluate:
+  # Which checkpoint to load when epoch_number is null.
+  # Supported values are "best" and "last".
+  best_or_last: best
+
+  # Specific checkpoint epoch to load.
+  # Use null to select the checkpoint via best_or_last instead.
+  epoch_number: null
+
+  # Tile size used for patch-wise inference during evaluation.
+  # Use null to fall back to the model/runtime default.
+  tiling_size: null
+
+  # Optional center crop applied before evaluation/inference.
+  crop_size: null
+
+  # Metrics to compute, for example ["psnr", "ssim"].
+  # Use null to skip metric computation and only save outputs.
+  metrics_list: null
+
+  # Number of stochastic samples drawn for LVAE models.
+  lvae_num_samples: 20
+
+  # Output folder for evaluation artifacts.
+  # Use null to save inside the model run directory with an auto-generated evaluation folder name.
+  save_folder: null
+
+  # If true and save_folder already exists, allow overwriting it.
+  overwrite: false
+
+  # Optional target/ground-truth override used when evaluating with a custom GT location.
+  eval_gt: null
+
+  # Optional extra data-loader overrides, for example {"data_dir": "..."} or {"subfolder": "..."}.
+  data_prm_update: null
+
+  # Optional output channel selection forwarded to inference.
+  ch_out: null
+
+  # Dataset split to evaluate, typically "test" or "val".
+  split: test
+
+  # Optional cap on the number of images/batches to evaluate.
+  limit_n_imgs: null

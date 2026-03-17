@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from typing import Sequence
 
+from lisai.evaluation.cli import add_apply_subparser, add_evaluate_subparser
 from lisai.training.cli import add_train_subparser
 
 
@@ -12,6 +13,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.required = True
 
     add_train_subparser(subparsers)
+    add_apply_subparser(subparsers)
+    add_evaluate_subparser(subparsers)
     return parser
 
 

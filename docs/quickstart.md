@@ -50,14 +50,15 @@ Training resolves the config, creates a run directory, saves `config_train.yaml`
 
 ## Evaluation
 
-Two convenience scripts are kept for evaluation workflows:
+Use the CLI for evaluation workflows:
 
 ```powershell
-python src/scripts/evaluate_model.py
-python src/scripts/apply_model.py
+lisai evaluate Gag/Upsamp/my_model --split val --metrics psnr,ssim
+lisai apply Gag/Upsamp/my_model /data/images --tiling-size 512
 ```
 
-Both scripts are parameter-driven: edit the user section at the top of the file, then run the script.
+Both commands accept `--config <name>` to load settings from `configs/inference/<name>.yml`,
+and any CLI argument overrides the config value.
 
 ## Preprocess
 
