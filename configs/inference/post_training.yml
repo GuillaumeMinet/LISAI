@@ -1,0 +1,6 @@
+evaluate:
+  split: test
+  metrics_list:
+    - psnr
+    - ssim
+  overwrite: true

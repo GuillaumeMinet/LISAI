@@ -19,7 +19,6 @@ class FakePaths:
         return self.checkpoint_path_value
 
 
-
 def _make_saved_run(*, checkpoint_methods=('state_dict',), default_tiling_size=128) -> SavedTrainingRun:
     return SavedTrainingRun(
         run_dir=Path('/runs/dataset_a/exp_a'),
@@ -41,7 +40,6 @@ def _make_saved_run(*, checkpoint_methods=('state_dict',), default_tiling_size=1
     )
 
 
-
 def test_initialize_runtime_builds_inference_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     checkpoint_path = tmp_path / 'checkpoint.pt'
     checkpoint_path.write_text('ok', encoding='utf-8')
@@ -49,7 +47,11 @@ def test_initialize_runtime_builds_inference_runtime(monkeypatch: pytest.MonkeyP
     model_obj = object()
 
     monkeypatch.setattr(runtime_mod, 'Paths', lambda _settings: fake_paths)
-    monkeypatch.setattr(runtime_mod, '_load_state_dict_model', lambda saved_run, checkpoint_path, device, paths: model_obj)
+    monkeypatch.setattr(
+        runtime_mod,
+        '_load_state_dict_model',
+        lambda saved_run, checkpoint_path, device, paths: (model_obj, 17),
+    )
 
     runtime = runtime_mod.initialize_runtime(
         saved_run=_make_saved_run(),
@@ -64,6 +66,7 @@ def test_initialize_runtime_builds_inference_runtime(monkeypatch: pytest.MonkeyP
     assert runtime.checkpoint_path == checkpoint_path
     assert runtime.load_method == 'state_dict'
     assert runtime.tiling_size == 128
+    assert runtime.resolved_epoch == 17
     assert fake_paths.calls == [
         {
             'run_dir': Path('/runs/dataset_a/exp_a'),
@@ -73,9 +76,8 @@ def test_initialize_runtime_builds_inference_runtime(monkeypatch: pytest.MonkeyP
     ]
 
 
-
 def test_initialize_runtime_loads_full_model_and_applies_tiling_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    checkpoint_path = tmp_path / 'checkpoint_full.pt'
+    checkpoint_path = tmp_path / 'model_epoch_9.pt'
     checkpoint_path.write_text('ok', encoding='utf-8')
     fake_paths = FakePaths(checkpoint_path)
 
@@ -101,4 +103,5 @@ def test_initialize_runtime_loads_full_model_and_applies_tiling_override(monkeyp
     assert runtime.model is model_obj
     assert runtime.load_method == 'full_model'
     assert runtime.tiling_size == 256
+    assert runtime.resolved_epoch == 9
     assert model_obj.evaluated is True

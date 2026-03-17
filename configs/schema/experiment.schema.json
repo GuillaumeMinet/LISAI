@@ -606,6 +606,11 @@
           "default": false,
           "title": "Overwrite",
           "type": "boolean"
+        },
+        "post_training_inference": {
+          "default": false,
+          "title": "Post Training Inference",
+          "type": "boolean"
         }
       },
       "title": "ExperimentSection",
@@ -737,6 +742,21 @@
           "default": 10,
           "title": "Validation Freq",
           "type": "integer"
+        },
+        "state_dict": {
+          "default": false,
+          "title": "State Dict",
+          "type": "boolean"
+        },
+        "entire_model": {
+          "default": false,
+          "title": "Entire Model",
+          "type": "boolean"
+        },
+        "overwrite_best": {
+          "default": true,
+          "title": "Overwrite Best",
+          "type": "boolean"
         }
       },
       "title": "SavingSection",
@@ -871,6 +891,19 @@
       "additionalProperties": true,
       "title": "Normalization",
       "type": "object"
+    },
+    "model_norm_prm": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Norm Prm"
     },
     "loss_function": {
       "additionalProperties": true,

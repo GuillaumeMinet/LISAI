@@ -20,50 +20,72 @@ class DummyWriter:
 class DummyLogger:
     def __init__(self):
         self.errors = []
+        self.infos = []
 
     def error(self, msg, exc_info=False):
         self.errors.append((msg, exc_info))
 
+    def info(self, msg):
+        self.infos.append(msg)
+
 
 class DummyTrainer:
-    def __init__(self, raise_on_train: Exception | None = None):
+    def __init__(self, raise_on_train: Exception | None = None, outcome=None):
         self.raise_on_train = raise_on_train
+        self.outcome = outcome
         self.train_calls = 0
 
     def train(self):
         self.train_calls += 1
         if self.raise_on_train is not None:
             raise self.raise_on_train
+        return self.outcome
 
+
+def _make_cfg(*, post_training_inference: bool = False):
+    return SimpleNamespace(
+        model=SimpleNamespace(architecture='unet'),
+        experiment=SimpleNamespace(post_training_inference=post_training_inference),
+        data=SimpleNamespace(dataset_name='dataset_a'),
+        routing=SimpleNamespace(models_subfolder='Upsamp'),
+    )
+
+
+def _make_runtime(*, writer, logger, run_dir: Path):
+    return SimpleNamespace(
+        device='cpu',
+        run_dir=run_dir,
+        writer=writer,
+        callbacks=['cb'],
+        console_filter='console_filter',
+        file_filter='file_filter',
+        logger=logger,
+        paths='paths',
+    )
+
+
+def _make_prepared_data():
+    return PreparedTrainingData(
+        train_loader='train_loader',
+        val_loader='val_loader',
+        data_norm_prm={'data_mean': 0.0},
+        model_norm_prm={'data_mean': 0.0},
+        patch_info=None,
+    )
 
 
 def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPatch):
-    cfg = SimpleNamespace(model=SimpleNamespace(architecture="unet"))
+    cfg = _make_cfg()
     writer = DummyWriter()
     logger = DummyLogger()
-    runtime = SimpleNamespace(
-        device="cpu",
-        run_dir=Path("run_a"),
-        writer=writer,
-        callbacks=["cb"],
-        console_filter="console_filter",
-        file_filter="file_filter",
-        logger=logger,
-        paths="paths",
-    )
-    prepared_data = PreparedTrainingData(
-        train_loader="train_loader",
-        val_loader="val_loader",
-        data_norm_prm={"data_mean": 0.0},
-        model_norm_prm={"data_mean": 0.0},
-        patch_info=None,
-    )
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=Path('run_a'))
+    prepared_data = _make_prepared_data()
     trainer = DummyTrainer()
     captured = {}
 
     def fake_build_model(cfg_arg, device, lisai_paths, model_norm_prm):
-        captured["build_model_args"] = (cfg_arg, device, lisai_paths, model_norm_prm)
-        return "model_obj", {"epoch": 0}
+        captured['build_model_args'] = (cfg_arg, device, lisai_paths, model_norm_prm)
+        return 'model_obj', {'epoch': 0}
 
     fake_setup = SimpleNamespace(
         prepare_data=lambda c, x: prepared_data,
@@ -72,66 +94,136 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
     )
 
     def fake_get_trainer(**kwargs):
-        captured["trainer_kwargs"] = kwargs
+        captured['trainer_kwargs'] = kwargs
         return trainer
 
-    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
-    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
-    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
-    monkeypatch.setattr(run_training_mod, "get_trainer", fake_get_trainer)
+    monkeypatch.setattr(run_training_mod, 'resolve_config', lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, 'initialize_runtime', lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, 'setup', fake_setup)
+    monkeypatch.setattr(run_training_mod, 'get_trainer', fake_get_trainer)
 
-    out = run_training_mod.run_training("configs/training/hdn_training.yml")
+    out = run_training_mod.run_training('configs/training/hdn_training.yml')
 
     assert out is trainer
     assert trainer.train_calls == 1
     assert writer.close_calls == 1
-    assert captured["build_model_args"] == (cfg, "cpu", "paths", {"data_mean": 0.0})
-    assert captured["trainer_kwargs"]["architecture"] == "unet"
-    assert captured["trainer_kwargs"]["model"] == "model_obj"
-    assert captured["trainer_kwargs"]["train_loader"] == "train_loader"
-    assert captured["trainer_kwargs"]["val_loader"] == "val_loader"
-    assert captured["trainer_kwargs"]["state_dict"] == {"epoch": 0}
-    assert captured["trainer_kwargs"]["patch_info"] is None
-
+    assert captured['build_model_args'] == (cfg, 'cpu', 'paths', {'data_mean': 0.0})
+    assert captured['trainer_kwargs']['architecture'] == 'unet'
+    assert captured['trainer_kwargs']['model'] == 'model_obj'
+    assert captured['trainer_kwargs']['train_loader'] == 'train_loader'
+    assert captured['trainer_kwargs']['val_loader'] == 'val_loader'
+    assert captured['trainer_kwargs']['state_dict'] == {'epoch': 0}
+    assert captured['trainer_kwargs']['patch_info'] is None
 
 
 def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.MonkeyPatch):
-    cfg = SimpleNamespace(model=SimpleNamespace(architecture="unet"))
+    cfg = _make_cfg()
     writer = DummyWriter()
     logger = DummyLogger()
-    runtime = SimpleNamespace(
-        device="cpu",
-        run_dir=Path("run_b"),
-        writer=writer,
-        callbacks=[],
-        console_filter=None,
-        file_filter=None,
-        logger=logger,
-        paths="paths",
-    )
-    prepared_data = PreparedTrainingData(
-        train_loader="train_loader",
-        val_loader="val_loader",
-        data_norm_prm={"data_mean": 0.0},
-        model_norm_prm={"data_mean": 0.0},
-        patch_info=None,
-    )
-    trainer = DummyTrainer(raise_on_train=RuntimeError("boom"))
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=Path('run_b'))
+    prepared_data = _make_prepared_data()
+    trainer = DummyTrainer(raise_on_train=RuntimeError('boom'))
 
     fake_setup = SimpleNamespace(
         prepare_data=lambda c, x: prepared_data,
         save_training_config=lambda *args, **kwargs: None,
-        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ('model_obj', None),
     )
 
-    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
-    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
-    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
-    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
+    monkeypatch.setattr(run_training_mod, 'resolve_config', lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, 'initialize_runtime', lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, 'setup', fake_setup)
+    monkeypatch.setattr(run_training_mod, 'get_trainer', lambda **kwargs: trainer)
 
-    with pytest.raises(RuntimeError, match="boom"):
-        run_training_mod.run_training("configs/training/hdn_training.yml")
+    with pytest.raises(RuntimeError, match='boom'):
+        run_training_mod.run_training('configs/training/hdn_training.yml')
 
     assert trainer.train_calls == 1
     assert writer.close_calls == 1
-    assert logger.errors == [("Training crashed", True)]
+    assert logger.errors == [('Training crashed', True)]
+
+
+def test_run_training_triggers_post_training_evaluation_on_completion(monkeypatch: pytest.MonkeyPatch):
+    cfg = _make_cfg(post_training_inference=True)
+    writer = DummyWriter()
+    logger = DummyLogger()
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=Path('/runs/dataset_a/Upsamp/run_c'))
+    prepared_data = _make_prepared_data()
+    trainer = DummyTrainer(outcome=SimpleNamespace(reason='completed', last_completed_epoch=12))
+    captured = {}
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ('model_obj', None),
+    )
+
+    monkeypatch.setattr(run_training_mod, 'resolve_config', lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, 'initialize_runtime', lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, 'setup', fake_setup)
+    monkeypatch.setattr(run_training_mod, 'get_trainer', lambda **kwargs: trainer)
+    monkeypatch.setattr(run_training_mod, 'run_evaluate', lambda **kwargs: captured.update(kwargs))
+
+    run_training_mod.run_training('configs/training/hdn_training.yml')
+
+    assert captured == {
+        'dataset_name': 'dataset_a',
+        'model_name': 'run_c',
+        'model_subfolder': 'Upsamp',
+        'config': 'post_training',
+    }
+
+
+def test_run_training_prompts_before_post_training_evaluation_on_interrupt(monkeypatch: pytest.MonkeyPatch):
+    cfg = _make_cfg(post_training_inference=True)
+    writer = DummyWriter()
+    logger = DummyLogger()
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=Path('/runs/dataset_a/Upsamp/run_d'))
+    prepared_data = _make_prepared_data()
+    trainer = DummyTrainer(outcome=SimpleNamespace(reason='interrupted', last_completed_epoch=4))
+    captured = {}
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ('model_obj', None),
+    )
+
+    monkeypatch.setattr(run_training_mod, 'resolve_config', lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, 'initialize_runtime', lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, 'setup', fake_setup)
+    monkeypatch.setattr(run_training_mod, 'get_trainer', lambda **kwargs: trainer)
+    monkeypatch.setattr(run_training_mod, '_prompt_yes_no', lambda prompt: True)
+    monkeypatch.setattr(run_training_mod, 'run_evaluate', lambda **kwargs: captured.update(kwargs))
+
+    run_training_mod.run_training('configs/training/hdn_training.yml')
+
+    assert captured['model_name'] == 'run_d'
+    assert captured['config'] == 'post_training'
+
+
+def test_run_training_skips_post_training_evaluation_when_interrupt_prompt_declined(monkeypatch: pytest.MonkeyPatch):
+    cfg = _make_cfg(post_training_inference=True)
+    writer = DummyWriter()
+    logger = DummyLogger()
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=Path('/runs/dataset_a/Upsamp/run_e'))
+    prepared_data = _make_prepared_data()
+    trainer = DummyTrainer(outcome=SimpleNamespace(reason='interrupted', last_completed_epoch=4))
+    calls = []
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ('model_obj', None),
+    )
+
+    monkeypatch.setattr(run_training_mod, 'resolve_config', lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, 'initialize_runtime', lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, 'setup', fake_setup)
+    monkeypatch.setattr(run_training_mod, 'get_trainer', lambda **kwargs: trainer)
+    monkeypatch.setattr(run_training_mod, '_prompt_yes_no', lambda prompt: False)
+    monkeypatch.setattr(run_training_mod, 'run_evaluate', lambda **kwargs: calls.append(kwargs))
+
+    run_training_mod.run_training('configs/training/hdn_training.yml')
+
+    assert calls == []

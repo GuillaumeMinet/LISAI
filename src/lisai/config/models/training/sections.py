@@ -12,6 +12,7 @@ class ExperimentSection(BaseModel):
     mode: Mode = "train"
     exp_name: str = "unnamed_experiment"
     overwrite: bool = False
+    post_training_inference: bool = True
 
 
 class ResolvedExperimentSection(ExperimentSection):

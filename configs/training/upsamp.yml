@@ -4,8 +4,8 @@
 # ========================================================
 experiment:
   mode: train  # 'train', 'continue_training', 'retrain'
-  exp_name: CL1_Upsamp2_RandomPx_UnetRCAN_rg8_rcab12_red16_CharEdge_alpha005
-  overwrite: true # mainly for debug; to overwrite any exp_name with the same name
+  exp_name: CL1_Upsamp2_Mltpl075
+  overwrite: false # mainly for debug; to overwrite any exp_name with the same name
 
 # ========================================================
 # Paths
@@ -34,7 +34,6 @@ data:
   target: null # for paired datasets
   input: ""
   timelapse_prm:
-      timelapse_max_frames: 5
       context_length: null
 
   patch_size: 96
@@ -43,7 +42,10 @@ data:
   
   downsampling:
     downsamp_factor: 2
-    downsamp_method: "random"
+    downsamp_method: "multiple"
+    multiple_prm:
+      random: True
+      fill_factor: 0.75
 
   # options
   initial_crop: null
@@ -55,37 +57,27 @@ data:
 # Model configuration
 # ========================================================
 model:
-  architecture: unet
+  architecture: unet_rcan
   parameters:
-      feat: 32
-      depth: 2
-      in_channels: 1
-      out_channels: 1
+    upsampling_net: rcan
+    upsampling_factor: 2
+    UNet_prm:
+      feat: 64
+      depth: 3
+      in_channels: 3
+      out_channels: 3
       activation: swish
       norm: group
       gr_norm: 8
       dropout: 0.1
-      upsampling_factor: 2
-      upsampling_order: after
-    # upsampling_net: rcan
-    # upsampling_factor: 2
-    # UNet_prm:
-    #   feat: 32
-    #   depth: 2
-    #   in_channels: 1
-    #   out_channels: 1
-    #   activation: swish
-    #   norm: group
-    #   gr_norm: 8
-    #   dropout: 0.1
-    #   cab_skip_con: false
-    # RCAN_prm:
-    #   num_features: 16
-    #   num_rg: 4
-    #   num_rcab: 4
-    #   reduction: 4
-    #   dropout: 0.1
-    #   upsamp_kernel_factor: 1
+      cab_skip_con: false
+    RCAN_prm:
+      num_features: 64
+      num_rg: 8
+      num_rcab: 12
+      reduction: 16
+      dropout: 0.1
+      upsamp_kernel_factor: 1
 
 # ========================================================
 # Training configuration

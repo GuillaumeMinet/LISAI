@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 import torch
@@ -32,6 +33,7 @@ class InferenceRuntime:
     checkpoint_path: Path
     load_method: CheckpointMethod
     tiling_size: int | None
+    resolved_epoch: int | None
 
 
 
@@ -92,12 +94,20 @@ def _resolve_checkpoint_path(
 
 
 
+def _epoch_from_checkpoint_path(checkpoint_path: Path) -> int | None:
+    match = re.search(r"model_epoch_(\d+)", checkpoint_path.name)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+
 def _load_state_dict_model(
     saved_run: SavedTrainingRun,
     checkpoint_path: Path,
     device: torch.device,
     paths: Paths,
-):
+) -> tuple[Any, int | None]:
     """Instantiate the model structure and load weights from a state-dict checkpoint."""
     model_norm_prm = dict(saved_run.model_norm_prm) if saved_run.model_norm_prm is not None else None
     noise_model = None
@@ -121,6 +131,15 @@ def _load_state_dict_model(
     )
 
     loaded = torch.load(checkpoint_path, map_location=device)
+    resolved_epoch = _epoch_from_checkpoint_path(checkpoint_path)
+    if isinstance(loaded, dict):
+        epoch = loaded.get("epoch")
+        if epoch is not None:
+            try:
+                resolved_epoch = int(epoch)
+            except (TypeError, ValueError):
+                pass
+
     if isinstance(loaded, dict) and "model_state_dict" in loaded:
         model.load_state_dict(loaded["model_state_dict"])
     elif isinstance(loaded, dict):
@@ -129,7 +148,7 @@ def _load_state_dict_model(
         raise ValueError(f"Unsupported checkpoint type at {checkpoint_path}: {type(loaded)}")
 
     model.eval()
-    return model
+    return model, resolved_epoch
 
 
 
@@ -154,8 +173,9 @@ def initialize_runtime(
     if load_method == "full_model":
         model = torch.load(checkpoint_path, map_location=resolved_device)
         model.eval()
+        resolved_epoch = _epoch_from_checkpoint_path(checkpoint_path)
     else:
-        model = _load_state_dict_model(saved_run, checkpoint_path, resolved_device, paths)
+        model, resolved_epoch = _load_state_dict_model(saved_run, checkpoint_path, resolved_device, paths)
 
     effective_tiling_size = tiling_size if tiling_size is not None else saved_run.default_tiling_size
     return InferenceRuntime(
@@ -164,6 +184,7 @@ def initialize_runtime(
         checkpoint_path=checkpoint_path,
         load_method=load_method,
         tiling_size=effective_tiling_size,
+        resolved_epoch=resolved_epoch,
     )
 
 

@@ -1,7 +1,9 @@
 import logging
 import os
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import torch
 
@@ -13,6 +15,15 @@ try:
     _tqdm_available = True
 except Exception:
     _tqdm_available = False
+
+
+TrainingStopReason = Literal["completed", "early_stopped", "interrupted", "no_epochs"]
+
+
+@dataclass(frozen=True)
+class TrainingOutcome:
+    reason: TrainingStopReason
+    last_completed_epoch: int | None
 
 
 class BaseTrainer(ABC):
@@ -223,7 +234,10 @@ class BaseTrainer(ABC):
             self.logger.info(
                 f"No epochs to run: start_epoch={start_epoch}, n_epochs={self.n_epochs}"
             )
-            return
+            return TrainingOutcome(
+                reason="no_epochs",
+                last_completed_epoch=last_completed_epoch if last_completed_epoch >= 0 else None,
+            )
 
         best_loss = self.state_dict.get("best_loss", float("inf"))
         last_train_loss = self.state_dict.get("train_loss")
@@ -234,6 +248,7 @@ class BaseTrainer(ABC):
             iter_epoch.set_description("Epochs")
 
         self.logger.info("Starting Training...")
+        stop_reason: TrainingStopReason = "completed"
 
         for epoch in iter_epoch:
             try:
@@ -296,14 +311,19 @@ class BaseTrainer(ABC):
                 logs = {"train_loss": train_loss, "val_loss": val_loss}
                 for cb in self.callbacks:
                     cb.on_epoch_end(self, epoch, logs)
+                last_completed_epoch = epoch
 
                 if self.early_stop and epoch > 2:
                     self.logger.info("Early stopping.")
+                    stop_reason = "early_stopped"
                     break
 
             except KeyboardInterrupt:
                 self._log_keyboard_interrupt(epoch, best_loss, last_train_loss, last_val_loss)
-                return
+                return TrainingOutcome(
+                    reason="interrupted",
+                    last_completed_epoch=last_completed_epoch if last_completed_epoch >= 0 else None,
+                )
             except Exception as e:
                 self.logger.error(
                     f"Training stopped during epoch {epoch}, because of error:\n{type(e)}\n{e}\n"
@@ -311,6 +331,10 @@ class BaseTrainer(ABC):
                 raise
 
         self._log_training_finished(epoch, best_loss, last_val_loss)
+        return TrainingOutcome(
+            reason=stop_reason,
+            last_completed_epoch=last_completed_epoch if last_completed_epoch >= 0 else None,
+        )
 
     
     # update console helper

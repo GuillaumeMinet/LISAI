@@ -25,6 +25,25 @@ from lisai.evaluation.runtime import initialize_runtime
 from lisai.evaluation.saved_run import load_saved_run, resolve_run_dir
 
 
+def _build_evaluation_folder_name(
+    *,
+    best_or_last: str,
+    requested_epoch: int | None,
+    resolved_epoch: int | None,
+    split: str,
+) -> str:
+    if requested_epoch is not None:
+        save_name = f"evaluation_epoch_{requested_epoch}"
+    elif resolved_epoch is not None:
+        save_name = f"evaluation_{best_or_last}_epoch_{resolved_epoch}"
+    else:
+        save_name = f"evaluation_{best_or_last}"
+
+    if split != "test":
+        save_name = f"{save_name}_{split}"
+    return save_name
+
+
 def run_evaluate(dataset_name:str,
              model_name:str,
              model_subfolder:str="",
@@ -70,14 +89,20 @@ def run_evaluate(dataset_name:str,
     )
     run_dir = resolve_run_dir(dataset_name=dataset_name, subfolder=model_subfolder, exp_name=model_name)
     saved_run = load_saved_run(run_dir)
+    runtime = initialize_runtime(
+        saved_run=saved_run,
+        best_or_last=options["best_or_last"],
+        epoch_number=options["epoch_number"],
+        tiling_size=options["tiling_size"],
+    )
 
     if options["save_folder"] is None:
-        if options["epoch_number"] is not None:
-            save_name = f"evaluation_epoch{options['epoch_number']}"
-        else:
-            save_name = f"evaluation_{options['best_or_last']}"
-        if options["split"] != "test":
-            save_name = f"{save_name}_{options['split']}"
+        save_name = _build_evaluation_folder_name(
+            best_or_last=options["best_or_last"],
+            requested_epoch=options["epoch_number"],
+            resolved_epoch=runtime.resolved_epoch,
+            split=options["split"],
+        )
         save_folder = create_save_folder(path=run_dir / save_name,
                                          overwrite=options["overwrite"], parent_exists_check=True)
     else:
@@ -86,12 +111,6 @@ def run_evaluate(dataset_name:str,
     if save_folder is None:
         raise FileNotFoundError("Model folder not found.")
 
-    runtime = initialize_runtime(
-        saved_run=saved_run,
-        best_or_last=options["best_or_last"],
-        epoch_number=options["epoch_number"],
-        tiling_size=options["tiling_size"],
-    )
     if saved_run.is_lvae:
         assert options["lvae_num_samples"] is not None, (
             "for LVAE prediction, number of samples needs to be specified"
