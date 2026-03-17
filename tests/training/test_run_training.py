@@ -80,7 +80,7 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", fake_get_trainer)
 
-    out = run_training_mod.run_training("configs/experiments/hdn_training.yml")
+    out = run_training_mod.run_training("configs/training/hdn_training.yml")
 
     assert out is trainer
     assert trainer.train_calls == 1
@@ -130,7 +130,7 @@ def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.Mo
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
 
     with pytest.raises(RuntimeError, match="boom"):
-        run_training_mod.run_training("configs/experiments/hdn_training.yml")
+        run_training_mod.run_training("configs/training/hdn_training.yml")
 
     assert trainer.train_calls == 1
     assert writer.close_calls == 1

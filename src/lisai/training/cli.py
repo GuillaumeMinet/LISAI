@@ -6,7 +6,7 @@ from typing import Iterable, Sequence
 
 from .run_training import run_training
 
-EXPERIMENT_CONFIG_SUFFIXES = (".yml", ".yaml")
+TRAINING_CONFIG_SUFFIXES = (".yml", ".yaml")
 
 
 def _repo_root() -> Path:
@@ -16,7 +16,7 @@ def _repo_root() -> Path:
 def _candidate_paths(path: Path) -> tuple[Path, ...]:
     candidates = [path]
     if not path.suffix:
-        candidates.extend(path.with_suffix(suffix) for suffix in EXPERIMENT_CONFIG_SUFFIXES)
+        candidates.extend(path.with_suffix(suffix) for suffix in TRAINING_CONFIG_SUFFIXES)
     return tuple(candidates)
 
 
@@ -28,11 +28,11 @@ def _first_existing_path(candidates: Iterable[Path]) -> Path | None:
 
 
 def _search_roots(*, cwd: Path) -> tuple[Path, ...]:
-    roots = [cwd / "configs" / "experiments"]
+    roots = [cwd / "configs" / "training"]
 
-    repo_experiments = _repo_root() / "configs" / "experiments"
-    if repo_experiments not in roots:
-        roots.append(repo_experiments)
+    repo_training = _repo_root() / "configs" / "training"
+    if repo_training not in roots:
+        roots.append(repo_training)
 
     return tuple(roots)
 
@@ -42,7 +42,7 @@ def _available_training_configs(search_roots: Iterable[Path]) -> list[str]:
     for root in search_roots:
         if not root.is_dir():
             continue
-        for suffix in EXPERIMENT_CONFIG_SUFFIXES:
+        for suffix in TRAINING_CONFIG_SUFFIXES:
             available.update(path.name for path in root.glob(f"*{suffix}") if path.is_file())
     return sorted(available)
 
@@ -54,7 +54,7 @@ def _missing_config_error(config_arg: str, *, search_roots: Iterable[Path]) -> F
         lines.append("Available configs:")
         lines.extend(f"  - {config_name}" for config_name in available)
     else:
-        lines.append("No training configs were found under configs/experiments.")
+        lines.append("No training configs were found under configs/trainings.")
     return FileNotFoundError("\n".join(lines))
 
 
@@ -101,13 +101,13 @@ def add_train_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPar
     parser.add_argument(
         "config",
         nargs="?",
-        help="Path to a YAML config file, or a config name from configs/experiments with or without .yml/.yaml.",
+        help="Path to a YAML config file, or a config name from configs/trainings with or without .yml/.yaml.",
     )
     parser.add_argument(
         "-c",
         "--config",
         dest="config_option",
-        help="Path to a YAML config file, or a config name from configs/experiments with or without .yml/.yaml.",
+        help="Path to a YAML config file, or a config name from configs/trainings with or without .yml/.yaml.",
     )
     return parser
 

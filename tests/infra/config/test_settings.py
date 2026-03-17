@@ -1,29 +1,15 @@
 from __future__ import annotations
 
-import importlib
-import sys
-import types
 from pathlib import Path
 from string import Formatter
 
 import pytest
 
-CONFIG_DIR = Path(__file__).resolve().parents[3] / "src" / "lisai" / "config"
-CONFIG_PACKAGE = "lisai.config"
+from lisai.config import load_yaml
+from lisai.config.settings import Settings
 
 
-if CONFIG_PACKAGE not in sys.modules:
-    config_pkg = types.ModuleType(CONFIG_PACKAGE)
-    config_pkg.__path__ = [str(CONFIG_DIR)]
-    sys.modules[CONFIG_PACKAGE] = config_pkg
-
-settings_mod = importlib.import_module("lisai.config.settings")
-yaml_mod = importlib.import_module("lisai.config.io.yaml")
-Settings = settings_mod.Settings
-load_yaml = yaml_mod.load_yaml
-
-
-DATA_YAML = Path("configs/data/data.yml")
+DATA_YAML = Path("configs/data_config.yml")
 TEMPLATE_VALUES = {
     "sample_id": "sample_name",
     "snr_level": "snr_10",

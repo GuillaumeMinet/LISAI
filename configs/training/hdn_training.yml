@@ -28,8 +28,8 @@ data:
   filters:
     - tiff
     - tif
-  
-  paireed: false
+
+  paired: false
   target: null # for paired datasets
   input: inp_single
   mltpl_snr_prm:
@@ -75,12 +75,12 @@ training:
   n_epochs: 100
   batch_size: 8
   learning_rate: 0.0001
-  betaKL: 0.7
+  betaKL: 1
   val_loss_patience: 30
   optimizer: Adam
   scheduler: ReduceLROnPlateau
   progress_bar: true
-  early_stop: false
+  early_stop: true
 
 # ========================================================
 # Model loading (for continue_training / retrain)

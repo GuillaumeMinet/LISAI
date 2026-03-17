@@ -13,8 +13,8 @@ from lisai.config.models import ExperimentConfig
 @pytest.mark.parametrize(
     "config_path",
     [
-        Path("configs/experiments/hdn_training.yml"),
-        Path("configs/experiments/upsamp_training.yml"),
+        Path("configs/training/hdn_training.yml"),
+        Path("configs/training/upsamp_training.yml"),
     ],
 )
 def test_current_experiment_yaml_validates_against_authoring_schema(config_path: Path):

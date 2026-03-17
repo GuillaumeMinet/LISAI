@@ -132,8 +132,8 @@ def _apply_mode_resolution(user_cfg: dict, mode: str, paths: Paths) -> dict:
 
 def resolve_config(
     experiment_cfg_path: str | Path,
-    project_cfg_path: str | Path = "configs/project/project.yml",
-    data_cfg_path: str | Path = "configs/data/data.yml",
+    project_cfg_path: str | Path = "configs/project_config.yml",
+    data_cfg_path: str | Path = "configs/data_config.yml",
 ) -> ResolvedExperiment:
     experiment_cfg_path = Path(experiment_cfg_path)
 

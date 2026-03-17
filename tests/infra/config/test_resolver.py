@@ -10,8 +10,8 @@ from lisai.config.io.resolver import prune_config_for_saving, resolve_config
 from lisai.config.models import ResolvedExperiment
 from lisai.infra.paths import Paths
 
-PROJECT_CFG = Path("configs/project/project.yml")
-DATA_CFG = Path("configs/data/data.yml")
+PROJECT_CFG = Path("configs/project_config.yml")
+DATA_CFG = Path("configs/data_config.yml")
 
 
 def test_resolve_config_train_mode_disables_load_model(tmp_path: Path):

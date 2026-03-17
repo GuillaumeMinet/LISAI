@@ -54,8 +54,8 @@ class Settings:
         self.CONFIGS_ROOT = self.PROJECT_ROOT / "configs"
 
         self._local_yaml_path = self.CONFIGS_ROOT / "local_config.yml"
-        self._project_yaml_path = self.CONFIGS_ROOT / "project" / "project.yml"
-        self._data_yaml_path = self.CONFIGS_ROOT / "data" / "data.yml"
+        self._project_yaml_path = self.CONFIGS_ROOT / "project_config.yml"
+        self._data_yaml_path = self.CONFIGS_ROOT / "data_config.yml"
 
         self._infra_cfg = self._load_or_setup_infrastructure()
 
