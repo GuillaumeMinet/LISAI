@@ -1,5 +1,5 @@
 from .inference import build_inference_spec, iter_inference_checkpoint_candidates
-from .spec import InferenceSpec, ModelSpec
+from .spec import InferenceSpec
 
 __all__ = [
     "InferenceSpec",

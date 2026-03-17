@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING, Any
 
 from lisai.models.loader import prepare_model_for_training
 
-from .noise_model import resolve_noise_model_name
+from .noise_model import load_noise_model_object, resolve_noise_model_name
 
 if TYPE_CHECKING:
     from lisai.config.models import ResolvedExperiment
+    from lisai.infra.paths import Paths
 
 
 @dataclass(frozen=True)
@@ -52,10 +53,18 @@ class TrainingModelSpec:
 
 
 
-def build_model(cfg: ResolvedExperiment, device, model_norm_prm, noise_model):
-    """Build and optionally load the training model from the resolved config."""
+def _load_training_noise_model(spec: TrainingModelSpec, device, lisai_paths: Paths):
+    if spec.architecture != "lvae":
+        return None
+    return load_noise_model_object(spec.noise_model_name, device, lisai_paths)
+
+
+
+def build_model(cfg: ResolvedExperiment, device, lisai_paths: Paths, model_norm_prm):
+    """Build and optionally load the training model, including LVAE noise-model setup."""
     logger = logging.getLogger("lisai")
     spec = TrainingModelSpec.from_config(cfg)
+    noise_model = _load_training_noise_model(spec, device, lisai_paths)
 
     model, state = prepare_model_for_training(
         spec=spec,

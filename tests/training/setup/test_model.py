@@ -80,7 +80,9 @@ def test_training_model_spec_uses_val_patch_size_when_needed():
 
 
 
-def test_build_model_uses_training_model_spec(monkeypatch: pytest.MonkeyPatch):
+def test_build_model_uses_training_model_spec_without_loading_noise_model_for_unet(
+    monkeypatch: pytest.MonkeyPatch,
+):
     cfg = _training_cfg(
         experiment={"mode": "train", "exp_name": "exp3"},
         model={"architecture": "unet", "parameters": {"depth": 4}},
@@ -99,12 +101,17 @@ def test_build_model_uses_training_model_spec(monkeypatch: pytest.MonkeyPatch):
         return model_obj, state
 
     monkeypatch.setattr(model_mod, "prepare_model_for_training", fake_prepare_model_for_training)
+    monkeypatch.setattr(
+        model_mod,
+        "load_noise_model_object",
+        lambda *args, **kwargs: pytest.fail("load_noise_model_object should not be called for unet"),
+    )
 
     out_model, out_state = model_mod.build_model(
         cfg,
         device="cpu",
+        lisai_paths="paths",
         model_norm_prm={"std": 2.0},
-        noise_model=None,
     )
 
     assert out_model is model_obj
@@ -115,3 +122,34 @@ def test_build_model_uses_training_model_spec(monkeypatch: pytest.MonkeyPatch):
     assert captured["device"] == "cpu"
     assert captured["model_norm_prm"] == {"std": 2.0}
     assert captured["noise_model"] is None
+
+
+
+def test_build_model_loads_noise_model_for_lvae(monkeypatch: pytest.MonkeyPatch):
+    cfg = _training_cfg(experiment={"mode": "train", "exp_name": "exp4"}, load_model={})
+    calls = []
+    model_obj = object()
+    state = {"epoch": 5}
+
+    def fake_load_noise_model_object(noise_model_name, device, lisai_paths):
+        calls.append((noise_model_name, device, lisai_paths))
+        return "noise_model_obj"
+
+    def fake_prepare_model_for_training(*, spec, device, model_norm_prm=None, noise_model=None):
+        return model_obj, {"spec": spec, "device": device, "model_norm_prm": model_norm_prm, "noise_model": noise_model}
+
+    monkeypatch.setattr(model_mod, "load_noise_model_object", fake_load_noise_model_object)
+    monkeypatch.setattr(model_mod, "prepare_model_for_training", fake_prepare_model_for_training)
+
+    out_model, out_state = model_mod.build_model(
+        cfg,
+        device="cpu",
+        lisai_paths="paths",
+        model_norm_prm={"std": 2.0},
+    )
+
+    assert out_model is model_obj
+    assert calls == [("noise_A", "cpu", "paths")]
+    assert isinstance(out_state["spec"], model_mod.TrainingModelSpec)
+    assert out_state["noise_model"] == "noise_model_obj"
+    assert out_state["model_norm_prm"] == {"std": 2.0}

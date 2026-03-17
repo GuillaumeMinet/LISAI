@@ -61,14 +61,18 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
     trainer = DummyTrainer()
     captured = {}
 
+    def fake_build_model(cfg_arg, device, lisai_paths, model_norm_prm):
+        captured["build_model_args"] = (cfg_arg, device, lisai_paths, model_norm_prm)
+        return "model_obj", {"epoch": 0}
+
     fake_setup = SimpleNamespace(
         prepare_data=lambda c, x: prepared_data,
         save_training_config=lambda *args, **kwargs: None,
-        build_model=lambda cfg_or_spec, device, norm_prm, noise_model: ("model_obj", {"epoch": 0}),
+        build_model=fake_build_model,
     )
 
     def fake_get_trainer(**kwargs):
-        captured["kwargs"] = kwargs
+        captured["trainer_kwargs"] = kwargs
         return trainer
 
     monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
@@ -81,12 +85,13 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
     assert out is trainer
     assert trainer.train_calls == 1
     assert writer.close_calls == 1
-    assert captured["kwargs"]["architecture"] == "unet"
-    assert captured["kwargs"]["model"] == "model_obj"
-    assert captured["kwargs"]["train_loader"] == "train_loader"
-    assert captured["kwargs"]["val_loader"] == "val_loader"
-    assert captured["kwargs"]["state_dict"] == {"epoch": 0}
-    assert captured["kwargs"]["patch_info"] is None
+    assert captured["build_model_args"] == (cfg, "cpu", "paths", {"data_mean": 0.0})
+    assert captured["trainer_kwargs"]["architecture"] == "unet"
+    assert captured["trainer_kwargs"]["model"] == "model_obj"
+    assert captured["trainer_kwargs"]["train_loader"] == "train_loader"
+    assert captured["trainer_kwargs"]["val_loader"] == "val_loader"
+    assert captured["trainer_kwargs"]["state_dict"] == {"epoch": 0}
+    assert captured["trainer_kwargs"]["patch_info"] is None
 
 
 
@@ -116,7 +121,7 @@ def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.Mo
     fake_setup = SimpleNamespace(
         prepare_data=lambda c, x: prepared_data,
         save_training_config=lambda *args, **kwargs: None,
-        build_model=lambda cfg_or_spec, device, norm_prm, noise_model: ("model_obj", None),
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
     )
 
     monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)

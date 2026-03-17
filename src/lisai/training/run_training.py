@@ -9,7 +9,6 @@ from .trainers import get_trainer
 def run_training(config_path):
     cfg = resolve_config(config_path)
     runtime = initialize_runtime(cfg)
-    is_lvae = cfg.model.architecture == "lvae"
     is_volumetric = cfg.model.architecture == "unet3d"
 
     prepared_data = setup.prepare_data(cfg, runtime)
@@ -20,19 +19,11 @@ def run_training(config_path):
         prepared_data.model_norm_prm,
     )
 
-    noise_model = None
-    if is_lvae:
-        noise_model = setup.load_noise_model_object(
-            setup.resolve_noise_model_name(cfg),
-            runtime.device,
-            runtime.paths,
-        )
-
     model, state_dict = setup.build_model(
         cfg,
         runtime.device,
+        runtime.paths,
         prepared_data.model_norm_prm,
-        noise_model,
     )
 
     trainer = get_trainer(
