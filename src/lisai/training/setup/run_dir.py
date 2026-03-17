@@ -1,3 +1,11 @@
+"""Training run-directory and config persistence helpers.
+
+This module owns the parts of training setup that interact with the filesystem:
+creating or reusing run directories, copying retrain origin artifacts, and
+saving the effective training config once runtime-derived normalization is
+known.
+"""
+
 from __future__ import annotations
 
 import shutil
@@ -12,7 +20,9 @@ if TYPE_CHECKING:
     from lisai.training.runtime import TrainingRuntime
 
 
+
 def _safe_copy(src: Path, dst: Path):
+    """Copy a file when present, ignoring missing files and copy failures."""
     try:
         if src.exists():
             shutil.copyfile(src, dst)
@@ -20,16 +30,18 @@ def _safe_copy(src: Path, dst: Path):
         pass
 
 
+
 def prepare_run_dir(
     cfg: ResolvedExperiment,
     runtime: TrainingRuntime,
 ) -> tuple[Path | None, str]:
-    """
-    Run directory semantics:
-      - if saving disabled: runtime.run_dir=None
-      - if continue_training: reuse origin run directory
-      - else create a new directory under canonical model root
-      - if retrain: copy origin artifacts into retrain_origin/
+    """Resolve the effective training run directory and runtime run name.
+
+    Semantics:
+    - if saving is disabled, no run directory is created
+    - if mode is `continue_training`, the origin run directory is reused
+    - otherwise a new canonical run directory is created
+    - if mode is `retrain`, origin artifacts are copied into `retrain_origin/`
     """
     if not bool(cfg.saving.enabled):
         return None, cfg.experiment.exp_name
@@ -76,15 +88,14 @@ def prepare_run_dir(
     return run_dir, exp_name
 
 
+
 def save_training_config(
     cfg: ResolvedExperiment,
     runtime: TrainingRuntime,
     data_norm_prm: dict | None = None,
     model_norm_prm: dict | None = None,
 ) -> Path | None:
-    """
-    Save the effective training config once runtime-derived normalization is known.
-    """
+    """Persist the effective saved training config for a new or retrain run."""
     if runtime.run_dir is None or cfg.experiment.mode == "continue_training":
         return None
 

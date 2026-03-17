@@ -1,3 +1,10 @@
+"""Live runtime construction for training.
+
+This module owns the runtime-side boundary of training. It turns a resolved
+experiment config into the mutable process resources used during a training run:
+run directory, logger, device, TensorBoard writer, and callbacks.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -19,13 +26,12 @@ if TYPE_CHECKING:
 
 @dataclass
 class TrainingRuntime:
-    """
-    Live training infrastructure for a single run.
+    """Live training infrastructure for a single run.
 
     This object carries only process/runtime resources such as resolved paths,
     the effective run name and directory, logging, device selection, writers,
-    and callbacks. It does not own the experiment configuration or derived model
-    specification.
+    and callbacks. It does not own the experiment configuration or model setup
+    decisions.
     """
 
     paths: Paths
@@ -42,9 +48,9 @@ class TrainingRuntime:
     enable_file_logs: Callable[[bool], None] | None = None
 
 
+
 def initialize_runtime(cfg: ResolvedExperiment) -> TrainingRuntime:
-    """
-    Build the live runtime infrastructure needed by the training process.
+    """Build the live runtime infrastructure needed by the training process.
 
     The input ``cfg`` remains the declarative source of truth for experiment
     behavior. This function derives the mutable process-side resources from it:
@@ -86,9 +92,11 @@ def initialize_runtime(cfg: ResolvedExperiment) -> TrainingRuntime:
     runtime.file_filter = file_filter
 
     def _enable_console(enable: bool):
+        """Toggle console logging for the current training process."""
         console_filter.enable = bool(enable)
 
     def _enable_file(enable: bool):
+        """Toggle file logging for the current training process."""
         file_filter.enable = bool(enable)
 
     runtime.enable_console_logs = _enable_console
@@ -151,4 +159,3 @@ def initialize_runtime(cfg: ResolvedExperiment) -> TrainingRuntime:
 initialize = initialize_runtime
 
 __all__ = ["TrainingRuntime", "initialize_runtime", "initialize"]
-

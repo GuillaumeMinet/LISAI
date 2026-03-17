@@ -1,3 +1,11 @@
+"""Training model setup helpers.
+
+This module owns the model-side setup boundary of training. It turns the
+resolved experiment config into a small `TrainingModelSpec`, performs any
+LVAE-specific noise-model setup, and delegates the final build/load step to the
+model loader.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -32,6 +40,7 @@ class TrainingModelSpec:
 
     @classmethod
     def from_config(cls, cfg: ResolvedExperiment) -> TrainingModelSpec:
+        """Project the resolved experiment config into the model setup contract."""
         ckpt = cfg.load_model.checkpoint if cfg.load_model else None
         origin_run_dir = cfg.experiment.origin_run_dir
         patch_size = cfg.data.model_patch_size
@@ -54,6 +63,7 @@ class TrainingModelSpec:
 
 
 def _load_training_noise_model(spec: TrainingModelSpec, device, lisai_paths: Paths):
+    """Load the LVAE noise model required by the training model when needed."""
     if spec.architecture != "lvae":
         return None
     return load_noise_model_object(spec.noise_model_name, device, lisai_paths)
@@ -61,7 +71,7 @@ def _load_training_noise_model(spec: TrainingModelSpec, device, lisai_paths: Pat
 
 
 def build_model(cfg: ResolvedExperiment, device, lisai_paths: Paths, model_norm_prm):
-    """Build and optionally load the training model, including LVAE noise-model setup."""
+    """Build and optionally load the training model for the current run."""
     logger = logging.getLogger("lisai")
     spec = TrainingModelSpec.from_config(cfg)
     noise_model = _load_training_noise_model(spec, device, lisai_paths)

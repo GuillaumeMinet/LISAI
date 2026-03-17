@@ -1,28 +1,35 @@
-## Data organization
+# Data Organization
 
-Each dataset must follow the structure:
+Filesystem layout in LISAI is defined through [`Paths`](../src/lisai/infra/paths/paths.py), not through hardcoded strings.
 
-root_data/
-└── dataset_name/
-    ├── dataset_info.txt
-    ├── dump/
-    └── preprocess/
-        ├── raw_data/
-        │   ├── train/
-        │   ├── val/
-        │   └── test/
-        └── recon_data/
-            ├── train/
-            ├── val/
-            └── test/
+## Main Locations
 
-src/
-└── lisai/
-    └── data/
-        └── data_prep
-    └── lib/
-        └── hdn/
-        └── upsamp/
-        └── utils/
-            └── data_utils.py
-            └── misc.py
+- Dataset registry: `Paths.dataset_registry_path()`
+- Dataset root for loading: `Paths.dataset_dir(dataset_name=..., data_subfolder=...)`
+- Training run folder: `Paths.run_dir(dataset_name=..., models_subfolder=..., exp_name=...)`
+- TensorBoard runs: `Paths.tensorboard_dir(...)`
+- Evaluation outputs: `Paths.inference_dir(...)`
+- Noise model file: `Paths.noise_model_path(...)`
+
+## Training Run Layout
+
+Inside a run folder, `Paths` also resolves the standard artifacts:
+
+- `config_train.yaml`: `Paths.cfg_train_path(...)`
+- training log: `Paths.log_file_path(...)`
+- loss file: `Paths.loss_file_path(...)`
+- checkpoints folder: `Paths.checkpoints_dir(...)`
+- validation images folder: `Paths.validation_images_dir(...)`
+- retrain origin folder: `Paths.retrain_origin_dir(...)`
+
+## Preprocess Layout
+
+Preprocess outputs are also resolved through `Paths`:
+
+- raw dump area: `Paths.dataset_dump_dir(...)`
+- processed dataset root: `Paths.dataset_preprocess_dir(...)`
+- individual processed files: `Paths.preprocessed_image_full_path(...)`
+
+## Practical Rule
+
+If code needs a filesystem location, prefer adding or using a `Paths` method instead of rebuilding the path manually.

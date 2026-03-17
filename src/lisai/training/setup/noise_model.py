@@ -1,3 +1,11 @@
+"""Noise-model helpers used during training setup.
+
+This module isolates the training-specific interactions with saved noise-model
+artifacts: resolving the configured noise-model name, loading Stage A
+normalization metadata, and materializing the LVAE noise-model object when the
+training model requires it.
+"""
+
 from __future__ import annotations
 
 import json
@@ -15,7 +23,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger("lisai.setup_noise_model")
 
 
+
 def resolve_noise_model_name(cfg: ResolvedExperiment) -> str | None:
+    """Extract the configured noise-model name from the resolved training config."""
     noise_model = getattr(cfg, "noise_model", None)
     if isinstance(noise_model, dict):
         return noise_model.get("name")
@@ -24,7 +34,9 @@ def resolve_noise_model_name(cfg: ResolvedExperiment) -> str | None:
     return getattr(noise_model, "name", None)
 
 
+
 def _load_noise_model_norm_prm(noise_model_name: str | None, lisai_paths: Paths):
+    """Load normalization metadata stored alongside a saved noise model."""
     if not noise_model_name:
         return None
 
@@ -38,10 +50,9 @@ def _load_noise_model_norm_prm(noise_model_name: str | None, lisai_paths: Paths)
         return json.load(f)
 
 
+
 def resolve_noise_model_metadata(cfg: ResolvedExperiment, lisai_paths: Paths):
-    """
-    Resolve Stage A normalization from the noise-model folder when requested.
-    """
+    """Resolve Stage A normalization from the noise-model folder when requested."""
     if not bool((cfg.normalization or {}).get("load_from_noise_model", False)):
         return None
 
@@ -57,9 +68,8 @@ def resolve_noise_model_metadata(cfg: ResolvedExperiment, lisai_paths: Paths):
     return data_norm_prm
 
 
+
 def load_noise_model_object(noise_model_name: str | None, device, lisai_paths: Paths):
-    """
-    Load the actual noise-model object used by LVAE likelihoods.
-    """
+    """Load the actual noise-model object used by LVAE likelihoods."""
     noise_model, _ = load_noise_model(noise_model_name, device, lisai_paths)
     return noise_model

@@ -1,3 +1,10 @@
+"""Training data preparation helpers.
+
+This module owns the data-side setup boundary of training. It resolves dataset
+location and normalization, builds the training and validation loaders, and
+returns the typed artifact that later training steps consume.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -18,7 +25,12 @@ logger = logging.getLogger("lisai.prepare_data")
 
 @dataclass
 class PreparedTrainingData:
-    """Typed output of training data preparation."""
+    """Typed output of training data preparation.
+
+    This artifact bundles the effective loaders and the normalization / patch
+    metadata discovered during data setup so the rest of the training pipeline
+    can consume one explicit object.
+    """
 
     train_loader: Any
     val_loader: Any
@@ -32,9 +44,7 @@ def prepare_data(
     cfg: ResolvedExperiment,
     runtime: TrainingRuntime,
 ) -> PreparedTrainingData:
-    """
-    Resolve training data configuration, normalization, and loaders.
-    """
+    """Resolve training data configuration, normalization, and loaders."""
     is_lvae = cfg.model.architecture == "lvae"
     is_volumetric = cfg.model.architecture == "unet3d"
 

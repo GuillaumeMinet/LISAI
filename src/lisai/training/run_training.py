@@ -1,3 +1,10 @@
+"""Top-level training orchestration entrypoint.
+
+This module wires together the clean training boundaries introduced by the
+refactor: resolve the experiment config, initialize the runtime, prepare data,
+build the model, construct the trainer, and execute the training loop.
+"""
+
 from lisai.config import resolve_config
 
 from . import setup
@@ -7,6 +14,7 @@ from .trainers import get_trainer
 
 
 def run_training(config_path):
+    """Run training end to end from a config path and return the trainer instance."""
     cfg = resolve_config(config_path)
     runtime = initialize_runtime(cfg)
     is_volumetric = cfg.model.architecture == "unet3d"
