@@ -56,6 +56,9 @@ class SavingSection(BaseModel):
     canonical_save: bool = True
     validation_images: bool = True
     validation_freq: int = 10
+    state_dict: bool = False
+    entire_model: bool = False
+    overwrite_best: bool = True
 
 
 class TensorboardSection(BaseModel):
@@ -66,3 +69,4 @@ class TensorboardSection(BaseModel):
 class NoiseModelSection(BaseModel):
     model_config = ConfigDict(extra="allow")
     name: str | None = None
+

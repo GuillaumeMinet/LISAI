@@ -20,7 +20,7 @@ def main():
 
     # evaluation behavior
     split = "test"
-    metrics_list = None["psnr", "ssim", "ra_psnr"]  # or None
+    metrics_list = None #["psnr", "ssim", "ra_psnr"]  # or None
     lvae_num_samples = None  # required for LVAE models
     tiling_size = None
     crop_size = None

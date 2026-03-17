@@ -31,6 +31,7 @@ class ExperimentConfig(BaseModel):
     model: ModelSection = Field(default_factory=ModelSection)
     training: TrainingSection = Field(default_factory=TrainingSection)
     normalization: Dict[str, Any] = Field(default_factory=dict)
+    model_norm_prm: Dict[str, Any] | None = None
     loss_function: Dict[str, Any] = Field(default_factory=dict)
     noise_model: NoiseModelSection | str | None = None
     saving: SavingSection = Field(default_factory=SavingSection)
@@ -51,8 +52,10 @@ class ResolvedExperiment(BaseModel):
     model: ModelSection = Field(default_factory=ModelSection)
     training: TrainingSection = Field(default_factory=TrainingSection)
     normalization: Dict[str, Any] = Field(default_factory=dict)
+    model_norm_prm: Dict[str, Any] | None = None
     loss_function: Dict[str, Any] = Field(default_factory=dict)
     noise_model: NoiseModelSection | str | None = None
     saving: SavingSection = Field(default_factory=SavingSection)
     tensorboard: TensorboardSection = Field(default_factory=TensorboardSection)
     load_model: LoadModelSection = Field(default_factory=LoadModelSection)
+

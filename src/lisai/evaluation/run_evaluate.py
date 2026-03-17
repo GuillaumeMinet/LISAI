@@ -1,10 +1,16 @@
+"""High-level entrypoint for dataset-based evaluation of a saved model.
+
+This module orchestrates the full evaluation flow: resolve the saved run,
+initialize the inference runtime, rebuild the evaluation loader when needed,
+run predictions, compute metrics, and persist outputs.
+"""
+
 import warnings
 from pathlib import Path
 
 import torch
 
-from lisai.data.data_prep import make_test_loader
-from lisai.evaluation.context import get_model_folder, resolve_data_dir, resolve_dataset_info
+from lisai.evaluation.data import build_eval_loader
 from lisai.evaluation.inference.stack import infer_batch
 from lisai.evaluation.io import (
     create_save_folder,
@@ -13,8 +19,8 @@ from lisai.evaluation.io import (
     save_outputs,
 )
 from lisai.evaluation.metrics import compute as metrics
-from lisai.config.models.training import DataSection
 from lisai.evaluation.runtime import initialize_runtime
+from lisai.evaluation.saved_run import load_saved_run, resolve_run_dir
 
 
 
@@ -37,9 +43,9 @@ def run_evaluate(dataset_name:str,
              split = "test",
              limit_n_imgs = None
              ):
-    model_folder = get_model_folder(dataset_name = dataset_name,
-                                    subfolder = model_subfolder,
-                                    exp_name = model_name)
+    """Evaluate a saved run on a dataset split and optionally compute metrics."""
+    run_dir = resolve_run_dir(dataset_name=dataset_name, subfolder=model_subfolder, exp_name=model_name)
+    saved_run = load_saved_run(run_dir)
 
     if save_folder is None:
         if epoch_number is not None:
@@ -48,8 +54,8 @@ def run_evaluate(dataset_name:str,
             save_name = f"evaluation_{best_or_last}"
         if split != "test":
             save_name = f"{save_name}_{split}"
-        save_folder = create_save_folder(path = model_folder/ save_name,
-                                         overwrite=overwrite,parent_exists_check=True)
+        save_folder = create_save_folder(path=run_dir / save_name,
+                                         overwrite=overwrite, parent_exists_check=True)
     else:
         save_folder = ensure_save_folder(Path(save_folder))
 
@@ -57,61 +63,34 @@ def run_evaluate(dataset_name:str,
         raise FileNotFoundError("Model folder not found.")
 
     runtime = initialize_runtime(
-        model_folder=model_folder,
+        saved_run=saved_run,
         best_or_last=best_or_last,
         epoch_number=epoch_number,
         tiling_size=tiling_size,
     )
-    if runtime.is_lvae:
-        assert lvae_num_samples is not None, ("for LVAE prediction, number of ",
-                                              "samples needs to be specified")
+    if saved_run.is_lvae:
+        assert lvae_num_samples is not None, (
+            "for LVAE prediction, number of samples needs to be specified"
+        )
 
-    data_prm = dict(runtime.data_prm)
-    norm_prm = runtime.data_norm_prm
-    model_norm_prm = runtime.model_norm_prm
-    upsamp = runtime.upsampling_factor
+    upsamp = saved_run.upsampling_factor
     print(f"Found upsampling factor to be: {upsamp}\n")
     tiling_size = runtime.tiling_size
 
-    if eval_gt is not None and data_prm.get("paired") is False:
-        data_prm["paired"] = True
-        data_prm["target"] = eval_gt
-        if model_norm_prm is None:
-            model_norm_prm = {}
-        model_norm_prm["data_mean_gt"] = 0
-        model_norm_prm["data_std_gt"] = 1
-
-    if crop_size is not None:
-        data_prm["initial_crop"] = crop_size
-
-    if data_prm_update is not None:
-        data_prm.update(data_prm_update)
-
     if test_loader is None:
-        data_dir = resolve_data_dir(runtime.training_cfg, data_prm)
-        if data_dir is None:
-            raise ValueError(
-                "Could not resolve `data_dir` for evaluation. "
-                "Provide it through `data_prm_update={'data_dir': '...path...'}`."
-            )
-        dataset_info = resolve_dataset_info(data_prm.get("dataset_name"))
-        prep_cfg = DataSection.model_validate(
-            data_prm,
-        ).resolved(
-            data_dir=Path(data_dir),
-            norm_prm=norm_prm,
-            dataset_info=dataset_info,
-            model_norm_prm=model_norm_prm,
+        test_loader = build_eval_loader(
+            saved_run,
             split=split,
+            crop_size=crop_size,
+            eval_gt=eval_gt,
+            data_prm_update=data_prm_update,
         )
-        test_loader = make_test_loader(config=prep_cfg)
 
-    for batch_id,(x,y) in enumerate(test_loader):
-
+    for batch_id, (x, y) in enumerate(test_loader):
         print(f"Image {batch_id} / {len(test_loader)}")
 
         if torch.isnan(y).all().item():
-            y=None
+            y = None
 
         x = x.to(runtime.device)
         print(f"Input shape: {x.shape}")
@@ -119,7 +98,7 @@ def run_evaluate(dataset_name:str,
         outputs = infer_batch(
             runtime.model,
             x,
-            is_lvae=runtime.is_lvae,
+            is_lvae=saved_run.is_lvae,
             tiling_size=tiling_size,
             num_samples=lvae_num_samples,
             upsamp=upsamp,
@@ -135,7 +114,6 @@ def run_evaluate(dataset_name:str,
 
         if metrics_list is not None and y is None:
             warnings.warn("no ground-truth provided, cannot calculate metrics")
-
         elif metrics_list is not None:
             if x.shape[-2:] == y.shape[-2:]:
                 inp = x.cpu().detach().numpy()
@@ -143,12 +121,15 @@ def run_evaluate(dataset_name:str,
                 inp = None
 
             gt = y.cpu().detach().numpy()
-            results = metrics.calculate_metrics(img_name=f"img_{batch_id}",
-                                                        metrics=metrics_list,
-                                                        results=results,
-                                                        pred = outputs.get("prediction"),
-                                                        gt = gt,inp = inp)
-        if limit_n_imgs is not None and batch_id >= limit_n_imgs-1:
+            results = metrics.calculate_metrics(
+                img_name=f"img_{batch_id}",
+                metrics=metrics_list,
+                results=results,
+                pred=outputs.get("prediction"),
+                gt=gt,
+                inp=inp,
+            )
+        if limit_n_imgs is not None and batch_id >= limit_n_imgs - 1:
             print("Stopping eval because reached limit_n_imgs")
             break
 
