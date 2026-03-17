@@ -4,13 +4,7 @@ from pathlib import Path
 import torch
 
 from lisai.data.data_prep import make_test_loader
-from lisai.evaluation.context import (
-    get_model_folder,
-    resolve_data_dir,
-    resolve_dataset_info,
-    resolve_tiling_size,
-    resolve_upsampling_factor,
-)
+from lisai.evaluation.context import get_model_folder, resolve_data_dir, resolve_dataset_info
 from lisai.evaluation.inference.stack import infer_batch
 from lisai.evaluation.io import (
     create_save_folder,
@@ -20,13 +14,11 @@ from lisai.evaluation.io import (
 )
 from lisai.evaluation.metrics import compute as metrics
 from lisai.config.models.training import DataSection
-from lisai.models.loader import get_model_for_inference
+from lisai.evaluation.runtime import initialize_runtime
 
 
-def _default_device() -> torch.device:
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def run_evaluate(dataset_name:str, 
+def run_evaluate(dataset_name:str,
              model_name:str,
              model_subfolder:str="",
              best_or_last:str = "best",
@@ -45,12 +37,10 @@ def run_evaluate(dataset_name:str,
              split = "test",
              limit_n_imgs = None
              ):
-    device = _default_device()
-
     model_folder = get_model_folder(dataset_name = dataset_name,
                                     subfolder = model_subfolder,
                                     exp_name = model_name)
-    
+
     if save_folder is None:
         if epoch_number is not None:
             save_name = f"evaluation_epoch{epoch_number}"
@@ -66,21 +56,22 @@ def run_evaluate(dataset_name:str,
     if save_folder is None:
         raise FileNotFoundError("Model folder not found.")
 
-    model,training_cfg,is_lvae = get_model_for_inference(model_folder,device=device,
-                                                     best_or_last=best_or_last,
-                                                     epoch_number=epoch_number)
-    if is_lvae:
+    runtime = initialize_runtime(
+        model_folder=model_folder,
+        best_or_last=best_or_last,
+        epoch_number=epoch_number,
+        tiling_size=tiling_size,
+    )
+    if runtime.is_lvae:
         assert lvae_num_samples is not None, ("for LVAE prediction, number of ",
                                               "samples needs to be specified")
 
-    data_prm = dict(training_cfg.get("data_prm") or {})
-    norm_prm = (training_cfg.get("normalization") or {}).get("norm_prm")
-    model_norm_prm = training_cfg.get("model_norm_prm")
-    if isinstance(model_norm_prm, dict):
-        model_norm_prm = dict(model_norm_prm)
-
-    upsamp = resolve_upsampling_factor(training_cfg)
+    data_prm = dict(runtime.data_prm)
+    norm_prm = runtime.data_norm_prm
+    model_norm_prm = runtime.model_norm_prm
+    upsamp = runtime.upsampling_factor
     print(f"Found upsampling factor to be: {upsamp}\n")
+    tiling_size = runtime.tiling_size
 
     if eval_gt is not None and data_prm.get("paired") is False:
         data_prm["paired"] = True
@@ -89,17 +80,15 @@ def run_evaluate(dataset_name:str,
             model_norm_prm = {}
         model_norm_prm["data_mean_gt"] = 0
         model_norm_prm["data_std_gt"] = 1
-    
+
     if crop_size is not None:
         data_prm["initial_crop"] = crop_size
 
     if data_prm_update is not None:
         data_prm.update(data_prm_update)
 
-    tiling_size = resolve_tiling_size(training_cfg, tiling_size)
-
     if test_loader is None:
-        data_dir = resolve_data_dir(training_cfg, data_prm)
+        data_dir = resolve_data_dir(runtime.training_cfg, data_prm)
         if data_dir is None:
             raise ValueError(
                 "Could not resolve `data_dir` for evaluation. "
@@ -117,24 +106,20 @@ def run_evaluate(dataset_name:str,
         )
         test_loader = make_test_loader(config=prep_cfg)
 
-    
     for batch_id,(x,y) in enumerate(test_loader):
-        
+
         print(f"Image {batch_id} / {len(test_loader)}")
 
         if torch.isnan(y).all().item():
             y=None
-        
-        x = x.to(device)
-        # x_ = torch.zeros_like(x)
-        # x_[:,2] = x[:,2]
-        # x = x_.clone()
+
+        x = x.to(runtime.device)
         print(f"Input shape: {x.shape}")
-        
+
         outputs = infer_batch(
-            model,
+            runtime.model,
             x,
-            is_lvae=is_lvae,
+            is_lvae=runtime.is_lvae,
             tiling_size=tiling_size,
             num_samples=lvae_num_samples,
             upsamp=upsamp,
@@ -166,6 +151,6 @@ def run_evaluate(dataset_name:str,
         if limit_n_imgs is not None and batch_id >= limit_n_imgs-1:
             print("Stopping eval because reached limit_n_imgs")
             break
-    
+
     if metrics_list is not None and results is not None:
         save_metrics_json(save_folder, results)

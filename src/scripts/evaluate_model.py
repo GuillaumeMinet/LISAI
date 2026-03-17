@@ -6,14 +6,13 @@ Edit values in USER PARAMETERS, then run:
 
 from lisai.evaluation import run_evaluate
 
-
 def main():
     # =========================
     # USER PARAMETERS
     # =========================
-    dataset_name = "Vim_fixed_mltplSNR_30nm"
-    model_name = "CHANGE_ME"
-    model_subfolder = "HDN"
+    dataset_name = "Gag"
+    model_name = "CL1_Upsamp2_RandomPx_UnetRCAN_rg8_rcab12_red16_CharEdge_alpha005"
+    model_subfolder = "Upsamp"
 
     # checkpoint selection
     best_or_last = "best"  # "best" or "last"
@@ -21,7 +20,7 @@ def main():
 
     # evaluation behavior
     split = "test"
-    metrics_list = ["psnr", "ssim", "ra_psnr"]  # or None
+    metrics_list = None["psnr", "ssim", "ra_psnr"]  # or None
     lvae_num_samples = None  # required for LVAE models
     tiling_size = None
     crop_size = None

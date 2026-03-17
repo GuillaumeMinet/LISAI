@@ -8,8 +8,10 @@ from lisai.config import load_yaml, settings
 from lisai.infra.paths import Paths
 
 
+
 def _as_dict(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
 
 
 def normalize_architecture(name: str | None) -> str | None:
@@ -25,6 +27,7 @@ def normalize_architecture(name: str | None) -> str | None:
         "rcan": "rcan",
     }
     return aliases.get(key, key)
+
 
 
 def load_training_cfg_from_run(model_folder: Path) -> dict[str, Any]:
@@ -54,6 +57,7 @@ def load_training_cfg_from_run(model_folder: Path) -> dict[str, Any]:
     raise FileNotFoundError(f"Could not find a training config in run folder: {model_folder}")
 
 
+
 def extract_data_prm(training_cfg: Mapping[str, Any]) -> dict[str, Any]:
     data_prm = _as_dict(training_cfg.get("data_prm"))
     if not data_prm:
@@ -66,6 +70,7 @@ def extract_data_prm(training_cfg: Mapping[str, Any]) -> dict[str, Any]:
     return data_prm
 
 
+
 def extract_model_prm(training_cfg: Mapping[str, Any]) -> dict[str, Any]:
     model_prm = _as_dict(training_cfg.get("model_prm"))
     if model_prm:
@@ -74,11 +79,13 @@ def extract_model_prm(training_cfg: Mapping[str, Any]) -> dict[str, Any]:
     return _as_dict(model_section.get("parameters"))
 
 
+
 def extract_model_architecture(training_cfg: Mapping[str, Any]) -> str | None:
     arch = training_cfg.get("model_architecture")
     if arch is None:
         arch = _as_dict(training_cfg.get("model")).get("architecture")
     return normalize_architecture(arch)
+
 
 
 def extract_norm_prm(training_cfg: Mapping[str, Any], data_prm: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -89,6 +96,7 @@ def extract_norm_prm(training_cfg: Mapping[str, Any], data_prm: Mapping[str, Any
     if isinstance(data_prm.get("norm_prm"), Mapping):
         return dict(data_prm["norm_prm"])
     return None
+
 
 
 def extract_model_norm_prm(training_cfg: Mapping[str, Any], data_prm: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -103,6 +111,7 @@ def extract_model_norm_prm(training_cfg: Mapping[str, Any], data_prm: Mapping[st
     return None
 
 
+
 def extract_noise_model_name(training_cfg: Mapping[str, Any]) -> str | None:
     noise_model = training_cfg.get("noise_model")
     if isinstance(noise_model, Mapping):
@@ -112,11 +121,13 @@ def extract_noise_model_name(training_cfg: Mapping[str, Any]) -> str | None:
     return None
 
 
+
 def extract_saving_cfg(training_cfg: Mapping[str, Any]) -> dict[str, Any]:
     saving_cfg = _as_dict(training_cfg.get("saving_prm"))
     if not saving_cfg:
         saving_cfg = _as_dict(training_cfg.get("saving"))
     return saving_cfg
+
 
 
 def preferred_load_method(training_cfg: Mapping[str, Any]) -> str:
@@ -128,6 +139,7 @@ def preferred_load_method(training_cfg: Mapping[str, Any]) -> str:
     if saving_cfg.get("full_model") is True:
         return "full_model"
     return "state_dict"
+
 
 
 def extract_patch_size_and_downsamp_factor(data_prm: Mapping[str, Any]) -> tuple[int | None, int]:
@@ -145,6 +157,7 @@ def extract_patch_size_and_downsamp_factor(data_prm: Mapping[str, Any]) -> tuple
         downsamp_factor = int(legacy_downsampling.get("downsamp_factor") or 1)
 
     return int(patch_size) if patch_size is not None else None, int(downsamp_factor)
+
 
 
 def normalize_training_cfg_for_inference(training_cfg: Mapping[str, Any]) -> dict[str, Any]:
@@ -166,4 +179,3 @@ def normalize_training_cfg_for_inference(training_cfg: Mapping[str, Any]) -> dic
     if model_norm_prm is not None:
         normalized["model_norm_prm"] = model_norm_prm
     return normalized
-
