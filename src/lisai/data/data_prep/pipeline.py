@@ -49,9 +49,9 @@ def prep_data(config: DataSection, *, for_training: bool, model_norm_prm=None):
         for_training=for_training,
     )
 
-    if config.masking is not None or config.downsampling is not None:
+    if config.downsampling is not None:
         # NOTE: by default, we consider that upsampling-like ==> supervised training.
-        # UNLESS we find in the masking/downsampling parameters a key "supervised_training"
+        # UNLESS we find in the downsampling parameters a key "supervised_training"
         # set to False.
         # NOTE: If supervised_training and dataset not originally paired, we make it paired:
         # "new inp" = transformed(inp) and gt = "original inp" => "paired" will be updated.

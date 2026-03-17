@@ -63,3 +63,14 @@ def test_resolved_sets_norm_and_dataset_info():
     assert cfg.norm_prm == {"normalize_data": True}
     assert cfg.dataset_info == {"data_format": "single"}
     assert cfg.model_norm_prm == {"data_mean": 0.0, "data_std": 1.0}
+
+
+def test_validation_rejects_removed_masking_option():
+    with pytest.raises(ValueError, match="masking"):
+        DataSection.model_validate(
+            {
+                "dataset_name": "ds",
+                "input": "inp_single",
+                "masking": {"mask": "random"},
+            },
+        )

@@ -34,7 +34,6 @@ def main():
     lvae_num_samples = None  # required for LVAE models
     lvae_save_samples = True
     denormalize_output = True
-    inp_masking = None
     downsamp = None
     dark_frame_context_length = False
 
@@ -70,7 +69,6 @@ def main():
         lvae_num_samples=lvae_num_samples,
         lvae_save_samples=lvae_save_samples,
         denormalize_output=denormalize_output,
-        inp_masking=inp_masking,
         save_inp=save_inp,
         downsamp=downsamp,
         apply_color_code=apply_color_code,

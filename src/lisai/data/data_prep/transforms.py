@@ -2,7 +2,7 @@ from copy import deepcopy
 
 from lisai.data.utils import simple_transforms
 from lisai.config.models.training import DataSection
-from lisai.lib.upsamp.inp_generators import generate_downsamp_inp, generate_masked_inp
+from lisai.lib.upsamp.inp_generators import generate_downsamp_inp
 
 
 def apply_inp_transformations(
@@ -12,24 +12,14 @@ def apply_inp_transformations(
     for_training: bool = True,
 ):
     """
-    Apply masking or downsampling transformation for all
+    Apply downsampling transformations for all
     dataset listed in arg:`list_datasets`.
     """
-    if config.masking is not None:
-        masking = True
-        downsampling = False
-        transform_prm = deepcopy(config.masking)
-    elif config.downsampling is not None:
-        masking = False
-        downsampling = True
-        transform_prm = deepcopy(config.downsampling.model_dump(exclude_none=True))
-    else:
-        raise ValueError("No input transformation provided (masking/downsampling).")
+    if config.downsampling is None:
+        raise ValueError("No input transformation provided (downsampling).")
 
-    if transform_prm.get("supervised_training", True):
-        paired = True
-    else:
-        paired = False
+    transform_prm = deepcopy(config.downsampling.model_dump(exclude_none=True))
+    paired = transform_prm.get("supervised_training", True)
 
     for i, dataset in enumerate(list_datasets):
         inp, gt = dataset
@@ -39,25 +29,14 @@ def apply_inp_transformations(
                 idx = gt.shape[1] // 2
                 gt = gt[:, idx : idx + 1, ...]
 
-        if masking:
-            if gt is not None and gt.shape[-2:] != inp.shape[-2:]:
-                downsampled_inp = True
-                downsamp_factor = gt.shape[-1] // inp.shape[-1]
-            else:
-                downsampled_inp = False
-                downsamp_factor = None
-            inp = generate_masked_inp(inp, transform_prm, downsampled_inp, downsamp_factor)
+        if not for_training:  # enforce deterministic downsampling for all inferences
+            method = transform_prm.get("downsamp_method")
+            if method == "random":
+                transform_prm["downsamp_method"] = "real"
+            elif method == "multiple":
+                transform_prm.setdefault("multiple_prm", {})["random"] = False
 
-        elif downsampling:
-            if not for_training:  # enforce deterministic downsampling for all inferences
-                method = transform_prm.get("downsamp_method")
-                if method == "random":
-                    transform_prm["downsamp_method"] = "real"
-                elif method == "multiple":
-                    transform_prm.setdefault("multiple_prm", {})["random"] = False
-
-            inp, _ = generate_downsamp_inp(inp, transform_prm)
-
+        inp, _ = generate_downsamp_inp(inp, transform_prm)
         list_datasets[i] = (inp, gt)
 
     return list_datasets, paired

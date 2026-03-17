@@ -33,6 +33,7 @@ def test_experiment_json_schema_describes_authoring_shape_only():
     assert "data_dir" not in data_properties
     assert "dataset_info" not in data_properties
     assert "volumetric" not in data_properties
+    assert "masking" not in data_properties
 
     load_model_ref = schema["properties"]["load_model"]["$ref"].split("/")[-1]
     load_model_properties = schema["$defs"][load_model_ref]["properties"]

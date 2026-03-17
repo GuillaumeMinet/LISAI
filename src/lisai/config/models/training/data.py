@@ -108,7 +108,7 @@ class DownsamplingMultipleParams(BaseModel):
     )
     random: bool = Field(
         default=False,
-        description="Whether each generated observation should use a random sparse sampling mask.",
+        description="Whether each generated observation should use a random sparse sampling pattern.",
     )
 
     @field_validator("fill_factor")
@@ -274,8 +274,7 @@ class ExperimentDataSection(BaseModel):
         description="Multi-SNR selection options, used when a dataset contains several noise levels per sample.",
     )
 
-    # Upsampling-training-specific parameters
-    masking: Optional[Dict[str, Any]] = None
+    # Synthetic input-generation parameters
     downsampling: DownsamplingParams | None = Field(
         default=None,
         description="Upsampling-training settings for generating downsampled model inputs.",
@@ -293,6 +292,8 @@ class ExperimentDataSection(BaseModel):
 
     @model_validator(mode="after")
     def _normalize_aliases(self):
+        if "masking" in (self.model_extra or {}):
+            raise ValueError("`masking` is no longer supported. Remove `data.masking` from the config.")
         if self.target is None and self.gt is not None:
             self.target = self.gt
         if self.input is None and self.inp is not None:

@@ -24,7 +24,6 @@ from lisai.evaluation.visualization.z_projection import (
     create_color_coded_image,
     enhance_contrast,
 )
-from lisai.lib.upsamp import inp_generators
 
 
 
@@ -46,7 +45,6 @@ def run_apply_model(model_dataset: str,
                 lvae_num_samples:int = None,
                 lvae_save_samples:bool = True,
                 denormalize_output = True,
-                inp_masking:dict = None,
                 save_inp: bool = False,
                 downsamp: int = None,
                 apply_color_code: bool = False,
@@ -120,9 +118,6 @@ def run_apply_model(model_dataset: str,
                 crop_size = (crop_size, crop_size)
             original_size = img.shape[-2:]
             img = crop_center(img, crop_size)
-
-        if inp_masking is not None:
-            img = inp_generators.generate_masked_inp(img, **inp_masking)
 
         if downsamp is not None:
             img = img[..., ::downsamp, ::downsamp]

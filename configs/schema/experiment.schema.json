@@ -88,7 +88,7 @@
         },
         "random": {
           "default": false,
-          "description": "Whether each generated observation should use a random sparse sampling mask.",
+          "description": "Whether each generated observation should use a random sparse sampling pattern.",
           "title": "Random",
           "type": "boolean"
         }
@@ -375,19 +375,6 @@
           ],
           "default": null,
           "description": "Multi-SNR selection options, used when a dataset contains several noise levels per sample."
-        },
-        "masking": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Masking"
         },
         "downsampling": {
           "anyOf": [
