@@ -3,12 +3,13 @@ from __future__ import annotations
 import logging
 import warnings
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Protocol
 
 import torch
 
 from lisai.config import settings
 from lisai.infra.paths import Paths
+from lisai.models.params import AnyModelParams, LVAEParams
 
 from .registry import get_model_class
 
@@ -17,7 +18,7 @@ logger = logging.getLogger("lisai.model")
 
 class TrainingModelLoadSpec(Protocol):
     architecture: str
-    parameters: Mapping[str, Any] | None
+    parameters: AnyModelParams | None
     mode: str
     patch_size: int | None
     downsamp_factor: int | None
@@ -31,7 +32,7 @@ class TrainingModelLoadSpec(Protocol):
 
 def init_model(
     architecture: str,
-    model_prm: dict,
+    model_prm: AnyModelParams,
     device: torch.device,
     *,
     model_norm_prm: dict | None = None,
@@ -41,6 +42,9 @@ def init_model(
     ModelClass = get_model_class(architecture)
 
     if architecture == "lvae":
+        if not isinstance(model_prm, LVAEParams):
+            raise TypeError(f"LVAE expects LVAEParams, got {type(model_prm)!r}.")
+
         missing = []
         if model_norm_prm is None:
             missing.append("model_norm_prm")
@@ -51,18 +55,15 @@ def init_model(
         if missing:
             raise ValueError(f"LVAE initialization missing required args: {', '.join(missing)}")
 
-        lvae_prm = dict(model_prm or {})
-        lvae_prm["img_shape"] = (img_shape, img_shape)
-        lvae_prm["norm_prm"] = model_norm_prm
-
-        z_dims = lvae_prm.get("z_dims")
-        n_latents = int(lvae_prm.get("num_latents", 1))
-        if isinstance(z_dims, int):
-            lvae_prm["z_dims"] = [z_dims] * n_latents
-
-        model = ModelClass(device, noiseModel=noise_model, **lvae_prm)
+        model = ModelClass(
+            model_prm,
+            device=device,
+            norm_prm=model_norm_prm,
+            noise_model=noise_model,
+            img_shape=(img_shape, img_shape),
+        )
     else:
-        model = ModelClass(**(model_prm or {}))
+        model = ModelClass(model_prm)
 
     return model.to(device)
 
@@ -125,10 +126,12 @@ def prepare_model_for_training(
     Build (and optionally load) model based on the provided training load spec.
     """
     arch = spec.architecture
-    model_prm = spec.parameters or {}
+    model_prm = spec.parameters
 
     if not arch:
         raise ValueError("Model load spec architecture is empty")
+    if model_prm is None:
+        raise ValueError("Model load spec parameters are missing")
 
     if arch == "lvae" and noise_model is None:
         raise ValueError("Need noise model to perform lvae training")

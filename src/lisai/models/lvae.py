@@ -4,6 +4,7 @@ from torch import nn
 
 from lisai.lib.hdn.likelihoods import GaussianLikelihood, NoiseModelLikelihood
 from lisai.lib.hdn.utils import Interpolate, crop_img_tensor, free_bits_kl, pad_img_tensor
+from lisai.models.params import LVAEParams
 
 from .lvae_layers import (
     BottomUpDeterministicResBlock,
@@ -14,165 +15,145 @@ from .lvae_layers import (
 
 
 class LadderVAE(nn.Module):
-
-    def __init__(self,device,norm_prm,z_dims = [32,32,32,32],
-                 color_ch=1,noiseModel=None,blocks_per_layer=5,
-                 nonlin='elu',merge_type='residual',batchnorm=True,
-                 stochastic_skip=True,n_filters=64,dropout=0.2,
-                 free_bits=0.0, learn_top_prior=True,
-                 img_shape=None,res_block_type='bacdbacd',
-                 gated=True,no_initial_downscaling=True,
-                 analytical_kl=True,mode_pred=False,
-                 use_uncond_mode_at=[],**kwargs):
-        
+    def __init__(
+        self,
+        params: LVAEParams,
+        *,
+        device,
+        norm_prm,
+        noise_model=None,
+        img_shape=None,
+    ):
         super().__init__()
-        self.color_ch = color_ch
-        self.z_dims = z_dims
-        self.blocks_per_layer = blocks_per_layer
+        self.params = params
+        self.color_ch = params.color_ch
+        self.z_dims = params.resolved_z_dims()
+        self.blocks_per_layer = params.blocks_per_layer
         self.n_layers = len(self.z_dims)
-        self.stochastic_skip = stochastic_skip
-        self.n_filters = n_filters
-        self.dropout = dropout
-        self.free_bits = free_bits
-        self.learn_top_prior = learn_top_prior
+        self.stochastic_skip = params.stochastic_skip
+        self.n_filters = params.n_filters
+        self.dropout = params.dropout
+        self.free_bits = params.free_bits
+        self.learn_top_prior = params.learn_top_prior
         self.img_shape = tuple(img_shape)
-        self.res_block_type = res_block_type
-        self.gated = gated
+        self.res_block_type = params.res_block_type
+        self.gated = params.gated
         self.device = device
-        self.noiseModel = noiseModel
-        self.mode_pred=mode_pred
-        self.use_uncond_mode_at=use_uncond_mode_at
+        self.noiseModel = noise_model
+        self.mode_pred = params.mode_pred
+        self.use_uncond_mode_at = list(params.use_uncond_mode_at)
         self._global_step = 0
 
         self.data_mean = norm_prm.get("data_mean")
         self.data_std = norm_prm.get("data_std")
-        assert(self.data_std is not None)
-        assert(self.data_mean is not None)
-        # gt data mean and std used in supervised training
-        self.data_mean_gt = norm_prm.get("data_mean_gt",None)
-        self.data_std_gt = norm_prm.get("data_std_gt",None)
+        assert self.data_std is not None
+        assert self.data_mean is not None
+        self.data_mean_gt = norm_prm.get("data_mean_gt", None)
+        self.data_std_gt = norm_prm.get("data_std_gt", None)
 
         if self.noiseModel is None:
             self.likelihood_form = "gaussian"
         else:
             self.likelihood_form = "noise_model"
-        
-        self.downsample = [1]*self.n_layers
 
-        # Downsample by a factor of 2 at each downsampling operation
+        self.downsample = [1] * self.n_layers
+
         self.overall_downscale_factor = np.power(2, sum(self.downsample))
-        if not no_initial_downscaling:  # by default do another downscaling
+        if not params.no_initial_downscaling:
             self.overall_downscale_factor *= 2
 
         assert max(self.downsample) <= self.blocks_per_layer
         assert len(self.downsample) == self.n_layers
 
-        # Get class of nonlinear activation from string description
         nonlin = {
-            'relu': nn.ReLU,
-            'leakyrelu': nn.LeakyReLU,
-            'elu': nn.ELU,
-            'selu': nn.SELU,
-        }[nonlin]
+            "relu": nn.ReLU,
+            "leakyrelu": nn.LeakyReLU,
+            "elu": nn.ELU,
+            "selu": nn.SELU,
+        }[params.nonlin]
 
-        # First bottom-up layer: change num channels + downsample by factor 2
-        # unless we want to prevent this
-        stride = 1 if no_initial_downscaling else 2
+        stride = 1 if params.no_initial_downscaling else 2
         self.first_bottom_up = nn.Sequential(
-            nn.Conv2d(color_ch, n_filters, 5, padding=2, stride=stride),
+            nn.Conv2d(self.color_ch, self.n_filters, 5, padding=2, stride=stride),
             nonlin(),
             BottomUpDeterministicResBlock(
-                c_in=n_filters,
-                c_out=n_filters,
+                c_in=self.n_filters,
+                c_out=self.n_filters,
                 nonlin=nonlin,
-                batchnorm=batchnorm,
-                dropout=dropout,
-                res_block_type=res_block_type,
+                batchnorm=params.batchnorm,
+                dropout=self.dropout,
+                res_block_type=self.res_block_type,
             ))
 
-        # Init lists of layers
         self.top_down_layers = nn.ModuleList([])
         self.bottom_up_layers = nn.ModuleList([])
 
         for i in range(self.n_layers):
-
-            # Whether this is the top layer
             is_top = i == self.n_layers - 1
 
-            # Add bottom-up deterministic layer at level i.
-            # It's a sequence of residual blocks (BottomUpDeterministicResBlock)
-            # possibly with downsampling between them.
             self.bottom_up_layers.append(
                 BottomUpLayer(
                     n_res_blocks=self.blocks_per_layer,
-                    n_filters=n_filters,
+                    n_filters=self.n_filters,
                     downsampling_steps=self.downsample[i],
                     nonlin=nonlin,
-                    batchnorm=batchnorm,
-                    dropout=dropout,
-                    res_block_type=res_block_type,
-                    gated=gated,
+                    batchnorm=params.batchnorm,
+                    dropout=self.dropout,
+                    res_block_type=self.res_block_type,
+                    gated=self.gated,
                 ))
 
-            # Add top-down stochastic layer at level i.
-            # The architecture when doing inference is roughly as follows:
-            #    p_params = output of top-down layer above
-            #    bu = inferred bottom-up value at this layer
-            #    q_params = merge(bu, p_params)
-            #    z = stochastic_layer(q_params)
-            #    possibly get skip connection from previous top-down layer
-            #    top-down deterministic ResNet
-            #
-            # When doing generation only, the value bu is not available, the
-            # merge layer is not used, and z is sampled directly from p_params.
-            #
             self.top_down_layers.append(
                 TopDownLayer(
-                    z_dim=z_dims[i],
-                    n_res_blocks=blocks_per_layer,
-                    n_filters=n_filters,
+                    z_dim=self.z_dims[i],
+                    n_res_blocks=self.blocks_per_layer,
+                    n_filters=self.n_filters,
                     is_top_layer=is_top,
                     downsampling_steps=self.downsample[i],
                     nonlin=nonlin,
-                    merge_type=merge_type,
-                    batchnorm=batchnorm,
-                    dropout=dropout,
-                    stochastic_skip=stochastic_skip,
-                    learn_top_prior=learn_top_prior,
+                    merge_type=params.merge_type,
+                    batchnorm=params.batchnorm,
+                    dropout=self.dropout,
+                    stochastic_skip=self.stochastic_skip,
+                    learn_top_prior=self.learn_top_prior,
                     top_prior_param_shape=self.get_top_prior_param_shape(),
-                    res_block_type=res_block_type,
-                    gated=gated,
-                    analytical_kl=analytical_kl,
+                    res_block_type=self.res_block_type,
+                    gated=self.gated,
+                    analytical_kl=params.analytical_kl,
                 ))
 
-        # Final top-down layer
         modules = list()
-        if not no_initial_downscaling:
+        if not params.no_initial_downscaling:
             modules.append(Interpolate(scale=2))
-        for i in range(blocks_per_layer):
+        for _ in range(self.blocks_per_layer):
             modules.append(
                 TopDownDeterministicResBlock(
-                    c_in=n_filters,
-                    c_out=n_filters,
+                    c_in=self.n_filters,
+                    c_out=self.n_filters,
                     nonlin=nonlin,
-                    batchnorm=batchnorm,
-                    dropout=dropout,
-                    res_block_type=res_block_type,
-                    gated=gated,
+                    batchnorm=params.batchnorm,
+                    dropout=self.dropout,
+                    res_block_type=self.res_block_type,
+                    gated=self.gated,
                 ))
         self.final_top_down = nn.Sequential(*modules)
 
-        # Define likelihood
         if self.likelihood_form == 'gaussian':
-            self.likelihood = GaussianLikelihood(n_filters, color_ch)
+            self.likelihood = GaussianLikelihood(self.n_filters, self.color_ch)
         elif self.likelihood_form == 'noise_model':
-            self.likelihood = NoiseModelLikelihood(n_filters, color_ch, self.data_mean, 
-                                                  self.data_std, noiseModel,
-                                                  self.data_mean_gt,self.data_std_gt)
+            self.likelihood = NoiseModelLikelihood(
+                self.n_filters,
+                self.color_ch,
+                self.data_mean,
+                self.data_std,
+                noise_model,
+                self.data_mean_gt,
+                self.data_std_gt,
+            )
         else:
             msg = "Unrecognized likelihood '{}'".format(self.likelihood_form)
             raise RuntimeError(msg)
-            
+
     def increment_global_step(self):
         """Increments global step by 1."""
         self._global_step += 1

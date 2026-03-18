@@ -9,12 +9,19 @@ from .data import (
 )
 from .loading import CheckpointMethod, ExperimentLoadModelSection, LoadCheckpoint, LoadModelSection
 from .loss import CharEdgeLossParams, LossFunctionConfig, LossName, MSEUpsamplingLossParams
+from .model import (
+    LVAEModelSection,
+    ModelSection,
+    RCANModelSection,
+    UNet3DModelSection,
+    UNetModelSection,
+    UNetRCANModelSection,
+)
 from .normalization import DataNormalizationParams, NormalizationSection
 from .root import ExperimentConfig, ResolvedExperiment
 from .sections import (
     ExperimentSection,
     Mode,
-    ModelSection,
     NoiseModelSection,
     ResolvedExperimentSection,
     RoutingSection,
@@ -36,6 +43,11 @@ __all__ = [
     "DownsamplingMultipleParams",
     "DownsamplingParams",
     "ArtificialMovementParams",
+    "UNetModelSection",
+    "UNet3DModelSection",
+    "RCANModelSection",
+    "UNetRCANModelSection",
+    "LVAEModelSection",
     "ModelSection",
     "TrainingSection",
     "SavingSection",

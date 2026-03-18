@@ -4,6 +4,7 @@ from pathlib import Path
 
 import lisai.evaluation.data as data_mod
 from lisai.evaluation.saved_run import SavedTrainingRun
+from lisai.models.params import UNetParams
 
 
 class FakePaths:
@@ -29,7 +30,7 @@ def _make_saved_run() -> SavedTrainingRun:
             'patch_size': 64,
         },
         model_architecture='unet',
-        model_parameters={},
+        model_parameters=UNetParams(),
         data_norm_prm={'clip': 0},
         model_norm_prm={'data_mean': 1.0, 'data_std': 2.0},
         noise_model_name=None,

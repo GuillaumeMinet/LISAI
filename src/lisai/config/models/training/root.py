@@ -7,10 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from .data import DataSection, ExperimentDataSection
 from .loading import ExperimentLoadModelSection, LoadModelSection
 from .loss import LossFunctionConfig
+from .model import ModelSection
 from .normalization import NormalizationSection
 from .sections import (
     ExperimentSection,
-    ModelSection,
     NoiseModelSection,
     ResolvedExperimentSection,
     RoutingSection,
@@ -37,9 +37,9 @@ class ExperimentConfig(BaseModel):
         default_factory=ExperimentDataSection,
         description="User-authored data-loading, patching, and preprocessing settings.",
     )
-    model: ModelSection = Field(
-        default_factory=ModelSection,
-        description="Model architecture selection and constructor parameters.",
+    model: ModelSection | None = Field(
+        default=None,
+        description="Model architecture selection and typed constructor parameters.",
     )
     training: TrainingSection = Field(
         default_factory=TrainingSection,
@@ -92,9 +92,9 @@ class ResolvedExperiment(BaseModel):
         default_factory=DataSection,
         description="Resolved data-loading and preprocessing settings used by the runtime.",
     )
-    model: ModelSection = Field(
-        default_factory=ModelSection,
-        description="Resolved model architecture selection and constructor parameters.",
+    model: ModelSection | None = Field(
+        default=None,
+        description="Resolved model architecture selection and typed constructor parameters.",
     )
     training: TrainingSection = Field(
         default_factory=TrainingSection,

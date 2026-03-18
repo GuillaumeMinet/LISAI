@@ -16,6 +16,7 @@ from lisai.config import load_yaml, settings
 from lisai.config.models import ResolvedExperiment
 from lisai.defaults import DEFAULT_TILING_SIZE
 from lisai.infra.paths import Paths
+from lisai.models.params import AnyModelParams
 
 CheckpointMethod = Literal["state_dict", "full_model"]
 
@@ -60,7 +61,6 @@ def _default_tiling_size(architecture: str) -> int | None:
     return None
 
 
-
 @dataclass(frozen=True)
 class SavedTrainingRun:
     """Immutable evaluation-facing summary of one saved training run.
@@ -76,7 +76,7 @@ class SavedTrainingRun:
     data_subfolder: str
     data_cfg: dict[str, Any]
     model_architecture: str
-    model_parameters: dict[str, Any]
+    model_parameters: AnyModelParams
     data_norm_prm: dict[str, Any] | None
     model_norm_prm: dict[str, Any] | None
     noise_model_name: str | None
@@ -95,11 +95,13 @@ class SavedTrainingRun:
     @classmethod
     def from_resolved(cls, cfg: ResolvedExperiment, *, run_dir: Path) -> "SavedTrainingRun":
         """Project a validated `ResolvedExperiment` into the evaluation config boundary."""
+        if cfg.model is None:
+            raise ValueError("Saved training config is missing model information.")
         architecture = cfg.model.architecture
         if not architecture:
             raise ValueError("Saved training config is missing model.architecture.")
 
-        model_parameters = dict(cfg.model.parameters or {})
+        model_parameters = cfg.model.parameters
         normalization = getattr(cfg, "normalization", None)
         if isinstance(normalization, Mapping):
             norm_prm = normalization.get("norm_prm")
@@ -109,9 +111,6 @@ class SavedTrainingRun:
         else:
             data_norm_prm = None
         model_norm_prm = dict(cfg.model_norm_prm) if isinstance(cfg.model_norm_prm, Mapping) else None
-        upsamp = model_parameters.get("upsamp")
-        if upsamp is None:
-            upsamp = model_parameters.get("upsampling_factor")
         context_length = None
         if cfg.data.timelapse_prm is not None:
             context_length = cfg.data.timelapse_prm.context_length
@@ -130,7 +129,7 @@ class SavedTrainingRun:
             checkpoint_methods=_checkpoint_methods(cfg),
             patch_size=cfg.data.model_patch_size,
             downsamp_factor=cfg.data.downsampling_factor,
-            upsampling_factor=int(upsamp) if upsamp is not None else 1,
+            upsampling_factor=model_parameters.effective_upsampling_factor(),
             context_length=int(context_length) if context_length is not None else None,
             default_tiling_size=_default_tiling_size(architecture),
         )

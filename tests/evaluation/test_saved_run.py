@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import lisai.evaluation.saved_run as saved_run_mod
+from lisai.models.params import LVAEParams
 
 
 class FakePaths:
@@ -30,7 +31,7 @@ def test_load_saved_run_validates_and_extracts_fields(monkeypatch):
             },
             'timelapse_prm': {'context_length': 5},
         },
-        'model': {'architecture': 'lvae', 'parameters': {'upsamp': 4}},
+        'model': {'architecture': 'lvae', 'parameters': {'num_latents': 4, 'z_dims': 32}},
         'training': {'n_epochs': 1},
         'normalization': {'norm_prm': {'clip': 0}},
         'model_norm_prm': {'data_mean': 1.0},
@@ -55,13 +56,15 @@ def test_load_saved_run_validates_and_extracts_fields(monkeypatch):
     assert saved_run.data_subfolder == 'raw'
     assert saved_run.model_architecture == 'lvae'
     assert saved_run.is_lvae is True
-    assert saved_run.model_parameters == {'upsamp': 4}
+    assert isinstance(saved_run.model_parameters, LVAEParams)
+    assert saved_run.model_parameters.num_latents == 4
+    assert saved_run.model_parameters.resolved_z_dims() == [32, 32, 32, 32]
     assert saved_run.data_norm_prm == {'clip': 0}
     assert saved_run.model_norm_prm == {'data_mean': 1.0}
     assert saved_run.noise_model_name == 'noise_A'
     assert saved_run.checkpoint_methods == ('state_dict', 'full_model')
     assert saved_run.patch_size == 64
     assert saved_run.downsamp_factor == 2
-    assert saved_run.upsampling_factor == 4
+    assert saved_run.upsampling_factor == 1
     assert saved_run.context_length == 5
     assert saved_run.default_tiling_size == 100

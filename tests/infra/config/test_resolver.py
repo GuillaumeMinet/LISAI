@@ -42,6 +42,7 @@ def test_resolve_config_train_mode_disables_load_model(tmp_path: Path):
     assert cfg.experiment.origin_run_dir is None
 
 
+
 def test_apply_mode_resolution_continue_training_loads_origin_and_applies_overrides(tmp_path: Path):
     origin_run_dir = tmp_path / "origin_run"
     origin_run_dir.mkdir(parents=True, exist_ok=True)
@@ -51,7 +52,7 @@ def test_apply_mode_resolution_continue_training_loads_origin_and_applies_overri
         {
             "experiment": {"mode": "train", "exp_name": "origin_exp"},
             "data": {"dataset_name": "origin_ds", "patch_size": 64},
-            "model": {"architecture": "unet", "parameters": {"channels": 8}},
+            "model": {"architecture": "unet", "parameters": {"feat": 8}},
             "training": {"n_epochs": 50, "batch_size": 2},
         },
         origin_cfg_path,
@@ -77,14 +78,13 @@ def test_apply_mode_resolution_continue_training_loads_origin_and_applies_overri
     assert resolver_mod._dget(merged, "experiment.exp_name") == "exp_continue"
     assert Path(resolver_mod._dget(merged, "experiment.origin_run_dir")).resolve() == origin_run_dir.resolve()
 
-    # Comes from origin config
     assert resolver_mod._dget(merged, "model.architecture") == "unet"
-    assert resolver_mod._dget(merged, "model.parameters.channels") == 8
+    assert resolver_mod._dget(merged, "model.parameters.feat") == 8
 
-    # Comes from user override
     assert resolver_mod._dget(merged, "training.n_epochs") == 3
     assert resolver_mod._dget(merged, "load_model.checkpoint.method") == "state_dict"
     assert resolver_mod._dget(merged, "load_model.checkpoint.selector") == "last"
+
 
 
 def test_resolve_config_continue_training_requires_load_model_section(tmp_path: Path):
@@ -102,6 +102,7 @@ def test_resolve_config_continue_training_requires_load_model_section(tmp_path: 
             project_cfg_path=PROJECT_CFG,
             data_cfg_path=DATA_CFG,
         )
+
 
 
 def test_prune_config_for_saving_drops_train_only_and_disabled_sections():

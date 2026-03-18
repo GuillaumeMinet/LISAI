@@ -4,6 +4,7 @@ import pytest
 
 import lisai.training.setup.model as model_mod
 from lisai.config.models import ResolvedExperiment
+from lisai.models.params import LVAEParams, UNetParams
 
 
 
@@ -24,7 +25,7 @@ def _training_cfg(**overrides) -> ResolvedExperiment:
         },
         "model": {
             "architecture": "lvae",
-            "parameters": {"num_latents": 3},
+            "parameters": {"num_latents": 3, "z_dims": 32},
         },
         "noise_model": {"name": "noise_A"},
         "load_model": {
@@ -49,7 +50,9 @@ def test_training_model_spec_extracts_model_load_fields():
     spec = model_mod.TrainingModelSpec.from_config(cfg)
 
     assert spec.architecture == "lvae"
-    assert spec.parameters == {"num_latents": 3}
+    assert isinstance(spec.parameters, LVAEParams)
+    assert spec.parameters.num_latents == 3
+    assert spec.parameters.resolved_z_dims() == [32, 32, 32]
     assert spec.mode == "continue_training"
     assert spec.patch_size == 64
     assert spec.downsamp_factor == 2
@@ -118,7 +121,8 @@ def test_build_model_uses_training_model_spec_without_loading_noise_model_for_un
     assert out_state == state
     assert isinstance(captured["spec"], model_mod.TrainingModelSpec)
     assert captured["spec"].architecture == "unet"
-    assert captured["spec"].parameters == {"depth": 4}
+    assert isinstance(captured["spec"].parameters, UNetParams)
+    assert captured["spec"].parameters.depth == 4
     assert captured["device"] == "cpu"
     assert captured["model_norm_prm"] == {"std": 2.0}
     assert captured["noise_model"] is None
@@ -129,7 +133,6 @@ def test_build_model_loads_noise_model_for_lvae(monkeypatch: pytest.MonkeyPatch)
     cfg = _training_cfg(experiment={"mode": "train", "exp_name": "exp4"}, load_model={})
     calls = []
     model_obj = object()
-    state = {"epoch": 5}
 
     def fake_load_noise_model_object(noise_model_name, device, lisai_paths):
         calls.append((noise_model_name, device, lisai_paths))
@@ -151,5 +154,6 @@ def test_build_model_loads_noise_model_for_lvae(monkeypatch: pytest.MonkeyPatch)
     assert out_model is model_obj
     assert calls == [("noise_A", "cpu", "paths")]
     assert isinstance(out_state["spec"], model_mod.TrainingModelSpec)
+    assert isinstance(out_state["spec"].parameters, LVAEParams)
     assert out_state["noise_model"] == "noise_model_obj"
     assert out_state["model_norm_prm"] == {"std": 2.0}

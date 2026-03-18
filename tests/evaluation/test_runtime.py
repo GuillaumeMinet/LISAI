@@ -7,6 +7,7 @@ import torch
 
 import lisai.evaluation.runtime as runtime_mod
 from lisai.evaluation.saved_run import SavedTrainingRun
+from lisai.models.params import UNetParams
 
 
 class FakePaths:
@@ -19,6 +20,7 @@ class FakePaths:
         return self.checkpoint_path_value
 
 
+
 def _make_saved_run(*, checkpoint_methods=('state_dict',), default_tiling_size=128) -> SavedTrainingRun:
     return SavedTrainingRun(
         run_dir=Path('/runs/dataset_a/exp_a'),
@@ -27,7 +29,7 @@ def _make_saved_run(*, checkpoint_methods=('state_dict',), default_tiling_size=1
         data_subfolder='raw',
         data_cfg={'dataset_name': 'dataset_a', 'patch_size': 64},
         model_architecture='unet',
-        model_parameters={},
+        model_parameters=UNetParams(),
         data_norm_prm={'clip': 0},
         model_norm_prm={'data_mean': 1.0},
         noise_model_name=None,
@@ -38,6 +40,7 @@ def _make_saved_run(*, checkpoint_methods=('state_dict',), default_tiling_size=1
         context_length=None,
         default_tiling_size=default_tiling_size,
     )
+
 
 
 def test_initialize_runtime_builds_inference_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -74,6 +77,7 @@ def test_initialize_runtime_builds_inference_runtime(monkeypatch: pytest.MonkeyP
             'best_or_last': 'best',
         }
     ]
+
 
 
 def test_initialize_runtime_loads_full_model_and_applies_tiling_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

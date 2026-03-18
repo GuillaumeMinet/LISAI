@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import pytest
 import torch
 
 from lisai.models import loader
+from lisai.models.params import AnyModelParams, UNetParams
 
 
 @dataclass(frozen=True)
 class DummyTrainingSpec:
     architecture: str
-    parameters: dict[str, Any]
+    parameters: AnyModelParams
     mode: str
     patch_size: int | None = None
     downsamp_factor: int | None = 1
@@ -41,7 +41,7 @@ class DummyModel:
 def _base_spec(**overrides) -> DummyTrainingSpec:
     data = {
         "architecture": "unet",
-        "parameters": {},
+        "parameters": UNetParams(),
         "mode": "train",
     }
     data.update(overrides)

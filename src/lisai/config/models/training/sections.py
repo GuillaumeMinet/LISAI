@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -66,21 +66,6 @@ class RoutingSection(BaseModel):
         if self.tensorboard_subfolder is None:
             self.tensorboard_subfolder = self.models_subfolder
         return self
-
-
-class ModelSection(BaseModel):
-    """Model architecture selection and constructor parameters."""
-
-    model_config = ConfigDict(extra="allow")
-
-    architecture: str = Field(
-        default="",
-        description="Registered model architecture name to instantiate for training.",
-    )
-    parameters: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Keyword arguments forwarded to the selected model architecture constructor.",
-    )
 
 
 class TrainingSection(BaseModel):

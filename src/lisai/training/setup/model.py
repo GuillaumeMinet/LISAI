@@ -11,9 +11,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from lisai.models.loader import prepare_model_for_training
+from lisai.models.params import AnyModelParams
 
 from .noise_model import load_noise_model_object, resolve_noise_model_name
 
@@ -27,7 +28,7 @@ class TrainingModelSpec:
     """Training-local contract for model build/load decisions."""
 
     architecture: str
-    parameters: dict[str, Any]
+    parameters: AnyModelParams | None
     mode: str
     patch_size: int | None = None
     downsamp_factor: int = 1
@@ -45,10 +46,12 @@ class TrainingModelSpec:
         origin_run_dir = cfg.experiment.origin_run_dir
         patch_size = cfg.data.model_patch_size
         downsamp_factor = cfg.data.downsampling_factor
+        if cfg.model is None:
+            raise ValueError("Resolved training config is missing the model section.")
 
         return cls(
             architecture=cfg.model.architecture,
-            parameters=cfg.model.parameters or {},
+            parameters=cfg.model.parameters,
             mode=cfg.experiment.mode,
             patch_size=int(patch_size) if patch_size is not None else None,
             downsamp_factor=int(downsamp_factor) if downsamp_factor is not None else 1,
