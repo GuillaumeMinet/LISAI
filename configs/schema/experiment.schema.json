@@ -608,7 +608,7 @@
           "type": "boolean"
         },
         "post_training_inference": {
-          "default": false,
+          "default": true,
           "title": "Post Training Inference",
           "type": "boolean"
         }

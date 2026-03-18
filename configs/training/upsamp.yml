@@ -6,6 +6,7 @@ experiment:
   mode: train  # 'train', 'continue_training', 'retrain'
   exp_name: CL1_Upsamp2_Mltpl075
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
+  post_training_inference: true
 
 # ========================================================
 # Paths

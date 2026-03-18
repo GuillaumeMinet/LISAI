@@ -6,7 +6,14 @@ from typing import Any, Literal, Mapping
 
 from lisai.config import load_yaml, settings
 from lisai.config.io import deep_merge
-from lisai.config.models.inference_defaults import InferenceConfig, InferenceDefaults
+from lisai.config.models.inference import (
+    InferenceOverrides,
+    ResolvedInferenceConfig,
+)
+
+# Backward-compatible aliases kept while the clearer inference model names settle in.
+InferenceConfig = InferenceOverrides
+InferenceDefaults = ResolvedInferenceConfig
 
 INFERENCE_CONFIG_SUFFIXES = (".yml", ".yaml")
 
@@ -95,11 +102,11 @@ def load_inference_config(
     config_arg: str | Path | None = None,
     *,
     cwd: Path | None = None,
-) -> tuple[InferenceConfig, Path | None]:
+) -> tuple[InferenceOverrides, Path | None]:
     cfg_path = resolve_inference_config_path(config_arg, cwd=cwd)
     if cfg_path is None:
-        return InferenceConfig(), None
-    return InferenceConfig.model_validate(load_yaml(cfg_path)), cfg_path
+        return InferenceOverrides(), None
+    return InferenceOverrides.model_validate(load_yaml(cfg_path)), cfg_path
 
 
 def _merge_value(default: Any, override: Any) -> Any:
@@ -123,7 +130,7 @@ def _resolve_section_defaults(
     config: str | Path | None = None,
     cwd: Path | None = None,
 ) -> dict[str, Any]:
-    resolved = InferenceDefaults().model_dump()
+    resolved = ResolvedInferenceConfig().model_dump()
     defaults_cfg, _ = load_inference_config(None, cwd=cwd)
     resolved = deep_merge(resolved, defaults_cfg.model_dump(exclude_unset=True))
 
@@ -142,7 +149,7 @@ def _resolve_section_defaults(
 
 def resolve_apply_options(
     *,
-    defaults: InferenceDefaults | None = None,
+    defaults: ResolvedInferenceConfig | None = None,
     defaults_path: str | Path | None = None,
     config: str | Path | None = None,
     cwd: Path | None = None,
@@ -158,7 +165,7 @@ def resolve_apply_options(
 
 def resolve_evaluate_options(
     *,
-    defaults: InferenceDefaults | None = None,
+    defaults: ResolvedInferenceConfig | None = None,
     defaults_path: str | Path | None = None,
     config: str | Path | None = None,
     cwd: Path | None = None,
@@ -172,13 +179,13 @@ def resolve_evaluate_options(
     return _resolve_task_options(section_defaults, overrides)
 
 
-def load_inference_defaults(path: str | Path | None = None) -> InferenceDefaults:
-    resolved = InferenceDefaults().model_dump()
+def load_inference_defaults(path: str | Path | None = None) -> ResolvedInferenceConfig:
+    resolved = ResolvedInferenceConfig().model_dump()
     cfg_path = Path(path) if path is not None else resolve_inference_config_path(None)
     if cfg_path is not None:
-        raw = InferenceConfig.model_validate(load_yaml(cfg_path)).model_dump(exclude_unset=True)
+        raw = InferenceOverrides.model_validate(load_yaml(cfg_path)).model_dump(exclude_unset=True)
         resolved = deep_merge(resolved, raw)
-    return InferenceDefaults.model_validate(resolved)
+    return ResolvedInferenceConfig.model_validate(resolved)
 
 
 __all__ = [

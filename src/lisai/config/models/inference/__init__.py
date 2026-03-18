@@ -1,20 +1,16 @@
-"""Backward-compatible re-exports for inference config models.
-
-The inference models now live under `lisai.config.models.inference`.
-This module remains as a thin shim so older imports keep working.
-"""
-
-from .inference import (
+from .root import (
+    InferenceConfig,
+    InferenceDefaults,
+    InferenceOverrides,
+    ResolvedInferenceConfig,
+)
+from .sections import (
     ApplyDefaults,
     ApplyOverrides,
     ColorCodeDefaults,
     ColorCodeOverrides,
     EvaluateDefaults,
     EvaluateOverrides,
-    InferenceConfig,
-    InferenceDefaults,
-    InferenceOverrides,
-    ResolvedInferenceConfig,
 )
 
 __all__ = [
