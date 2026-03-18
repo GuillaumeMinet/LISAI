@@ -10,6 +10,7 @@ try:
 except Exception:
     pass
 
+
 class StandardTrainer(BaseTrainer):
     @property
     def is_lvae(self) -> bool:
@@ -19,14 +20,15 @@ class StandardTrainer(BaseTrainer):
         super().__init__(**kwargs)
 
         # config-driven custom loss function
-        loss_cfg = self.cfg.loss_function
-        
-        if loss_cfg:
+        loss_cfg_model = self.cfg.loss_function
+
+        if loss_cfg_model is not None:
             try:
                 from lisai.training.losses import get_loss_function
-                self.loss_function = get_loss_function(**loss_cfg)
+
+                self.loss_function = get_loss_function(**loss_cfg_model.as_kwargs())
             except Exception:
-                self.logger.error(f"Invalid loss_function config: {loss_cfg}", exc_info=True)
+                self.logger.error(f"Invalid loss_function config: {loss_cfg_model}", exc_info=True)
                 raise
         else:
             self.loss_function = torch.nn.MSELoss()
@@ -44,7 +46,7 @@ class StandardTrainer(BaseTrainer):
 
         for batch_id, batch in enumerate(iter_loader):
             if self.update_console:
-                self._update_console_new_batch(epoch,batch_id,len(iter_loader))
+                self._update_console_new_batch(epoch, batch_id, len(iter_loader))
 
             virtual_batches = self._split_batch(batch, warn_once=(batch_id == 0))
 
@@ -77,6 +79,7 @@ class StandardTrainer(BaseTrainer):
             iter_val = self.val_loader
             if self.pbar:
                 from tqdm import tqdm
+
                 iter_val = tqdm(iter_val, position=0, leave=False)
                 iter_val.set_description(f"Validation - Epoch {epoch}")
 

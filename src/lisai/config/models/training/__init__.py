@@ -8,6 +8,8 @@ from .data import (
     TimelapseParams,
 )
 from .loading import CheckpointMethod, ExperimentLoadModelSection, LoadCheckpoint, LoadModelSection
+from .loss import CharEdgeLossParams, LossFunctionConfig, LossName, MSEUpsamplingLossParams
+from .normalization import DataNormalizationParams, NormalizationSection
 from .root import ExperimentConfig, ResolvedExperiment
 from .sections import (
     ExperimentSection,
@@ -42,6 +44,12 @@ __all__ = [
     "ExperimentLoadModelSection",
     "LoadCheckpoint",
     "LoadModelSection",
+    "LossName",
+    "CharEdgeLossParams",
+    "MSEUpsamplingLossParams",
+    "LossFunctionConfig",
+    "DataNormalizationParams",
+    "NormalizationSection",
     "ExperimentConfig",
     "ResolvedExperiment",
 ]

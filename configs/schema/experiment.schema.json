@@ -77,6 +77,107 @@
       "title": "ArtificialMovementParams",
       "type": "object"
     },
+    "CharEdgeLossParams": {
+      "additionalProperties": false,
+      "description": "Parameters for the CharEdge loss.",
+      "properties": {
+        "alpha": {
+          "description": "Weight applied to the edge-loss term in the CharEdge objective.",
+          "title": "Alpha",
+          "type": "number"
+        }
+      },
+      "required": [
+        "alpha"
+      ],
+      "title": "CharEdgeLossParams",
+      "type": "object"
+    },
+    "DataNormalizationParams": {
+      "additionalProperties": true,
+      "description": "Normalization coefficients consumed by the training data pipeline.",
+      "properties": {
+        "clip": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "default": false,
+          "description": "Whether to clip low values before normalization. Use true to clip negatives to 0, or provide a numeric threshold.",
+          "title": "Clip"
+        },
+        "normSig2Obs": {
+          "default": false,
+          "description": "Whether to remap signal statistics to observation statistics for multi-noise paired datasets.",
+          "title": "Normsig2Obs",
+          "type": "boolean"
+        },
+        "normalize_data": {
+          "default": false,
+          "description": "Whether to normalize the loaded data using the provided observation and signal statistics.",
+          "title": "Normalize Data",
+          "type": "boolean"
+        },
+        "avgObs": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mean observation intensity used by the normalization pipeline.",
+          "title": "Avgobs"
+        },
+        "stdObs": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Standard deviation of the observation intensities used by the normalization pipeline.",
+          "title": "Stdobs"
+        },
+        "avgSig": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mean signal intensity used when paired data normalization needs signal statistics.",
+          "title": "Avgsig"
+        },
+        "stdSig": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Standard deviation of the signal intensities used when paired data normalization needs signal statistics.",
+          "title": "Stdsig"
+        }
+      },
+      "title": "DataNormalizationParams",
+      "type": "object"
+    },
     "DownsamplingMultipleParams": {
       "additionalProperties": false,
       "description": "Parameters specific to the 'multiple' downsampling method.",
@@ -167,29 +268,35 @@
     },
     "ExperimentDataSection": {
       "additionalProperties": true,
+      "description": "User-authored data-loading and preprocessing settings for a training run.",
       "properties": {
         "dataset_name": {
           "default": "unknown_dataset",
+          "description": "Dataset registry name used to resolve dataset metadata and canonical paths.",
           "title": "Dataset Name",
           "type": "string"
         },
         "canonical_load": {
           "default": true,
+          "description": "Whether dataset paths should be resolved through the canonical project routing rules.",
           "title": "Canonical Load",
           "type": "boolean"
         },
         "prep_before": {
           "default": true,
+          "description": "Whether configured preprocessing should be applied before patch extraction or batching.",
           "title": "Prep Before",
           "type": "boolean"
         },
         "already_split": {
           "default": true,
+          "description": "Whether the dataset already contains separate train/val/test splits on disk.",
           "title": "Already Split",
           "type": "boolean"
         },
         "paired": {
           "default": false,
+          "description": "Whether each input sample is paired with an explicit target sample.",
           "title": "Paired",
           "type": "boolean"
         },
@@ -203,6 +310,7 @@
             }
           ],
           "default": null,
+          "description": "Relative input subpath or key used to locate model inputs inside the dataset.",
           "title": "Input"
         },
         "target": {
@@ -215,6 +323,7 @@
             }
           ],
           "default": null,
+          "description": "Relative target or ground-truth subpath used for supervised training.",
           "title": "Target"
         },
         "inp": {
@@ -227,6 +336,7 @@
             }
           ],
           "default": null,
+          "description": "Legacy alias for input. Prefer using input in new configs.",
           "title": "Inp"
         },
         "gt": {
@@ -239,6 +349,7 @@
             }
           ],
           "default": null,
+          "description": "Legacy alias for target. Prefer using target in new configs.",
           "title": "Gt"
         },
         "data_format": {
@@ -251,9 +362,11 @@
             }
           ],
           "default": null,
+          "description": "Dataset format identifier, for example single, timelapse, or other loader-specific formats.",
           "title": "Data Format"
         },
         "filters": {
+          "description": "Filename extensions accepted when scanning dataset folders.",
           "items": {
             "type": "string"
           },
@@ -262,6 +375,7 @@
         },
         "batch_size": {
           "default": 1,
+          "description": "Mini-batch size used by the dataset loader.",
           "title": "Batch Size",
           "type": "integer"
         },
@@ -275,6 +389,7 @@
             }
           ],
           "default": null,
+          "description": "Training patch size. Use null to train on full images or dataset-native crops.",
           "title": "Patch Size"
         },
         "val_patch_size": {
@@ -287,6 +402,7 @@
             }
           ],
           "default": null,
+          "description": "Validation patch size. Use null to reuse patch_size or evaluate full images.",
           "title": "Val Patch Size"
         },
         "patch_thresh": {
@@ -299,15 +415,18 @@
             }
           ],
           "default": null,
+          "description": "Optional threshold used by patch selection logic to keep informative patches only.",
           "title": "Patch Thresh"
         },
         "select_on_gt": {
           "default": false,
+          "description": "Whether patch selection should use the target image instead of the input image.",
           "title": "Select On Gt",
           "type": "boolean"
         },
         "augmentation": {
           "default": false,
+          "description": "Whether built-in data augmentation should be applied during training.",
           "title": "Augmentation",
           "type": "boolean"
         },
@@ -319,10 +438,12 @@
             }
           ],
           "default": null,
+          "description": "Optional crop applied before patch extraction. Shape and meaning depend on the loader implementation.",
           "title": "Initial Crop"
         },
         "mltpl_noise": {
           "default": false,
+          "description": "Whether the dataset contains multiple noise observations per sample.",
           "title": "Mltpl Noise",
           "type": "boolean"
         },
@@ -337,6 +458,7 @@
             }
           ],
           "default": null,
+          "description": "Optional transform configuration applied to the input before it is fed to the model.",
           "title": "Inp Transform"
         },
         "gt_transform": {
@@ -350,6 +472,7 @@
             }
           ],
           "default": null,
+          "description": "Optional transform configuration applied to the target or ground truth.",
           "title": "Gt Transform"
         },
         "timelapse_prm": {
@@ -411,6 +534,7 @@
             }
           ],
           "default": null,
+          "description": "Optional normalization statistics or settings applied to the input data.",
           "title": "Norm Prm"
         },
         "model_norm_prm": {
@@ -424,6 +548,7 @@
             }
           ],
           "default": null,
+          "description": "Optional normalization settings specific to the model output space.",
           "title": "Model Norm Prm"
         },
         "avgObs_per_noise": {
@@ -439,6 +564,7 @@
             }
           ],
           "default": null,
+          "description": "Optional per-noise-level average observation values used by specialized normalization flows.",
           "title": "Avgobs Per Noise"
         },
         "stdObs_per_noise": {
@@ -454,6 +580,7 @@
             }
           ],
           "default": null,
+          "description": "Optional per-noise-level standard deviations used by specialized normalization flows.",
           "title": "Stdobs Per Noise"
         }
       },
@@ -462,9 +589,11 @@
     },
     "ExperimentLoadModelSection": {
       "additionalProperties": true,
+      "description": "User-authored settings for loading an existing model into a training run.",
       "properties": {
         "canonical_load": {
           "default": true,
+          "description": "Whether the source run should be resolved through the canonical model directory routing.",
           "title": "Canonical Load",
           "type": "boolean"
         },
@@ -478,6 +607,7 @@
             }
           ],
           "default": null,
+          "description": "Dataset name of the source run to load from when using canonical loading.",
           "title": "Dataset Name"
         },
         "subfolder": {
@@ -490,6 +620,7 @@
             }
           ],
           "default": null,
+          "description": "Optional model subfolder used to locate the source run under the models root.",
           "title": "Subfolder"
         },
         "exp_name": {
@@ -502,6 +633,7 @@
             }
           ],
           "default": null,
+          "description": "Experiment name of the source run to load from.",
           "title": "Exp Name"
         },
         "name": {
@@ -514,6 +646,7 @@
             }
           ],
           "default": null,
+          "description": "Legacy alias for the source experiment name.",
           "title": "Name"
         },
         "model_name": {
@@ -526,6 +659,7 @@
             }
           ],
           "default": null,
+          "description": "Legacy alias for the model or run name to load.",
           "title": "Model Name"
         },
         "model_full_path": {
@@ -538,6 +672,7 @@
             }
           ],
           "default": null,
+          "description": "Absolute path to a specific model directory or checkpoint when bypassing canonical routing.",
           "title": "Model Full Path"
         },
         "load_method": {
@@ -554,6 +689,7 @@
             }
           ],
           "default": null,
+          "description": "Checkpoint serialization format to load, typically state_dict or full_model.",
           "title": "Load Method"
         },
         "best_or_last": {
@@ -566,6 +702,7 @@
             }
           ],
           "default": null,
+          "description": "Checkpoint selector used when epoch_number is not set, usually best or last.",
           "title": "Best Or Last"
         },
         "epoch_number": {
@@ -578,6 +715,7 @@
             }
           ],
           "default": null,
+          "description": "Specific checkpoint epoch to load instead of using best_or_last.",
           "title": "Epoch Number"
         }
       },
@@ -586,9 +724,11 @@
     },
     "ExperimentSection": {
       "additionalProperties": true,
+      "description": "High-level experiment metadata controlling how training is launched.",
       "properties": {
         "mode": {
           "default": "train",
+          "description": "Training lifecycle mode: start a new run, continue an existing one, or retrain from loaded weights.",
           "enum": [
             "train",
             "continue_training",
@@ -599,16 +739,19 @@
         },
         "exp_name": {
           "default": "unnamed_experiment",
+          "description": "Experiment name used to create the output run directory and derived artifact names.",
           "title": "Exp Name",
           "type": "string"
         },
         "overwrite": {
           "default": false,
+          "description": "Whether an existing experiment directory with the same name may be overwritten.",
           "title": "Overwrite",
           "type": "boolean"
         },
         "post_training_inference": {
           "default": true,
+          "description": "Whether to trigger automatic post-training evaluation when training completes or stops early.",
           "title": "Post Training Inference",
           "type": "boolean"
         }
@@ -616,16 +759,106 @@
       "title": "ExperimentSection",
       "type": "object"
     },
+    "LossFunctionConfig": {
+      "additionalProperties": false,
+      "description": "Typed training loss configuration passed to the trainer.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "enum": [
+                "MSE",
+                "mse",
+                "l2",
+                "L2",
+                "MAE",
+                "mae",
+                "l1",
+                "L1"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "CharEdge_loss",
+                "CharEdge"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "MSE_upsampling",
+              "type": "string"
+            }
+          ],
+          "description": "Loss function name. Supported values are MSE/L2, MAE/L1, CharEdge_loss, CharEdge, and MSE_upsampling.",
+          "title": "Name"
+        },
+        "CharEdge_loss_prm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CharEdgeLossParams"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Parameter block required when using CharEdge_loss or CharEdge."
+        },
+        "MSE_upsampling_prm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MSEUpsamplingLossParams"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Parameter block required when using MSE_upsampling."
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "LossFunctionConfig",
+      "type": "object"
+    },
+    "MSEUpsamplingLossParams": {
+      "additionalProperties": false,
+      "description": "Parameters for the custom upsampling-aware MSE loss.",
+      "properties": {
+        "upsampling_factor": {
+          "description": "Upsampling factor used by the custom loss. The current implementation only supports a factor of 2.",
+          "title": "Upsampling Factor",
+          "type": "integer"
+        },
+        "alpha": {
+          "default": 0.5,
+          "description": "Weight applied to the custom sub-pixel consistency term, in the interval [0, 1).",
+          "title": "Alpha",
+          "type": "number"
+        }
+      },
+      "required": [
+        "upsampling_factor"
+      ],
+      "title": "MSEUpsamplingLossParams",
+      "type": "object"
+    },
     "ModelSection": {
       "additionalProperties": true,
+      "description": "Model architecture selection and constructor parameters.",
       "properties": {
         "architecture": {
           "default": "",
+          "description": "Registered model architecture name to instantiate for training.",
           "title": "Architecture",
           "type": "string"
         },
         "parameters": {
           "additionalProperties": true,
+          "description": "Keyword arguments forwarded to the selected model architecture constructor.",
           "title": "Parameters",
           "type": "object"
         }
@@ -669,6 +902,7 @@
     },
     "NoiseModelSection": {
       "additionalProperties": true,
+      "description": "Optional auxiliary noise-model configuration.",
       "properties": {
         "name": {
           "anyOf": [
@@ -680,22 +914,52 @@
             }
           ],
           "default": null,
+          "description": "Registered noise-model name to attach to the experiment. Use null to disable it.",
           "title": "Name"
         }
       },
       "title": "NoiseModelSection",
       "type": "object"
     },
+    "NormalizationSection": {
+      "additionalProperties": true,
+      "description": "Training normalization settings resolved before data loading.",
+      "properties": {
+        "load_from_noise_model": {
+          "default": false,
+          "description": "Whether Stage A normalization metadata should be loaded automatically from the configured noise model.",
+          "title": "Load From Noise Model",
+          "type": "boolean"
+        },
+        "norm_prm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataNormalizationParams"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Explicit normalization parameters consumed by the data-loading pipeline."
+        }
+      },
+      "title": "NormalizationSection",
+      "type": "object"
+    },
     "RoutingSection": {
       "additionalProperties": true,
+      "description": "Subfolder routing used to place datasets, checkpoints, logs, and inference outputs.",
       "properties": {
         "data_subfolder": {
           "default": "",
+          "description": "Dataset subfolder selected under the configured data root.",
           "title": "Data Subfolder",
           "type": "string"
         },
         "models_subfolder": {
           "default": "",
+          "description": "Subfolder under the models root where checkpoints and training artifacts are stored.",
           "title": "Models Subfolder",
           "type": "string"
         },
@@ -709,10 +973,12 @@
             }
           ],
           "default": null,
+          "description": "Subfolder under the tensorboard root. Defaults to the models_subfolder when omitted.",
           "title": "Tensorboard Subfolder"
         },
         "inference_subfolder": {
           "default": "",
+          "description": "Subfolder under the inference root where evaluation or apply outputs are written.",
           "title": "Inference Subfolder",
           "type": "string"
         }
@@ -722,39 +988,47 @@
     },
     "SavingSection": {
       "additionalProperties": true,
+      "description": "Checkpoint and validation-image saving behavior.",
       "properties": {
         "enabled": {
           "default": true,
+          "description": "Whether checkpoints and other training artifacts should be written to disk.",
           "title": "Enabled",
           "type": "boolean"
         },
         "canonical_save": {
           "default": true,
+          "description": "Whether checkpoint/output paths should be resolved through the canonical project routing rules.",
           "title": "Canonical Save",
           "type": "boolean"
         },
         "validation_images": {
           "default": true,
+          "description": "Whether to save validation image previews during training.",
           "title": "Validation Images",
           "type": "boolean"
         },
         "validation_freq": {
           "default": 10,
+          "description": "Number of epochs between validation-image saves.",
           "title": "Validation Freq",
           "type": "integer"
         },
         "state_dict": {
           "default": false,
+          "description": "Whether checkpoints should be saved as state_dict files.",
           "title": "State Dict",
           "type": "boolean"
         },
         "entire_model": {
           "default": false,
+          "description": "Whether checkpoints should be saved as serialized full-model files.",
           "title": "Entire Model",
           "type": "boolean"
         },
         "overwrite_best": {
           "default": true,
+          "description": "Whether the current best checkpoint may overwrite the previously saved best checkpoint.",
           "title": "Overwrite Best",
           "type": "boolean"
         }
@@ -764,9 +1038,11 @@
     },
     "TensorboardSection": {
       "additionalProperties": true,
+      "description": "TensorBoard logging settings.",
       "properties": {
         "enabled": {
           "default": false,
+          "description": "Whether TensorBoard summaries should be written during training.",
           "title": "Enabled",
           "type": "boolean"
         }
@@ -816,24 +1092,29 @@
     },
     "TrainingSection": {
       "additionalProperties": true,
+      "description": "Core optimization settings for the training loop.",
       "properties": {
         "n_epochs": {
           "default": 1,
+          "description": "Maximum number of training epochs to run.",
           "title": "N Epochs",
           "type": "integer"
         },
         "batch_size": {
           "default": 1,
+          "description": "Fallback batch size used by the trainer when the data section does not provide one.",
           "title": "Batch Size",
           "type": "integer"
         },
         "learning_rate": {
           "default": 0.0001,
+          "description": "Initial learning rate passed to the optimizer.",
           "title": "Learning Rate",
           "type": "number"
         },
         "optimizer": {
           "default": "Adam",
+          "description": "Optimizer name used to update the model parameters.",
           "title": "Optimizer",
           "type": "string"
         },
@@ -847,20 +1128,24 @@
             }
           ],
           "default": null,
+          "description": "Optional learning-rate scheduler name. Use null to disable scheduling.",
           "title": "Scheduler"
         },
         "progress_bar": {
           "default": false,
+          "description": "Whether to show a live progress bar during training iterations.",
           "title": "Progress Bar",
           "type": "boolean"
         },
         "early_stop": {
           "default": false,
+          "description": "Whether early stopping is enabled when validation performance stops improving.",
           "title": "Early Stop",
           "type": "boolean"
         },
         "pos_encod": {
           "default": false,
+          "description": "Whether positional encoding should be enabled for models that support it.",
           "title": "Pos Encod",
           "type": "boolean"
         }
@@ -873,13 +1158,16 @@
   "description": "User-authored training experiment YAML schema.",
   "properties": {
     "experiment": {
-      "$ref": "#/$defs/ExperimentSection"
+      "$ref": "#/$defs/ExperimentSection",
+      "description": "High-level experiment metadata and execution mode."
     },
     "routing": {
-      "$ref": "#/$defs/RoutingSection"
+      "$ref": "#/$defs/RoutingSection",
+      "description": "Subfolder routing that determines where data, models, logs, and inference outputs live."
     },
     "data": {
-      "$ref": "#/$defs/ExperimentDataSection"
+      "$ref": "#/$defs/ExperimentDataSection",
+      "description": "User-authored data-loading, patching, and preprocessing settings."
     },
     "model": {
       "$ref": "#/$defs/ModelSection"
@@ -888,9 +1176,8 @@
       "$ref": "#/$defs/TrainingSection"
     },
     "normalization": {
-      "additionalProperties": true,
-      "title": "Normalization",
-      "type": "object"
+      "$ref": "#/$defs/NormalizationSection",
+      "description": "Dataset normalization settings applied before or during data loading."
     },
     "model_norm_prm": {
       "anyOf": [
@@ -903,12 +1190,20 @@
         }
       ],
       "default": null,
+      "description": "Optional model-output normalization settings kept separate from the main data normalization block.",
       "title": "Model Norm Prm"
     },
     "loss_function": {
-      "additionalProperties": true,
-      "title": "Loss Function",
-      "type": "object"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LossFunctionConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Typed loss-function configuration used to instantiate the trainer loss."
     },
     "noise_model": {
       "anyOf": [
@@ -923,6 +1218,7 @@
         }
       ],
       "default": null,
+      "description": "Optional noise-model configuration or shortcut name.",
       "title": "Noise Model"
     },
     "saving": {
@@ -932,7 +1228,8 @@
       "$ref": "#/$defs/TensorboardSection"
     },
     "load_model": {
-      "$ref": "#/$defs/ExperimentLoadModelSection"
+      "$ref": "#/$defs/ExperimentLoadModelSection",
+      "description": "Optional source-run selection used to initialize the model from a previous checkpoint."
     }
   },
   "title": "ExperimentConfig",

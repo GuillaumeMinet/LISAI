@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Mapping
 
 from lisai.models import load_noise_model
 
@@ -53,7 +53,13 @@ def _load_noise_model_norm_prm(noise_model_name: str | None, lisai_paths: Paths)
 
 def resolve_noise_model_metadata(cfg: ResolvedExperiment, lisai_paths: Paths):
     """Resolve Stage A normalization from the noise-model folder when requested."""
-    if not bool((cfg.normalization or {}).get("load_from_noise_model", False)):
+    normalization = getattr(cfg, "normalization", None)
+    if isinstance(normalization, Mapping):
+        load_from_noise_model = bool(normalization.get("load_from_noise_model", False))
+    else:
+        load_from_noise_model = bool(getattr(normalization, "load_from_noise_model", False))
+
+    if not load_from_noise_model:
         return None
 
     noise_model_name = resolve_noise_model_name(cfg)

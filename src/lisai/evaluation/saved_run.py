@@ -100,8 +100,14 @@ class SavedTrainingRun:
             raise ValueError("Saved training config is missing model.architecture.")
 
         model_parameters = dict(cfg.model.parameters or {})
-        norm_prm = cfg.normalization.get("norm_prm")
-        data_norm_prm = dict(norm_prm) if isinstance(norm_prm, Mapping) else None
+        normalization = getattr(cfg, "normalization", None)
+        if isinstance(normalization, Mapping):
+            norm_prm = normalization.get("norm_prm")
+            data_norm_prm = dict(norm_prm) if isinstance(norm_prm, Mapping) else None
+        elif normalization is not None:
+            data_norm_prm = normalization.norm_prm_dict()
+        else:
+            data_norm_prm = None
         model_norm_prm = dict(cfg.model_norm_prm) if isinstance(cfg.model_norm_prm, Mapping) else None
         upsamp = model_parameters.get("upsamp")
         if upsamp is None:

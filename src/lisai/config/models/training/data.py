@@ -230,39 +230,104 @@ class ArtificialMovementParams(BaseModel):
 
 
 class ExperimentDataSection(BaseModel):
+    """User-authored data-loading and preprocessing settings for a training run."""
+
     model_config = ConfigDict(extra="allow", protected_namespaces=())
 
-    dataset_name: str = "unknown_dataset"
-    canonical_load: bool = True
+    dataset_name: str = Field(
+        default="unknown_dataset",
+        description="Dataset registry name used to resolve dataset metadata and canonical paths.",
+    )
+    canonical_load: bool = Field(
+        default=True,
+        description="Whether dataset paths should be resolved through the canonical project routing rules.",
+    )
 
     # Core loader setup
-    prep_before: bool = True
-    already_split: bool = True
-    paired: bool = False
-    input: Optional[str] = None
-    target: Optional[str] = None
+    prep_before: bool = Field(
+        default=True,
+        description="Whether configured preprocessing should be applied before patch extraction or batching.",
+    )
+    already_split: bool = Field(
+        default=True,
+        description="Whether the dataset already contains separate train/val/test splits on disk.",
+    )
+    paired: bool = Field(
+        default=False,
+        description="Whether each input sample is paired with an explicit target sample.",
+    )
+    input: Optional[str] = Field(
+        default=None,
+        description="Relative input subpath or key used to locate model inputs inside the dataset.",
+    )
+    target: Optional[str] = Field(
+        default=None,
+        description="Relative target or ground-truth subpath used for supervised training.",
+    )
 
     # Legacy aliases still seen in older configs
-    inp: Optional[str] = None
-    gt: Optional[str] = None
+    inp: Optional[str] = Field(
+        default=None,
+        description="Legacy alias for input. Prefer using input in new configs.",
+    )
+    gt: Optional[str] = Field(
+        default=None,
+        description="Legacy alias for target. Prefer using target in new configs.",
+    )
 
     # Data format selection and filtering
-    data_format: Optional[str] = None
-    filters: list[str] = Field(default_factory=lambda: ["tif", "tiff"])
+    data_format: Optional[str] = Field(
+        default=None,
+        description="Dataset format identifier, for example single, timelapse, or other loader-specific formats.",
+    )
+    filters: list[str] = Field(
+        default_factory=lambda: ["tif", "tiff"],
+        description="Filename extensions accepted when scanning dataset folders.",
+    )
 
     # Patching and batching
-    batch_size: int = 1
-    patch_size: Optional[int] = None
-    val_patch_size: Optional[int] = None
-    patch_thresh: Optional[float] = None
-    select_on_gt: bool = False
-    augmentation: bool = False
-    initial_crop: Optional[Any] = None
-    mltpl_noise: bool = False
+    batch_size: int = Field(
+        default=1,
+        description="Mini-batch size used by the dataset loader.",
+    )
+    patch_size: Optional[int] = Field(
+        default=None,
+        description="Training patch size. Use null to train on full images or dataset-native crops.",
+    )
+    val_patch_size: Optional[int] = Field(
+        default=None,
+        description="Validation patch size. Use null to reuse patch_size or evaluate full images.",
+    )
+    patch_thresh: Optional[float] = Field(
+        default=None,
+        description="Optional threshold used by patch selection logic to keep informative patches only.",
+    )
+    select_on_gt: bool = Field(
+        default=False,
+        description="Whether patch selection should use the target image instead of the input image.",
+    )
+    augmentation: bool = Field(
+        default=False,
+        description="Whether built-in data augmentation should be applied during training.",
+    )
+    initial_crop: Optional[Any] = Field(
+        default=None,
+        description="Optional crop applied before patch extraction. Shape and meaning depend on the loader implementation.",
+    )
+    mltpl_noise: bool = Field(
+        default=False,
+        description="Whether the dataset contains multiple noise observations per sample.",
+    )
 
     # Additional transforms
-    inp_transform: Optional[Dict[str, Any]] = None
-    gt_transform: Optional[Dict[str, Any]] = None
+    inp_transform: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional transform configuration applied to the input before it is fed to the model.",
+    )
+    gt_transform: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional transform configuration applied to the target or ground truth.",
+    )
 
     # Format-specific parameters
     timelapse_prm: TimelapseParams | None = Field(
@@ -285,10 +350,22 @@ class ExperimentDataSection(BaseModel):
     )
 
     # Normalization inputs
-    norm_prm: Optional[Dict[str, Any]] = None
-    model_norm_prm: Optional[Dict[str, Any]] = None
-    avgObs_per_noise: Optional[list[float]] = None
-    stdObs_per_noise: Optional[list[float]] = None
+    norm_prm: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional normalization statistics or settings applied to the input data.",
+    )
+    model_norm_prm: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional normalization settings specific to the model output space.",
+    )
+    avgObs_per_noise: Optional[list[float]] = Field(
+        default=None,
+        description="Optional per-noise-level average observation values used by specialized normalization flows.",
+    )
+    stdObs_per_noise: Optional[list[float]] = Field(
+        default=None,
+        description="Optional per-noise-level standard deviations used by specialized normalization flows.",
+    )
 
     @model_validator(mode="after")
     def _normalize_aliases(self):
@@ -365,6 +442,19 @@ class ExperimentDataSection(BaseModel):
 
 
 class DataSection(ExperimentDataSection):
-    volumetric: bool = False
-    data_dir: Optional[Path] = Field(default=None, exclude=True)
-    dataset_info: Optional[Dict[str, Any]] = Field(default=None, exclude=True)
+    """Resolved training data settings enriched with runtime-only path and dataset metadata."""
+
+    volumetric: bool = Field(
+        default=False,
+        description="Whether the resolved dataset should be treated as volumetric data.",
+    )
+    data_dir: Optional[Path] = Field(
+        default=None,
+        exclude=True,
+        description="Resolved on-disk dataset directory. This is a runtime-only field and is not intended for YAML editing.",
+    )
+    dataset_info: Optional[Dict[str, Any]] = Field(
+        default=None,
+        exclude=True,
+        description="Resolved dataset metadata injected at runtime from the dataset registry.",
+    )

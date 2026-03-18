@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Mapping
 
 from lisai.config import load_yaml
 from lisai.data.data_prep import make_training_loaders
@@ -52,7 +52,11 @@ def prepare_data(
     if is_lvae:
         data_norm_prm = resolve_noise_model_metadata(cfg, runtime.paths)
     if data_norm_prm is None:
-        data_norm_prm = (cfg.normalization or {}).get("norm_prm")
+        normalization = getattr(cfg, "normalization", None)
+        if isinstance(normalization, Mapping):
+            data_norm_prm = normalization.get("norm_prm")
+        elif normalization is not None:
+            data_norm_prm = normalization.norm_prm_dict()
 
     data_dir = runtime.paths.dataset_dir(
         dataset_name=cfg.data.dataset_name,
