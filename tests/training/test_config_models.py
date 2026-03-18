@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from lisai.config.models import ResolvedExperiment
 from lisai.config.models.training import ExperimentConfig
 
 
@@ -79,6 +80,9 @@ def test_normalization_section_is_typed():
 def test_model_section_resolves_architecture_specific_parameter_model():
     cfg = ExperimentConfig.model_validate(
         {
+            "data": {
+                "timelapse_prm": {"context_length": 3},
+            },
             "model": {
                 "architecture": "unet_rcan",
                 "parameters": {
@@ -128,3 +132,228 @@ def test_unet_remove_skip_connections_cannot_exceed_depth():
                 }
             }
         )
+
+
+
+def test_lvae_rejects_timelapse_context_longer_than_one():
+    with pytest.raises(ValidationError, match="null or 1"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "timelapse_prm": {"context_length": 3},
+                },
+                "model": {
+                    "architecture": "lvae",
+                    "parameters": {"num_latents": 3, "z_dims": 32},
+                },
+            }
+        )
+
+
+
+def test_single_network_requires_input_channels_to_match_context_length():
+    with pytest.raises(ValidationError, match="model.parameters.in_channels"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "timelapse_prm": {"context_length": 3},
+                },
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {"in_channels": 1},
+                },
+            }
+        )
+
+
+
+def test_single_network_requires_out_channels_of_one():
+    with pytest.raises(ValidationError, match="out_channels"):
+        ExperimentConfig.model_validate(
+            {
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {"out_channels": 2},
+                },
+            }
+        )
+
+
+
+def test_hybrid_network_requires_matching_multiple_downsampling_channels():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "data": {
+                "downsampling": {
+                    "downsamp_factor": 2,
+                    "downsamp_method": "multiple",
+                    "multiple_prm": {"fill_factor": 0.75, "random": False},
+                },
+            },
+            "model": {
+                "architecture": "unet_rcan",
+                "parameters": {
+                    "upsampling_net": "rcan",
+                    "upsampling_factor": 2,
+                    "UNet_prm": {"in_channels": 3, "out_channels": 3},
+                    "RCAN_prm": {"out_channels": 1},
+                },
+            },
+        }
+    )
+
+    assert cfg.model is not None
+    assert cfg.model.parameters.UNet_prm.in_channels == 3
+    assert cfg.model.parameters.UNet_prm.out_channels == 3
+    assert cfg.model.parameters.RCAN_prm.out_channels == 1
+
+
+
+def test_multiple_downsampling_is_incompatible_with_timelapse_context_window():
+    with pytest.raises(ValidationError, match="incompatible"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "timelapse_prm": {"context_length": 3},
+                    "downsampling": {
+                        "downsamp_factor": 2,
+                        "downsamp_method": "multiple",
+                        "multiple_prm": {"fill_factor": 0.75, "random": False},
+                    },
+                },
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {"in_channels": 3},
+                },
+            }
+        )
+
+
+
+def test_multiple_downsampling_requires_matching_single_network_channels():
+    with pytest.raises(ValidationError, match=r"int\(downsamp_factor\*\*2 \* fill_factor\)"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "downsampling": {
+                        "downsamp_factor": 2,
+                        "downsamp_method": "multiple",
+                        "multiple_prm": {"fill_factor": 0.75, "random": False},
+                    },
+                },
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {"in_channels": 1},
+                },
+            }
+        )
+
+
+
+def test_hybrid_network_requires_rcan_output_channel_of_one():
+    with pytest.raises(ValidationError, match="RCAN_prm.out_channels"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "downsampling": {
+                        "downsamp_factor": 2,
+                        "downsamp_method": "multiple",
+                        "multiple_prm": {"fill_factor": 0.75, "random": False},
+                    },
+                },
+                "model": {
+                    "architecture": "unet_rcan",
+                    "parameters": {
+                        "UNet_prm": {"in_channels": 3, "out_channels": 3},
+                        "RCAN_prm": {"out_channels": 2},
+                    },
+                },
+            }
+        )
+
+
+
+def test_mismatched_downsampling_and_model_upsampling_emits_warning_for_paired_data():
+    with pytest.warns(UserWarning, match="does not match the model effective upsampling factor"):
+        ResolvedExperiment.model_validate(
+            {
+                "data": {
+                    "dataset_name": "ds",
+                    "paired": True,
+                    "target": "gt",
+                    "downsampling": {
+                        "downsamp_factor": 2,
+                        "downsamp_method": "blur",
+                    },
+                },
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {
+                        "upsampling_factor": 3,
+                        "upsampling_order": "after",
+                    },
+                },
+            }
+        )
+
+
+def test_mismatched_downsampling_and_model_upsampling_is_error_for_unpaired_data():
+    with pytest.raises(ValidationError, match=r"must match the model effective upsampling factor"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "downsampling": {
+                        "downsamp_factor": 2,
+                        "downsamp_method": "blur",
+                    },
+                },
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {
+                        "upsampling_factor": 3,
+                        "upsampling_order": "after",
+                    },
+                },
+            }
+        )
+
+
+
+def test_lvae_rejects_multiple_downsampling_with_multi_channel_output():
+    with pytest.raises(ValidationError, match=r"does not support multi-channel generated inputs"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "downsampling": {
+                        "downsamp_factor": 2,
+                        "downsamp_method": "multiple",
+                        "multiple_prm": {"fill_factor": 0.75, "random": False},
+                    },
+                },
+                "model": {
+                    "architecture": "lvae",
+                    "parameters": {"num_latents": 3, "z_dims": 32},
+                },
+            }
+        )
+
+
+
+def test_deterministic_multiple_downsampling_requires_supported_channel_count():
+    with pytest.raises(ValidationError, match=r"Deterministic `multiple` downsampling is not implemented"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "downsampling": {
+                        "downsamp_factor": 4,
+                        "downsamp_method": "multiple",
+                        "multiple_prm": {"fill_factor": 0.75, "random": False},
+                    },
+                },
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {"in_channels": 12},
+                },
+            }
+        )
+

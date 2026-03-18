@@ -6,6 +6,8 @@ from typing import Any, Dict, Literal, Mapping, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from lisai.lib.upsamp.inp_generators import _deterministic_mltpl_sampling
+
 DownsamplingMethod = Literal["blur", "multiple", "random", "real", "all"]
 MovementDirection = Literal[
     "random",
@@ -143,6 +145,11 @@ class DownsamplingParams(BaseModel):
         description="Explicit real-sampling positions as two rows: y indices then x indices.",
     )
 
+    def multiple_input_channels(self) -> int | None:
+        if self.downsamp_method != "multiple" or self.multiple_prm is None:
+            return None
+        return int(self.downsamp_factor**2 * self.multiple_prm.fill_factor)
+
     @field_validator("downsamp_factor")
     @classmethod
     def _validate_downsamp_factor(cls, value: int):
@@ -152,8 +159,24 @@ class DownsamplingParams(BaseModel):
 
     @model_validator(mode="after")
     def _validate_method_specific_fields(self):
-        if self.downsamp_method == "multiple" and self.multiple_prm is None:
-            raise ValueError("`multiple_prm` is required when `downsamp_method='multiple'`.")
+        if self.downsamp_method == "multiple":
+            if self.multiple_prm is None:
+                raise ValueError("`multiple_prm` is required when `downsamp_method='multiple'`.")
+
+            n_ch = self.multiple_input_channels()
+            if n_ch is None or n_ch < 1:
+                raise ValueError(
+                    "`data.downsampling.multiple_prm.fill_factor` yields zero input channels with the current `downsamp_factor`."
+                )
+
+            if not self.multiple_prm.random:
+                supported = _deterministic_mltpl_sampling.get(int(self.downsamp_factor), {})
+                if n_ch not in supported:
+                    raise ValueError(
+                        "Deterministic `multiple` downsampling is not implemented for "
+                        f"`downsamp_factor={self.downsamp_factor}` and `n_ch={n_ch}`. "
+                        "Use `multiple_prm.random: true` or choose a supported fill factor."
+                    )
 
         if self.sampling_strategy is not None:
             if self.downsamp_method != "real":

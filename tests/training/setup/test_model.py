@@ -18,6 +18,8 @@ def _training_cfg(**overrides) -> ResolvedExperiment:
         "data": {
             "dataset_name": "ds",
             "patch_size": 64,
+            "paired": True,
+            "target": "gt",
             "downsampling": {
                 "downsamp_factor": 2,
                 "downsamp_method": "random",

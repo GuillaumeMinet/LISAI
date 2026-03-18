@@ -21,15 +21,16 @@ def test_load_saved_run_validates_and_extracts_fields(monkeypatch):
         'routing': {'data_subfolder': 'raw'},
         'data': {
             'dataset_name': 'dataset_a',
-            'paired': False,
+            'paired': True,
             'input': 'inp',
+            'target': 'gt',
             'patch_size': 64,
             'downsampling': {
                 'supervised_training': True,
                 'downsamp_factor': 2,
                 'downsamp_method': 'blur',
             },
-            'timelapse_prm': {'context_length': 5},
+            'timelapse_prm': {'context_length': 1},
         },
         'model': {'architecture': 'lvae', 'parameters': {'num_latents': 4, 'z_dims': 32}},
         'training': {'n_epochs': 1},
@@ -66,5 +67,5 @@ def test_load_saved_run_validates_and_extracts_fields(monkeypatch):
     assert saved_run.patch_size == 64
     assert saved_run.downsamp_factor == 2
     assert saved_run.upsampling_factor == 1
-    assert saved_run.context_length == 5
+    assert saved_run.context_length == 1
     assert saved_run.default_tiling_size == 100

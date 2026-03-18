@@ -43,10 +43,7 @@ data:
   
   downsampling:
     downsamp_factor: 2
-    downsamp_method: "multiple"
-    multiple_prm:
-      random: True
-      fill_factor: 0.75
+    downsamp_method: "random"
 
   # options
   initial_crop: null
@@ -61,7 +58,7 @@ model:
   architecture: unet_rcan
   parameters:
     upsampling_net: rcan
-    upsampling_factor: 2
+    upsampling_factor: 1
     UNet_prm:
       feat: 64
       depth: 3
