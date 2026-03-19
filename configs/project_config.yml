@@ -7,13 +7,13 @@ project:
 
 paths:
   roots:
-    data_dir: "{data_root}/Data"
+    data_dir: "{data_root}/datasets"
     models_dir: "{data_root}/Models"
     noise_models_dir: "{data_root}/NoiseModels"
     # code_dir is injected automatically by Settings (project root)
 
   templates:
-    dataset_registry: "{paths.roots.data_dir}/data_registry.yml"
+    dataset_registry: "{paths.roots.data_dir}/dataset_registry.yml"
 
     dataset_loading: "{paths.roots.data_dir}/{dataset_name}/{data_subfolder}"
 

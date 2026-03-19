@@ -1,5 +1,5 @@
 from .recon_mltpl_snr import ReconMltplSnrPipeline
-from .recon_timelapse_upsamp import ReconTimelapseUpsampPipeline
+from .recon_timelapse_simple import ReconTimelapseUpsampPipeline
 from .single import SingleReconPipeline
 
 PIPELINES_REGISTRY = {

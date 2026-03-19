@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 import numpy as np
 import tifffile
@@ -10,9 +10,11 @@ import tifffile
 from lisai.config import settings
 
 from ..core import FolderSource, Item, OutputDecl, OutputSpec, Source
-from ..run_preprocess import PreprocessRun
 from ..transformations import compute_gt_avg, crop_center_stack, register_stack
 from .base import BasePipeline, PipelineResult
+
+if TYPE_CHECKING:
+    from ..run_preprocess import PreprocessRun
 
 
 @dataclass

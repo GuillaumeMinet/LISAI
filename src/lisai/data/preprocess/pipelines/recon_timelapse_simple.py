@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 import numpy as np
 import tifffile
@@ -10,13 +10,15 @@ import tifffile
 from lisai.config import settings
 
 from ..core import MAIN_OUTPUT_KEY, FolderSource, Item, OutputDecl, OutputSpec, Source
-from ..run_preprocess import PreprocessRun
 from ..transformations import bleach_correct_simple_ratio, crop_center_stack, remove_first_frame
 from .base import BasePipeline, PipelineResult
 
+if TYPE_CHECKING:
+    from ..run_preprocess import PreprocessRun
+
 
 @dataclass
-class ReconTimelapseUpsampConfig:
+class ReconTimelapseSimpleConfig:
     """
     Preprocess reconstructed timelapse stacks (T,Y,X) from dump/ into preprocess/recon/.
 
@@ -36,9 +38,9 @@ class ReconTimelapseUpsampConfig:
     bleach_correction: bool = False
 
 
-class ReconTimelapseUpsampPipeline(BasePipeline[ReconTimelapseUpsampConfig]):
-    Config = ReconTimelapseUpsampConfig
-    name = "recon_timelapse_upsamp"
+class ReconTimelapseSimplePipeline(BasePipeline[ReconTimelapseSimpleConfig]):
+    Config = ReconTimelapseSimpleConfig
+    name = "recon_timelapse_simple"
     supported_data_types = {"recon"}
     supported_fmts = {"timelapse"}
 

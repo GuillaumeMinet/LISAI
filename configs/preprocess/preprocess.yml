@@ -1,10 +1,10 @@
-dataset_name: ""
-pipeline: "single_recon"
+dataset_name: "Gag_timelapses"
+pipeline: "recon_timelapse_upsamp"
 data_type: "recon"
-fmt: "single"
+fmt: "timelapse"
 
 pipeline_cfg:
   dump_subfolder: ""
   combine_subfolders: false
-  crop_size: null
+  crop_size: 1200
 
