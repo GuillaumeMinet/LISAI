@@ -1,0 +1,316 @@
+{
+  "$defs": {
+    "ContinueTrainingExperimentSection": {
+      "additionalProperties": false,
+      "description": "Experiment metadata for resuming optimization inside an existing run directory.",
+      "properties": {
+        "mode": {
+          "const": "continue_training",
+          "default": "continue_training",
+          "description": "Resume training in-place from an existing run. The original experiment name and run directory are reused automatically.",
+          "title": "Mode",
+          "type": "string"
+        },
+        "post_training_inference": {
+          "default": true,
+          "description": "Whether to trigger automatic post-training evaluation when the resumed training completes or stops early.",
+          "title": "Post Training Inference",
+          "type": "boolean"
+        }
+      },
+      "title": "ContinueTrainingExperimentSection",
+      "type": "object"
+    },
+    "ExperimentLoadModelSection": {
+      "additionalProperties": true,
+      "description": "User-authored settings for loading an existing model into a training run.",
+      "properties": {
+        "canonical_load": {
+          "default": true,
+          "description": "Whether the source run should be resolved through the canonical model directory routing.",
+          "title": "Canonical Load",
+          "type": "boolean"
+        },
+        "dataset_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dataset name of the source run to load from when using canonical loading.",
+          "title": "Dataset Name"
+        },
+        "subfolder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional model subfolder used to locate the source run under the models root.",
+          "title": "Subfolder"
+        },
+        "exp_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Experiment name of the source run to load from.",
+          "title": "Exp Name"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Legacy alias for the source experiment name.",
+          "title": "Name"
+        },
+        "model_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Legacy alias for the model or run name to load.",
+          "title": "Model Name"
+        },
+        "model_full_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Absolute path to a specific model directory or checkpoint when bypassing canonical routing.",
+          "title": "Model Full Path"
+        },
+        "load_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "state_dict",
+                "full_model"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Checkpoint serialization format to load, typically state_dict or full_model.",
+          "title": "Load Method"
+        },
+        "best_or_last": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Checkpoint selector used when epoch_number is not set, usually best or last.",
+          "title": "Best Or Last"
+        },
+        "epoch_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Specific checkpoint epoch to load instead of using best_or_last.",
+          "title": "Epoch Number"
+        }
+      },
+      "title": "ExperimentLoadModelSection",
+      "type": "object"
+    },
+    "SavingSection": {
+      "additionalProperties": true,
+      "description": "Checkpoint and validation-image saving behavior.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Whether checkpoints and other training artifacts should be written to disk.",
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "canonical_save": {
+          "default": true,
+          "description": "Whether checkpoint/output paths should be resolved through the canonical project routing rules.",
+          "title": "Canonical Save",
+          "type": "boolean"
+        },
+        "validation_images": {
+          "default": true,
+          "description": "Whether to save validation image previews during training.",
+          "title": "Validation Images",
+          "type": "boolean"
+        },
+        "validation_freq": {
+          "default": 10,
+          "description": "Number of epochs between validation-image saves.",
+          "title": "Validation Freq",
+          "type": "integer"
+        },
+        "state_dict": {
+          "default": false,
+          "description": "Whether checkpoints should be saved as state_dict files.",
+          "title": "State Dict",
+          "type": "boolean"
+        },
+        "entire_model": {
+          "default": false,
+          "description": "Whether checkpoints should be saved as serialized full-model files.",
+          "title": "Entire Model",
+          "type": "boolean"
+        },
+        "overwrite_best": {
+          "default": true,
+          "description": "Whether the current best checkpoint may overwrite the previously saved best checkpoint.",
+          "title": "Overwrite Best",
+          "type": "boolean"
+        }
+      },
+      "title": "SavingSection",
+      "type": "object"
+    },
+    "TensorboardSection": {
+      "additionalProperties": true,
+      "description": "TensorBoard logging settings.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Whether TensorBoard summaries should be written during training.",
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "TensorboardSection",
+      "type": "object"
+    },
+    "TrainingSection": {
+      "additionalProperties": true,
+      "description": "Core optimization settings for the training loop.",
+      "properties": {
+        "n_epochs": {
+          "default": 1,
+          "description": "Maximum number of training epochs to run.",
+          "title": "N Epochs",
+          "type": "integer"
+        },
+        "batch_size": {
+          "default": 1,
+          "description": "Fallback batch size used by the trainer when the data section does not provide one.",
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "learning_rate": {
+          "default": 0.0001,
+          "description": "Initial learning rate passed to the optimizer.",
+          "title": "Learning Rate",
+          "type": "number"
+        },
+        "optimizer": {
+          "default": "Adam",
+          "description": "Optimizer name used to update the model parameters.",
+          "title": "Optimizer",
+          "type": "string"
+        },
+        "scheduler": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional learning-rate scheduler name. Use null to disable scheduling.",
+          "title": "Scheduler"
+        },
+        "progress_bar": {
+          "default": false,
+          "description": "Whether to show a live progress bar during training iterations.",
+          "title": "Progress Bar",
+          "type": "boolean"
+        },
+        "early_stop": {
+          "default": false,
+          "description": "Whether early stopping is enabled when validation performance stops improving.",
+          "title": "Early Stop",
+          "type": "boolean"
+        },
+        "pos_encod": {
+          "default": false,
+          "description": "Whether positional encoding should be enabled for models that support it.",
+          "title": "Pos Encod",
+          "type": "boolean"
+        }
+      },
+      "title": "TrainingSection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Sparse authoring schema for resuming a previous run in-place.",
+  "properties": {
+    "experiment": {
+      "$ref": "#/$defs/ContinueTrainingExperimentSection",
+      "description": "Mode-specific metadata for resuming training in the original run directory."
+    },
+    "training": {
+      "$ref": "#/$defs/TrainingSection",
+      "description": "Optional optimization overrides to apply while continuing the original run."
+    },
+    "saving": {
+      "$ref": "#/$defs/SavingSection",
+      "description": "Optional checkpoint and validation-image saving overrides for the resumed run."
+    },
+    "tensorboard": {
+      "$ref": "#/$defs/TensorboardSection",
+      "description": "Optional TensorBoard logging overrides for the resumed run."
+    },
+    "load_model": {
+      "$ref": "#/$defs/ExperimentLoadModelSection",
+      "description": "Required source-run selector identifying which existing run should be resumed."
+    }
+  },
+  "required": [
+    "load_model"
+  ],
+  "title": "ContinueTrainingConfig",
+  "type": "object"
+}

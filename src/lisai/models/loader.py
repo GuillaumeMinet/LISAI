@@ -7,7 +7,6 @@ from typing import Protocol
 
 import torch
 
-from lisai.config import settings
 from lisai.infra.paths import Paths
 from lisai.models.params import AnyModelParams, LVAEParams
 
@@ -85,7 +84,7 @@ def _origin_checkpoint_path(spec: TrainingModelLoadSpec) -> Path:
         raise ValueError("origin_run_dir is required to load a checkpoint.")
 
     origin_dir = Path(spec.origin_run_dir)
-    paths = Paths(settings)
+    paths = Paths()
 
     if spec.checkpoint_filename:
         return paths.checkpoint_path(

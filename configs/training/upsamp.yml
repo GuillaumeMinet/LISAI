@@ -3,7 +3,7 @@
 # General experiment settings
 # ========================================================
 experiment:
-  mode: train  # 'train', 'continue_training', 'retrain'
+  mode: train  # 'train'
   exp_name: CL1_Upsamp2_Mltpl075
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
@@ -30,17 +30,17 @@ data:
   filters:
     - tiff
     - tif
-  
+
   paired: false
   target: null # for paired datasets
   input: ""
   timelapse_prm:
-      context_length: null
+      context_length: 1
 
   patch_size: 96
   val_patch_size: 240
   batch_size: 64
-  
+
   downsampling:
     downsamp_factor: 2
     downsamp_method: "random"
@@ -58,7 +58,7 @@ model:
   architecture: unet_rcan
   parameters:
     upsampling_net: rcan
-    upsampling_factor: 1
+    upsampling_factor: 2
     UNet_prm:
       feat: 64
       depth: 3
@@ -94,18 +94,6 @@ loss_function:
   name: CharEdge_loss
   CharEdge_loss_prm:
     alpha: 0.05
-
-# ========================================================
-# Model loading (for continue_training / retrain)
-# ========================================================
-load_model:
-  canonical_load: false
-  dataset_name: Gag
-  subfolder: Upsamp
-  exp_name: null
-  model_name: null
-  model_full_path: null
-  load_method: state_dict  # 'state_dict' or 'full_model'
 
 # ========================================================
 # Saving configuration

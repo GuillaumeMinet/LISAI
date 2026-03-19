@@ -4,29 +4,46 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from lisai.config import load_yaml
-from lisai.config.json_schema import experiment_json_schema, write_experiment_json_schema
-from lisai.config.models import ExperimentConfig
+from lisai.config.json_schema import (
+    continue_training_json_schema,
+    experiment_json_schema,
+    retrain_json_schema,
+    write_continue_training_json_schema,
+    write_experiment_json_schema,
+    write_retrain_json_schema,
+)
+from lisai.config.models import ContinueTrainingConfig, ExperimentConfig, RetrainConfig
 
 
 @pytest.mark.parametrize(
-    "config_path",
+    ("config_path", "model_cls"),
     [
-        Path("configs/training/hdn.yml"),
-        Path("configs/training/upsamp.yml"),
+        (Path("configs/training/hdn.yml"), ExperimentConfig),
+        (Path("configs/training/continue_training.yml"), ContinueTrainingConfig),
+        (Path("configs/training/retrain.yml"), RetrainConfig),
     ],
 )
-def test_current_experiment_yaml_validates_against_authoring_schema(config_path: Path):
+def test_training_yaml_examples_validate_against_mode_specific_authoring_schemas(config_path: Path, model_cls):
     cfg = load_yaml(config_path)
 
-    validated = ExperimentConfig.model_validate(cfg)
+    validated = model_cls.model_validate(cfg)
 
-    assert validated.experiment.exp_name
+    assert validated.experiment.mode
 
 
 
-def test_experiment_json_schema_describes_authoring_shape_only():
+def test_current_upsamp_yaml_fails_with_timelapse_single_channel_validation():
+    cfg = load_yaml(Path("configs/training/upsamp.yml"))
+
+    with pytest.raises(ValidationError, match="expected 1, got 3"):
+        ExperimentConfig.model_validate(cfg)
+
+
+
+def test_experiment_json_schema_describes_train_authoring_shape_only():
     schema = experiment_json_schema()
 
     data_ref = schema["properties"]["data"]["$ref"].split("/")[-1]
@@ -35,19 +52,50 @@ def test_experiment_json_schema_describes_authoring_shape_only():
     assert "dataset_info" not in data_properties
     assert "volumetric" not in data_properties
     assert "masking" not in data_properties
-
-    load_model_ref = schema["properties"]["load_model"]["$ref"].split("/")[-1]
-    load_model_properties = schema["$defs"][load_model_ref]["properties"]
-    assert "canonical_load" in load_model_properties
-    assert "checkpoint" not in load_model_properties
+    assert "load_model" not in schema["properties"]
 
 
 
-def test_write_experiment_json_schema_writes_json_file(tmp_path: Path):
-    output_path = tmp_path / "experiment.schema.json"
+def test_continue_training_json_schema_only_exposes_resume_specific_roots():
+    schema = continue_training_json_schema()
+    properties = schema["properties"]
 
-    written_path = write_experiment_json_schema(output_path)
+    assert "experiment" in properties
+    assert "training" in properties
+    assert "saving" in properties
+    assert "tensorboard" in properties
+    assert "load_model" in properties
+    assert "data" not in properties
+    assert "model" not in properties
+    assert "routing" not in properties
+    assert "loss_function" not in properties
 
-    assert written_path == output_path
-    data = json.loads(output_path.read_text(encoding="utf-8"))
-    assert data["title"] == "ExperimentConfig"
+
+
+def test_retrain_json_schema_exposes_transfer_learning_roots_but_not_model():
+    schema = retrain_json_schema()
+    properties = schema["properties"]
+
+    assert "experiment" in properties
+    assert "routing" in properties
+    assert "data" in properties
+    assert "normalization" in properties
+    assert "noise_model" in properties
+    assert "loss_function" in properties
+    assert "load_model" in properties
+    assert "model" not in properties
+
+
+
+def test_write_training_json_schemas_write_json_files(tmp_path: Path):
+    outputs = [
+        (write_experiment_json_schema, tmp_path / "experiment.schema.json", "ExperimentConfig"),
+        (write_continue_training_json_schema, tmp_path / "continue_training.schema.json", "ContinueTrainingConfig"),
+        (write_retrain_json_schema, tmp_path / "retrain.schema.json", "RetrainConfig"),
+    ]
+
+    for writer, output_path, expected_title in outputs:
+        written_path = writer(output_path)
+        assert written_path == output_path
+        data = json.loads(output_path.read_text(encoding="utf-8"))
+        assert data["title"] == expected_title

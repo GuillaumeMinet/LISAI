@@ -206,6 +206,29 @@ def test_hybrid_network_requires_matching_multiple_downsampling_channels():
     assert cfg.model.parameters.UNet_prm.in_channels == 3
     assert cfg.model.parameters.UNet_prm.out_channels == 3
     assert cfg.model.parameters.RCAN_prm.out_channels == 1
+def test_hybrid_network_requires_single_timelapse_null_context_to_use_one_input_channel():
+    with pytest.raises(ValidationError, match="UNet_prm.in_channels"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "data_format": "timelapse",
+                    "timelapse_prm": {"context_length": None},
+                    "downsampling": {
+                        "downsamp_factor": 2,
+                        "downsamp_method": "random",
+                    },
+                },
+                "model": {
+                    "architecture": "unet_rcan",
+                    "parameters": {
+                        "upsampling_net": "rcan",
+                        "upsampling_factor": 2,
+                        "UNet_prm": {"in_channels": 3, "out_channels": 3},
+                        "RCAN_prm": {"out_channels": 1},
+                    },
+                },
+            }
+        )
 
 
 

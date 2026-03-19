@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=../schema/retrain.schema.json
+# ========================================================
+# Retrain configuration
+# This mode starts a new run from weights loaded from an older run.
+# You can override data, normalization, noise model, loss, and training
+# settings, but the source model architecture is reused.
+# ========================================================
+experiment:
+  mode: retrain
+  exp_name: CL1_Upsamp2_transfer
+  overwrite: false
+  post_training_inference: true
+
+# ========================================================
+# Model loading
+# Required: selects the source run that provides the starting weights.
+# ========================================================
+load_model:
+  canonical_load: true
+  dataset_name: Gag
+  subfolder: Upsamp
+  exp_name: CL1_Upsamp2_Mltpl075
+  load_method: state_dict
+  best_or_last: best
+
+# ========================================================
+# Paths
+# ========================================================
+routing:
+  data_subfolder: preprocess/recon
+  models_subfolder: Upsamp
+
+# ========================================================
+# Dataset / DataLoader configuration
+# Optional: override this section when transferring to a new dataset.
+# ========================================================
+data:
+  dataset_name: Gag_transfer
+  canonical_load: true
+  prep_before: true
+  already_split: true
+  filters:
+    - tiff
+    - tif
+  paired: false
+  patch_size: 96
+  val_patch_size: 240
+  batch_size: 64
+  downsampling:
+    downsamp_factor: 2
+    downsamp_method: random
+
+# ========================================================
+# Normalization / Noise
+# Optional: useful when the retrain target dataset changes.
+# ========================================================
+normalization:
+  load_from_noise_model: false
+  norm_prm: null
+
+noise_model:
+  name: null
+
+# ========================================================
+# Training configuration
+# ========================================================
+training:
+  n_epochs: 100
+  learning_rate: 0.0001
+  optimizer: Adam
+
+# ========================================================
+# Loss configuration
+# ========================================================
+loss_function:
+  name: CharEdge_loss
+  CharEdge_loss_prm:
+    alpha: 0.05
+
+# ========================================================
+# Saving configuration
+# ========================================================
+saving:
+  enabled: true
+  canonical_save: true
+  state_dict: true
+  entire_model: true
+
+# ========================================================
+# Tensorboard configuration
+# ========================================================
+tensorboard:
+  enabled: false

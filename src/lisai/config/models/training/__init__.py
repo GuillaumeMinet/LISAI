@@ -17,8 +17,16 @@ from .model import (
     UNetModelSection,
     UNetRCANModelSection,
 )
+from .modes import (
+    ContinueTrainingConfig,
+    ContinueTrainingExperimentSection,
+    ExperimentConfig,
+    RetrainConfig,
+    RetrainExperimentSection,
+    TrainExperimentSection,
+)
 from .normalization import DataNormalizationParams, NormalizationSection
-from .root import ExperimentConfig, ResolvedExperiment
+from .root import ResolvedExperiment
 from .sections import (
     ExperimentSection,
     Mode,
@@ -34,6 +42,9 @@ __all__ = [
     "Mode",
     "CheckpointMethod",
     "ExperimentSection",
+    "TrainExperimentSection",
+    "ContinueTrainingExperimentSection",
+    "RetrainExperimentSection",
     "ResolvedExperimentSection",
     "RoutingSection",
     "ExperimentDataSection",
@@ -63,5 +74,7 @@ __all__ = [
     "DataNormalizationParams",
     "NormalizationSection",
     "ExperimentConfig",
+    "ContinueTrainingConfig",
+    "RetrainConfig",
     "ResolvedExperiment",
 ]

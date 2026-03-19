@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../schema/continue_training.schema.json
+# ========================================================
+# Continue training configuration
+# This mode resumes optimization in the original run directory.
+# The original experiment name, model, data, routing, and loss settings
+# are reused automatically and cannot be overridden here.
+# ========================================================
+experiment:
+  mode: continue_training
+  post_training_inference: true
+
+# ========================================================
+# Model loading
+# Required: selects the existing run to resume in-place.
+# ========================================================
+load_model:
+  canonical_load: true
+  dataset_name: Gag
+  subfolder: Upsamp
+  exp_name: CL1_Upsamp2_Mltpl05_lightweight
+  load_method: state_dict
+  best_or_last: last
+
+# ========================================================
+# Training overrides
+# Only include values you want to change for the resumed run.
+# ========================================================
+training:
+  n_epochs: 50
+  # learning_rate: 0.00005
+  # early_stop: false
+
+# ========================================================
+# Saving configuration
+# ========================================================
+# saving:
+#   enabled: true
+#   state_dict: true
+#   entire_model: true
+
+# ========================================================
+# Tensorboard configuration
+# ========================================================
+# tensorboard:
+#   enabled: false

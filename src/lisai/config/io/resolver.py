@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .merge import deep_merge
-from ..models import ExperimentConfig, ResolvedExperiment
+from ..models import ContinueTrainingConfig, ExperimentConfig, ResolvedExperiment, RetrainConfig
 from .yaml import load_yaml
 
 if TYPE_CHECKING:
@@ -42,6 +42,16 @@ def _normalize_mode(cfg: dict) -> str:
     _dset(cfg, "experiment.mode", mode)
     cfg.pop("mode", None)
     return mode
+
+
+def _authoring_model_for_mode(mode: str):
+    if mode == "train":
+        return ExperimentConfig
+    if mode == "continue_training":
+        return ContinueTrainingConfig
+    if mode == "retrain":
+        return RetrainConfig
+    raise ValueError(f"Unknown mode: {mode}")
 
 
 def _normalize_load_model(mode: str, cfg: dict, paths: Paths) -> dict:
@@ -107,6 +117,18 @@ def _load_origin_cfg(origin_run_dir: Path, paths: Paths) -> dict:
     return load_yaml(origin_cfg_path)
 
 
+def _merge_root_override(origin_cfg: dict, user_cfg: dict, root: str) -> None:
+    if root not in user_cfg:
+        return
+
+    override = deepcopy(user_cfg[root])
+    base = origin_cfg.get(root)
+    if isinstance(base, dict) and isinstance(override, dict):
+        origin_cfg[root] = deep_merge(base, override)
+    else:
+        origin_cfg[root] = override
+
+
 def _apply_mode_resolution(user_cfg: dict, mode: str, paths: Paths) -> dict:
     if mode == "train":
         return user_cfg
@@ -114,16 +136,25 @@ def _apply_mode_resolution(user_cfg: dict, mode: str, paths: Paths) -> dict:
     origin_dir = Path(_dget(user_cfg, "experiment.origin_run_dir"))
     origin_cfg = _load_origin_cfg(origin_dir, paths)
 
-    _dset(origin_cfg, "experiment.mode", mode)
-    _dset(origin_cfg, "experiment.origin_run_dir", str(origin_dir.resolve()))
+    override_roots_by_mode = {
+        "continue_training": ["experiment", "training", "saving", "tensorboard", "load_model"],
+        "retrain": [
+            "experiment",
+            "routing",
+            "data",
+            "training",
+            "normalization",
+            "model_norm_prm",
+            "loss_function",
+            "noise_model",
+            "saving",
+            "tensorboard",
+            "load_model",
+        ],
+    }
 
-    override_roots = ["experiment", "training", "saving", "tensorboard", "routing", "loss_function"]
-    if mode == "continue_training":
-        override_roots.append("load_model")
-
-    for root in override_roots:
-        if root in user_cfg:
-            origin_cfg[root] = deepcopy(user_cfg[root])
+    for root in override_roots_by_mode[mode]:
+        _merge_root_override(origin_cfg, user_cfg, root)
 
     _dset(origin_cfg, "experiment.origin_run_dir", str(origin_dir.resolve()))
     _dset(origin_cfg, "experiment.mode", mode)
@@ -140,30 +171,38 @@ def resolve_config(
     project_cfg = load_yaml(project_cfg_path)
     data_cfg = load_yaml(data_cfg_path)
     exp_cfg = load_yaml(experiment_cfg_path)
-    ExperimentConfig.model_validate(exp_cfg)
 
-    cfg = deep_merge(project_cfg, data_cfg)
-    cfg = deep_merge(cfg, exp_cfg)
+    mode = _normalize_mode(exp_cfg)
+    _authoring_model_for_mode(mode).model_validate(exp_cfg)
 
     from lisai.infra.paths import Paths
     from ..settings import settings
 
     paths = Paths(settings)
-    mode = _normalize_mode(cfg)
 
-    load_model = _normalize_load_model(mode, cfg, paths)
+    if mode == "train":
+        cfg = deep_merge(project_cfg, data_cfg)
+        cfg = deep_merge(cfg, exp_cfg)
+        _normalize_mode(cfg)
+        _normalize_load_model(mode, cfg, paths)
+        return ResolvedExperiment.model_validate(cfg)
 
-    if mode in {"continue_training", "retrain"}:
-        if not load_model.get("enabled", False):
-            raise ValueError(f"Mode '{mode}' requires 'load_model' section.")
-        _dset(cfg, "experiment.origin_run_dir", load_model["run_dir"])
+    load_resolution_cfg = deep_merge(project_cfg, data_cfg)
+    load_resolution_cfg = deep_merge(load_resolution_cfg, exp_cfg)
+    _normalize_mode(load_resolution_cfg)
+    load_model = _normalize_load_model(mode, load_resolution_cfg, paths)
 
-    cfg = _apply_mode_resolution(cfg, mode, paths)
+    if not load_model.get("enabled", False):
+        raise ValueError(f"Mode '{mode}' requires 'load_model' section.")
 
+    user_cfg = deepcopy(exp_cfg)
+    _normalize_mode(user_cfg)
+    user_cfg["load_model"] = load_model
+    _dset(user_cfg, "experiment.origin_run_dir", load_model["run_dir"])
+
+    cfg = _apply_mode_resolution(user_cfg, mode, paths)
     _normalize_mode(cfg)
     _normalize_load_model(mode, cfg, paths)
-
-    # IMPORTANT: return typed object
     return ResolvedExperiment.model_validate(cfg)
 
 
@@ -182,4 +221,3 @@ def prune_config_for_saving(cfg: ResolvedExperiment) -> dict:
         out.pop("tensorboard", None)
 
     return out
-

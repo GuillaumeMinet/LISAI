@@ -53,8 +53,8 @@ def test_origin_checkpoint_path_prefers_explicit_filename(monkeypatch: pytest.Mo
     calls = {}
 
     class FakePaths:
-        def __init__(self, _settings):
-            pass
+        def __init__(self):
+            calls["init_called"] = True
 
         def checkpoint_path(self, **kwargs):
             calls["kwargs"] = kwargs
@@ -73,6 +73,7 @@ def test_origin_checkpoint_path_prefers_explicit_filename(monkeypatch: pytest.Mo
     out = loader._origin_checkpoint_path(spec)
 
     assert out.name == "manual_checkpoint.pt"
+    assert calls["init_called"] is True
     assert calls["kwargs"]["model_name"] == "manual_checkpoint.pt"
     assert "load_method" not in calls["kwargs"]
 

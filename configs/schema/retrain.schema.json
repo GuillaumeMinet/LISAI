@@ -587,29 +587,125 @@
       "title": "ExperimentDataSection",
       "type": "object"
     },
-    "LVAEModelSection": {
-      "additionalProperties": false,
-      "description": "Typed model section for LadderVAE.",
+    "ExperimentLoadModelSection": {
+      "additionalProperties": true,
+      "description": "User-authored settings for loading an existing model into a training run.",
       "properties": {
-        "architecture": {
-          "const": "lvae",
-          "default": "lvae",
-          "description": "Select the LadderVAE architecture.",
-          "title": "Architecture",
-          "type": "string"
+        "canonical_load": {
+          "default": true,
+          "description": "Whether the source run should be resolved through the canonical model directory routing.",
+          "title": "Canonical Load",
+          "type": "boolean"
         },
-        "parameters": {
-          "$ref": "#/$defs/LVAEParams"
-        }
-      },
-      "title": "LVAEModelSection",
-      "type": "object"
-    },
-    "LVAEParams": {
-      "additionalProperties": false,
-      "description": "Typed constructor parameters for LadderVAE.",
-      "properties": {
-        "num_latents": {
+        "dataset_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dataset name of the source run to load from when using canonical loading.",
+          "title": "Dataset Name"
+        },
+        "subfolder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional model subfolder used to locate the source run under the models root.",
+          "title": "Subfolder"
+        },
+        "exp_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Experiment name of the source run to load from.",
+          "title": "Exp Name"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Legacy alias for the source experiment name.",
+          "title": "Name"
+        },
+        "model_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Legacy alias for the model or run name to load.",
+          "title": "Model Name"
+        },
+        "model_full_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Absolute path to a specific model directory or checkpoint when bypassing canonical routing.",
+          "title": "Model Full Path"
+        },
+        "load_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "state_dict",
+                "full_model"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Checkpoint serialization format to load, typically state_dict or full_model.",
+          "title": "Load Method"
+        },
+        "best_or_last": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Checkpoint selector used when epoch_number is not set, usually best or last.",
+          "title": "Best Or Last"
+        },
+        "epoch_number": {
           "anyOf": [
             {
               "type": "integer"
@@ -619,130 +715,11 @@
             }
           ],
           "default": null,
-          "description": "Optional number of latent levels. Required when z_dims is provided as a single integer.",
-          "title": "Num Latents"
-        },
-        "z_dims": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "items": {
-                "type": "integer"
-              },
-              "type": "array"
-            }
-          ],
-          "description": "Latent dimensionality per level, either as one integer or an explicit list.",
-          "title": "Z Dims"
-        },
-        "color_ch": {
-          "default": 1,
-          "description": "Number of image channels handled by LadderVAE.",
-          "title": "Color Ch",
-          "type": "integer"
-        },
-        "blocks_per_layer": {
-          "default": 5,
-          "description": "Number of residual blocks per hierarchical layer.",
-          "title": "Blocks Per Layer",
-          "type": "integer"
-        },
-        "nonlin": {
-          "default": "elu",
-          "description": "Nonlinearity used inside LadderVAE blocks.",
-          "enum": [
-            "relu",
-            "leakyrelu",
-            "elu",
-            "selu"
-          ],
-          "title": "Nonlin",
-          "type": "string"
-        },
-        "merge_type": {
-          "default": "residual",
-          "description": "Top-down and bottom-up merge strategy.",
-          "title": "Merge Type",
-          "type": "string"
-        },
-        "batchnorm": {
-          "default": true,
-          "description": "Whether batch normalization is enabled inside LadderVAE blocks.",
-          "title": "Batchnorm",
-          "type": "boolean"
-        },
-        "stochastic_skip": {
-          "default": true,
-          "description": "Whether stochastic skip connections are enabled.",
-          "title": "Stochastic Skip",
-          "type": "boolean"
-        },
-        "n_filters": {
-          "default": 64,
-          "description": "Feature-channel width used inside LadderVAE blocks.",
-          "title": "N Filters",
-          "type": "integer"
-        },
-        "dropout": {
-          "default": 0.2,
-          "description": "Dropout probability used inside LadderVAE blocks.",
-          "title": "Dropout",
-          "type": "number"
-        },
-        "free_bits": {
-          "default": 0.0,
-          "description": "Free-bits threshold applied to the KL term.",
-          "title": "Free Bits",
-          "type": "number"
-        },
-        "learn_top_prior": {
-          "default": true,
-          "description": "Whether the top latent prior should be learned.",
-          "title": "Learn Top Prior",
-          "type": "boolean"
-        },
-        "res_block_type": {
-          "default": "bacdbacd",
-          "description": "Residual-block implementation variant.",
-          "title": "Res Block Type",
-          "type": "string"
-        },
-        "gated": {
-          "default": true,
-          "description": "Whether gated residual blocks are enabled.",
-          "title": "Gated",
-          "type": "boolean"
-        },
-        "no_initial_downscaling": {
-          "default": true,
-          "description": "Whether the initial convolution skips the first spatial downscaling step.",
-          "title": "No Initial Downscaling",
-          "type": "boolean"
-        },
-        "analytical_kl": {
-          "default": true,
-          "description": "Whether to use the analytical KL computation.",
-          "title": "Analytical Kl",
-          "type": "boolean"
-        },
-        "mode_pred": {
-          "default": false,
-          "description": "Whether LadderVAE runs in prediction mode instead of training mode.",
-          "title": "Mode Pred",
-          "type": "boolean"
-        },
-        "use_uncond_mode_at": {
-          "description": "Latent levels where unconditional mode should be used.",
-          "items": {
-            "type": "integer"
-          },
-          "title": "Use Uncond Mode At",
-          "type": "array"
+          "description": "Specific checkpoint epoch to load instead of using best_or_last.",
+          "title": "Epoch Number"
         }
       },
-      "title": "LVAEParams",
+      "title": "ExperimentLoadModelSection",
       "type": "object"
     },
     "LossFunctionConfig": {
@@ -913,180 +890,37 @@
       "title": "NormalizationSection",
       "type": "object"
     },
-    "RCANBackboneParams": {
+    "RetrainExperimentSection": {
       "additionalProperties": false,
-      "description": "Typed backbone parameters for RCAN blocks embedded in larger architectures.",
+      "description": "Experiment metadata for starting a new run from weights loaded from an earlier experiment.",
       "properties": {
-        "in_channels": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Number of input channels. When omitted inside UNet-RCAN, it is derived automatically.",
-          "title": "In Channels"
-        },
-        "out_channels": {
-          "default": 1,
-          "description": "Number of output channels produced by RCAN.",
-          "title": "Out Channels",
-          "type": "integer"
-        },
-        "num_features": {
-          "default": 64,
-          "description": "Feature-channel width used inside the RCAN body.",
-          "title": "Num Features",
-          "type": "integer"
-        },
-        "num_rg": {
-          "default": 8,
-          "description": "Number of residual groups.",
-          "title": "Num Rg",
-          "type": "integer"
-        },
-        "num_rcab": {
-          "default": 12,
-          "description": "Number of RCAB blocks per residual group.",
-          "title": "Num Rcab",
-          "type": "integer"
-        },
-        "reduction": {
-          "default": 16,
-          "description": "Channel-attention reduction factor.",
-          "title": "Reduction",
-          "type": "integer"
-        },
-        "dropout": {
-          "default": 0.0,
-          "description": "Dropout probability used inside RCAN residual blocks.",
-          "title": "Dropout",
-          "type": "number"
-        },
-        "upsamp_kernel_factor": {
-          "default": 1,
-          "description": "Extra multiplier applied to the transposed-convolution kernel when RCAN performs upsampling.",
-          "title": "Upsamp Kernel Factor",
-          "type": "integer"
-        },
-        "upsampling_method": {
-          "default": "conv",
-          "description": "RCAN upsampling method when standalone or when UNet-RCAN delegates upsampling to RCAN.",
-          "enum": [
-            "conv",
-            "pixelshuffle"
-          ],
-          "title": "Upsampling Method",
-          "type": "string"
-        }
-      },
-      "title": "RCANBackboneParams",
-      "type": "object"
-    },
-    "RCANModelSection": {
-      "additionalProperties": false,
-      "description": "Typed model section for the standalone RCAN architecture.",
-      "properties": {
-        "architecture": {
-          "const": "rcan",
-          "default": "rcan",
-          "description": "Select the standalone RCAN architecture.",
-          "title": "Architecture",
+        "mode": {
+          "const": "retrain",
+          "default": "retrain",
+          "description": "Start a new run initialized from a previous checkpoint while allowing selected training, data, and normalization overrides.",
+          "title": "Mode",
           "type": "string"
         },
-        "parameters": {
-          "$ref": "#/$defs/RCANParams"
-        }
-      },
-      "title": "RCANModelSection",
-      "type": "object"
-    },
-    "RCANParams": {
-      "additionalProperties": false,
-      "description": "Typed constructor parameters for the standalone RCAN model.",
-      "properties": {
-        "in_channels": {
-          "default": 1,
-          "description": "Number of input channels expected by the standalone RCAN model.",
-          "title": "In Channels",
-          "type": "integer"
-        },
-        "out_channels": {
-          "default": 1,
-          "description": "Number of output channels produced by RCAN.",
-          "title": "Out Channels",
-          "type": "integer"
-        },
-        "num_features": {
-          "default": 64,
-          "description": "Feature-channel width used inside the RCAN body.",
-          "title": "Num Features",
-          "type": "integer"
-        },
-        "num_rg": {
-          "default": 8,
-          "description": "Number of residual groups.",
-          "title": "Num Rg",
-          "type": "integer"
-        },
-        "num_rcab": {
-          "default": 12,
-          "description": "Number of RCAB blocks per residual group.",
-          "title": "Num Rcab",
-          "type": "integer"
-        },
-        "reduction": {
-          "default": 16,
-          "description": "Channel-attention reduction factor.",
-          "title": "Reduction",
-          "type": "integer"
-        },
-        "dropout": {
-          "default": 0.0,
-          "description": "Dropout probability used inside RCAN residual blocks.",
-          "title": "Dropout",
-          "type": "number"
-        },
-        "upsamp_kernel_factor": {
-          "default": 1,
-          "description": "Extra multiplier applied to the transposed-convolution kernel when RCAN performs upsampling.",
-          "title": "Upsamp Kernel Factor",
-          "type": "integer"
-        },
-        "upsampling_method": {
-          "default": "conv",
-          "description": "RCAN upsampling method when standalone or when UNet-RCAN delegates upsampling to RCAN.",
-          "enum": [
-            "conv",
-            "pixelshuffle"
-          ],
-          "title": "Upsampling Method",
+        "exp_name": {
+          "default": "unnamed_experiment",
+          "description": "Name of the new retrain run to create under the models directory.",
+          "title": "Exp Name",
           "type": "string"
         },
-        "upsamp": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Optional standalone upsampling factor performed by RCAN.",
-          "title": "Upsamp"
+        "overwrite": {
+          "default": false,
+          "description": "Whether an existing retrain run directory with the same name may be overwritten.",
+          "title": "Overwrite",
+          "type": "boolean"
         },
-        "upsamp_stride": {
-          "default": 1,
-          "description": "Stride used by the RCAN upsampling block when upsamp is enabled.",
-          "title": "Upsamp Stride",
-          "type": "integer"
+        "post_training_inference": {
+          "default": true,
+          "description": "Whether to trigger automatic post-training evaluation when the retrain run completes or stops early.",
+          "title": "Post Training Inference",
+          "type": "boolean"
         }
       },
-      "title": "RCANParams",
+      "title": "RetrainExperimentSection",
       "type": "object"
     },
     "RoutingSection": {
@@ -1232,39 +1066,6 @@
       "title": "TimelapseParams",
       "type": "object"
     },
-    "TrainExperimentSection": {
-      "additionalProperties": true,
-      "description": "Experiment metadata for a fresh training run that creates a new run directory.",
-      "properties": {
-        "mode": {
-          "const": "train",
-          "default": "train",
-          "description": "Launch a fresh training run with an explicitly configured model and dataset.",
-          "title": "Mode",
-          "type": "string"
-        },
-        "exp_name": {
-          "default": "unnamed_experiment",
-          "description": "Experiment name used to create the output run directory and derived artifact names.",
-          "title": "Exp Name",
-          "type": "string"
-        },
-        "overwrite": {
-          "default": false,
-          "description": "Whether an existing experiment directory with the same name may be overwritten.",
-          "title": "Overwrite",
-          "type": "boolean"
-        },
-        "post_training_inference": {
-          "default": true,
-          "description": "Whether to trigger automatic post-training evaluation when training completes or stops early.",
-          "title": "Post Training Inference",
-          "type": "boolean"
-        }
-      },
-      "title": "TrainExperimentSection",
-      "type": "object"
-    },
     "TrainingSection": {
       "additionalProperties": true,
       "description": "Core optimization settings for the training loop.",
@@ -1327,492 +1128,30 @@
       },
       "title": "TrainingSection",
       "type": "object"
-    },
-    "UNet3DModelSection": {
-      "additionalProperties": false,
-      "description": "Typed model section for the standalone 3D U-Net architecture.",
-      "properties": {
-        "architecture": {
-          "const": "unet3d",
-          "default": "unet3d",
-          "description": "Select the standalone 3D U-Net architecture.",
-          "title": "Architecture",
-          "type": "string"
-        },
-        "parameters": {
-          "$ref": "#/$defs/UNet3DParams",
-          "description": "Typed constructor parameters for the standalone 3D U-Net model."
-        }
-      },
-      "title": "UNet3DModelSection",
-      "type": "object"
-    },
-    "UNet3DParams": {
-      "additionalProperties": false,
-      "description": "Typed constructor parameters for the 3D U-Net model.",
-      "properties": {
-        "feat": {
-          "default": 64,
-          "description": "Base number of feature channels in the first encoder level.",
-          "title": "Feat",
-          "type": "integer"
-        },
-        "depth": {
-          "default": 3,
-          "description": "Number of encoder/decoder levels in the 3D U-Net.",
-          "title": "Depth",
-          "type": "integer"
-        },
-        "in_channels": {
-          "default": 1,
-          "description": "Number of input channels expected by the model.",
-          "title": "In Channels",
-          "type": "integer"
-        },
-        "out_channels": {
-          "default": 1,
-          "description": "Number of output channels produced by the model.",
-          "title": "Out Channels",
-          "type": "integer"
-        },
-        "activation": {
-          "default": "swish",
-          "description": "Activation function used inside the convolutional blocks.",
-          "enum": [
-            "ReLU",
-            "swish"
-          ],
-          "title": "Activation",
-          "type": "string"
-        },
-        "norm": {
-          "anyOf": [
-            {
-              "enum": [
-                "group",
-                "batch"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": "group",
-          "description": "Normalization type used in the convolutional blocks.",
-          "title": "Norm"
-        },
-        "gr_norm": {
-          "default": 8,
-          "description": "Group count used when norm='group'.",
-          "title": "Gr Norm",
-          "type": "integer"
-        },
-        "dropout": {
-          "default": 0.0,
-          "description": "Dropout probability used inside convolutional blocks.",
-          "title": "Dropout",
-          "type": "number"
-        },
-        "upsampling_factor": {
-          "default": 1,
-          "description": "Spatial upsampling factor applied by the standalone 3D U-Net.",
-          "title": "Upsampling Factor",
-          "type": "integer"
-        },
-        "upsampling_order": {
-          "anyOf": [
-            {
-              "enum": [
-                "before",
-                "after"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Whether standalone upsampling happens before or after the 3D U-Net body. Required when upsampling_factor > 1.",
-          "title": "Upsampling Order"
-        },
-        "upsampling_method": {
-          "default": "conv",
-          "description": "Standalone upsampling method used when upsampling_factor > 1.",
-          "enum": [
-            "conv",
-            "nearest",
-            "trilinear"
-          ],
-          "title": "Upsampling Method",
-          "type": "string"
-        },
-        "remove_skip_con": {
-          "default": 0,
-          "description": "Number of last skip connections to remove. 0 keeps all skip connections.",
-          "title": "Remove Skip Con",
-          "type": "integer"
-        },
-        "cab_skip_con": {
-          "default": false,
-          "description": "Whether CAB skip connections should be used instead of plain skip connections. Accepted for configuration but not implemented yet.",
-          "title": "Cab Skip Con",
-          "type": "boolean"
-        },
-        "ch": {
-          "default": 128,
-          "description": "Base positional-embedding channel width.",
-          "title": "Ch",
-          "type": "integer"
-        }
-      },
-      "title": "UNet3DParams",
-      "type": "object"
-    },
-    "UNetBackboneParams": {
-      "additionalProperties": false,
-      "description": "Typed backbone parameters for the 2D U-Net family.",
-      "properties": {
-        "feat": {
-          "default": 64,
-          "description": "Base number of feature channels in the first encoder level.",
-          "title": "Feat",
-          "type": "integer"
-        },
-        "depth": {
-          "default": 3,
-          "description": "Number of encoder/decoder levels in the U-Net.",
-          "title": "Depth",
-          "type": "integer"
-        },
-        "in_channels": {
-          "default": 1,
-          "description": "Number of input channels expected by the model.",
-          "title": "In Channels",
-          "type": "integer"
-        },
-        "out_channels": {
-          "default": 1,
-          "description": "Number of output channels produced by the model.",
-          "title": "Out Channels",
-          "type": "integer"
-        },
-        "activation": {
-          "default": "swish",
-          "description": "Activation function used inside the convolutional blocks.",
-          "enum": [
-            "ReLU",
-            "swish"
-          ],
-          "title": "Activation",
-          "type": "string"
-        },
-        "norm": {
-          "anyOf": [
-            {
-              "enum": [
-                "group",
-                "batch"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": "group",
-          "description": "Normalization type used in the convolutional blocks.",
-          "title": "Norm"
-        },
-        "gr_norm": {
-          "default": 8,
-          "description": "Group count used when norm='group'.",
-          "title": "Gr Norm",
-          "type": "integer"
-        },
-        "dropout": {
-          "default": 0.0,
-          "description": "Dropout probability used inside convolutional blocks.",
-          "title": "Dropout",
-          "type": "number"
-        },
-        "remove_skip_con": {
-          "default": 0,
-          "description": "Number of last skip connections to remove. 0 keeps all skip connections.",
-          "title": "Remove Skip Con",
-          "type": "integer"
-        },
-        "cab_skip_con": {
-          "default": false,
-          "description": "Whether CAB skip connections should be used instead of plain skip connections. Accepted for configuration but not implemented yet.",
-          "title": "Cab Skip Con",
-          "type": "boolean"
-        },
-        "ch": {
-          "default": 128,
-          "description": "Base positional-embedding channel width.",
-          "title": "Ch",
-          "type": "integer"
-        }
-      },
-      "title": "UNetBackboneParams",
-      "type": "object"
-    },
-    "UNetModelSection": {
-      "additionalProperties": false,
-      "description": "Typed model section for the standalone 2D U-Net architecture.",
-      "properties": {
-        "architecture": {
-          "const": "unet",
-          "default": "unet",
-          "description": "Select the standalone 2D U-Net architecture.",
-          "title": "Architecture",
-          "type": "string"
-        },
-        "parameters": {
-          "$ref": "#/$defs/UNetParams"
-        }
-      },
-      "title": "UNetModelSection",
-      "type": "object"
-    },
-    "UNetParams": {
-      "additionalProperties": false,
-      "description": "Typed constructor parameters for the standalone 2D U-Net model.",
-      "properties": {
-        "feat": {
-          "default": 64,
-          "description": "Base number of feature channels in the first encoder level.",
-          "title": "Feat",
-          "type": "integer"
-        },
-        "depth": {
-          "default": 3,
-          "description": "Number of encoder/decoder levels in the U-Net.",
-          "title": "Depth",
-          "type": "integer"
-        },
-        "in_channels": {
-          "default": 1,
-          "description": "Number of input channels expected by the model.",
-          "title": "In Channels",
-          "type": "integer"
-        },
-        "out_channels": {
-          "default": 1,
-          "description": "Number of output channels produced by the model.",
-          "title": "Out Channels",
-          "type": "integer"
-        },
-        "activation": {
-          "default": "swish",
-          "description": "Activation function used inside the convolutional blocks.",
-          "enum": [
-            "ReLU",
-            "swish"
-          ],
-          "title": "Activation",
-          "type": "string"
-        },
-        "norm": {
-          "anyOf": [
-            {
-              "enum": [
-                "group",
-                "batch"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": "group",
-          "description": "Normalization type used in the convolutional blocks.",
-          "title": "Norm"
-        },
-        "gr_norm": {
-          "default": 8,
-          "description": "Group count used when norm='group'.",
-          "title": "Gr Norm",
-          "type": "integer"
-        },
-        "dropout": {
-          "default": 0.0,
-          "description": "Dropout probability used inside convolutional blocks.",
-          "title": "Dropout",
-          "type": "number"
-        },
-        "remove_skip_con": {
-          "default": 0,
-          "description": "Number of last skip connections to remove. 0 keeps all skip connections.",
-          "title": "Remove Skip Con",
-          "type": "integer"
-        },
-        "cab_skip_con": {
-          "default": false,
-          "description": "Whether CAB skip connections should be used instead of plain skip connections. Accepted for configuration but not implemented yet.",
-          "title": "Cab Skip Con",
-          "type": "boolean"
-        },
-        "ch": {
-          "default": 128,
-          "description": "Base positional-embedding channel width.",
-          "title": "Ch",
-          "type": "integer"
-        },
-        "upsampling_factor": {
-          "default": 1,
-          "description": "Spatial upsampling factor applied by the standalone U-Net.",
-          "title": "Upsampling Factor",
-          "type": "integer"
-        },
-        "upsampling_order": {
-          "anyOf": [
-            {
-              "enum": [
-                "before",
-                "after"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Whether standalone upsampling happens before or after the U-Net body. Required when upsampling_factor > 1.",
-          "title": "Upsampling Order"
-        },
-        "upsampling_method": {
-          "default": "conv",
-          "description": "Standalone upsampling method used when upsampling_factor > 1.",
-          "enum": [
-            "conv",
-            "nearest",
-            "bilinear",
-            "bicubic"
-          ],
-          "title": "Upsampling Method",
-          "type": "string"
-        }
-      },
-      "title": "UNetParams",
-      "type": "object"
-    },
-    "UNetRCANModelSection": {
-      "additionalProperties": false,
-      "description": "Typed model section for the hybrid UNet-RCAN architecture.",
-      "properties": {
-        "architecture": {
-          "const": "unet_rcan",
-          "default": "unet_rcan",
-          "description": "Select the hybrid UNet-RCAN architecture.",
-          "title": "Architecture",
-          "type": "string"
-        },
-        "parameters": {
-          "$ref": "#/$defs/UNetRCANParams",
-          "description": "Typed constructor parameters for the hybrid UNet-RCAN model."
-        }
-      },
-      "title": "UNetRCANModelSection",
-      "type": "object"
-    },
-    "UNetRCANParams": {
-      "additionalProperties": false,
-      "description": "Typed constructor parameters for the hybrid UNet-RCAN architecture.",
-      "properties": {
-        "upsampling_net": {
-          "default": "unet",
-          "description": "Which sub-network performs learned upsampling when upsampling_factor > 1.",
-          "enum": [
-            "unet",
-            "rcan"
-          ],
-          "title": "Upsampling Net",
-          "type": "string"
-        },
-        "upsampling_factor": {
-          "default": 1,
-          "description": "Global upsampling factor performed by the hybrid model.",
-          "title": "Upsampling Factor",
-          "type": "integer"
-        },
-        "UNet_prm": {
-          "$ref": "#/$defs/UNetBackboneParams",
-          "description": "Typed U-Net backbone parameters used inside the hybrid model."
-        },
-        "RCAN_prm": {
-          "$ref": "#/$defs/RCANBackboneParams",
-          "description": "Typed RCAN backbone parameters used inside the hybrid model."
-        }
-      },
-      "title": "UNetRCANParams",
-      "type": "object"
     }
   },
   "additionalProperties": false,
-  "description": "User-authored schema for a fresh training experiment.",
+  "description": "Sparse authoring schema for starting a new run from weights loaded from an earlier experiment.",
   "properties": {
     "experiment": {
-      "$ref": "#/$defs/TrainExperimentSection",
-      "description": "High-level metadata for a fresh training run."
+      "$ref": "#/$defs/RetrainExperimentSection",
+      "description": "Mode-specific metadata for a new retrain run."
     },
     "routing": {
       "$ref": "#/$defs/RoutingSection",
-      "description": "Subfolder routing that determines where data, models, logs, and inference outputs live."
+      "description": "Optional routing overrides for where the new retrain run should be saved."
     },
     "data": {
       "$ref": "#/$defs/ExperimentDataSection",
-      "description": "User-authored data-loading, patching, and preprocessing settings."
-    },
-    "model": {
-      "anyOf": [
-        {
-          "discriminator": {
-            "mapping": {
-              "lvae": "#/$defs/LVAEModelSection",
-              "rcan": "#/$defs/RCANModelSection",
-              "unet": "#/$defs/UNetModelSection",
-              "unet3d": "#/$defs/UNet3DModelSection",
-              "unet_rcan": "#/$defs/UNetRCANModelSection"
-            },
-            "propertyName": "architecture"
-          },
-          "oneOf": [
-            {
-              "$ref": "#/$defs/UNetModelSection"
-            },
-            {
-              "$ref": "#/$defs/UNet3DModelSection"
-            },
-            {
-              "$ref": "#/$defs/RCANModelSection"
-            },
-            {
-              "$ref": "#/$defs/UNetRCANModelSection"
-            },
-            {
-              "$ref": "#/$defs/LVAEModelSection"
-            }
-          ]
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Model architecture selection and typed constructor parameters.",
-      "title": "Model"
+      "description": "Optional data overrides, including switching to a different dataset for transfer learning."
     },
     "training": {
-      "$ref": "#/$defs/TrainingSection"
+      "$ref": "#/$defs/TrainingSection",
+      "description": "Optional optimization overrides for the retrain run."
     },
     "normalization": {
       "$ref": "#/$defs/NormalizationSection",
-      "description": "Dataset normalization settings applied before or during data loading."
+      "description": "Optional normalization overrides for the retrain run, useful when switching datasets."
     },
     "model_norm_prm": {
       "anyOf": [
@@ -1825,7 +1164,7 @@
         }
       ],
       "default": null,
-      "description": "Optional model-output normalization settings kept separate from the main data normalization block.",
+      "description": "Optional model-output normalization overrides for the retrain run.",
       "title": "Model Norm Prm"
     },
     "loss_function": {
@@ -1838,7 +1177,7 @@
         }
       ],
       "default": null,
-      "description": "Typed loss-function configuration used to instantiate the trainer loss."
+      "description": "Optional loss-function override for the retrain run."
     },
     "noise_model": {
       "anyOf": [
@@ -1853,16 +1192,25 @@
         }
       ],
       "default": null,
-      "description": "Optional noise-model configuration or shortcut name.",
+      "description": "Optional noise-model override for the retrain run.",
       "title": "Noise Model"
     },
     "saving": {
-      "$ref": "#/$defs/SavingSection"
+      "$ref": "#/$defs/SavingSection",
+      "description": "Optional checkpoint and validation-image saving overrides for the retrain run."
     },
     "tensorboard": {
-      "$ref": "#/$defs/TensorboardSection"
+      "$ref": "#/$defs/TensorboardSection",
+      "description": "Optional TensorBoard logging overrides for the retrain run."
+    },
+    "load_model": {
+      "$ref": "#/$defs/ExperimentLoadModelSection",
+      "description": "Required source-run selector identifying which existing run should provide the starting weights."
     }
   },
-  "title": "ExperimentConfig",
+  "required": [
+    "load_model"
+  ],
+  "title": "RetrainConfig",
   "type": "object"
 }
