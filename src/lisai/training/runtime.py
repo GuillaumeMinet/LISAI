@@ -107,6 +107,8 @@ def initialize_runtime(cfg: ResolvedExperiment) -> TrainingRuntime:
         logger.info(f"Saving to: {run_dir}")
     else:
         logger.warning("Saving disabled!")
+    if bool(getattr(cfg.training, "early_stop", False)):
+        logger.warning("Training is starting with early_stop mode enabled.")
 
     writer = None
     if bool(cfg.tensorboard.enabled):
