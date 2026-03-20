@@ -1,5 +1,5 @@
 # =================================== #
-# LISAI – Project-level configuration #
+# LISAI - Project-level configuration #
 # =================================== #
 
 project:
@@ -44,3 +44,6 @@ run_layout:
 naming:
   exp_name_format: "{name}_{id:02d}"
   sample_id: "c{id:02d}"
+
+run_tracking:
+  active_heartbeat_timeout_minutes: 10

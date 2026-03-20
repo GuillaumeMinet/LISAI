@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from lisai.config import resolve_config
+from lisai.config import resolve_config, resolve_config_dict
 from lisai.evaluation import run_evaluate
 from lisai.runs import (
     RunMetadataCallback,
@@ -26,6 +26,7 @@ from .runtime import initialize_runtime
 from .trainers import get_trainer
 
 if TYPE_CHECKING:
+    from lisai.config.models import ResolvedExperiment
     from lisai.training.trainers.base import TrainingOutcome
 
 
@@ -156,7 +157,16 @@ def _run_post_training_evaluation(cfg, runtime) -> None:
 
 def run_training(config_path):
     """Run training end to end from a config path and return the trainer instance."""
-    cfg = resolve_config(config_path)
+    return run_training_from_resolved_config(resolve_config(config_path))
+
+
+def run_training_from_config_dict(config: dict):
+    """Run training from an in-memory experiment config dictionary."""
+    return run_training_from_resolved_config(resolve_config_dict(config))
+
+
+def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
+    """Run training from a resolved experiment config and return the trainer instance."""
     runtime = initialize_runtime(cfg)
     is_volumetric = cfg.model.architecture == "unet3d"
     monitor_enabled = _install_run_monitor(cfg, runtime)

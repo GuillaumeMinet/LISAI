@@ -53,3 +53,7 @@ def test_get_data_filename_matches_data_yml(
     actual = settings_obj.get_data_filename(fmt=fmt, data_type=data_type, **kwargs)
 
     assert actual == expected
+
+
+def test_project_run_tracking_timeout_is_configured(settings_obj: Settings):
+    assert settings_obj.project.run_tracking.active_heartbeat_timeout_minutes == 10

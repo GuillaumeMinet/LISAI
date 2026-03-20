@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 import lisai.config.io.resolver as resolver_mod
 from lisai.config import save_yaml, settings
-from lisai.config.io.resolver import prune_config_for_saving, resolve_config
+from lisai.config.io.resolver import prune_config_for_saving, resolve_config, resolve_config_dict
 from lisai.config.models import ResolvedExperiment
 from lisai.infra.paths import Paths
 
@@ -233,3 +233,45 @@ def test_prune_config_for_saving_drops_train_only_and_disabled_sections():
     assert "origin_run_dir" not in out["experiment"]
     assert "saving" not in out
     assert "tensorboard" not in out
+
+
+def test_resolve_config_dict_matches_file_based_resolution(tmp_path: Path):
+    origin_run_dir = tmp_path / "origin_run"
+    origin_run_dir.mkdir(parents=True, exist_ok=True)
+
+    origin_cfg_path = Paths(settings).cfg_train_path(run_dir=origin_run_dir)
+    save_yaml(
+        {
+            "experiment": {"mode": "train", "exp_name": "origin_exp"},
+            "routing": {"models_subfolder": "Upsamp"},
+            "data": {"dataset_name": "origin_ds", "patch_size": 64},
+            "model": {"architecture": "unet", "parameters": {"feat": 8}},
+            "training": {"n_epochs": 50},
+        },
+        origin_cfg_path,
+    )
+
+    continue_cfg = {
+        "experiment": {"mode": "continue_training"},
+        "load_model": {
+            "canonical_load": False,
+            "model_full_path": str(origin_run_dir),
+            "load_method": "state_dict",
+            "best_or_last": "last",
+        },
+    }
+    exp_cfg = tmp_path / "continue.yml"
+    save_yaml(continue_cfg, exp_cfg)
+
+    resolved_from_dict = resolve_config_dict(
+        continue_cfg,
+        project_cfg_path=PROJECT_CFG,
+        data_cfg_path=DATA_CFG,
+    )
+    resolved_from_file = resolve_config(
+        experiment_cfg_path=exp_cfg,
+        project_cfg_path=PROJECT_CFG,
+        data_cfg_path=DATA_CFG,
+    )
+
+    assert resolved_from_dict.model_dump() == resolved_from_file.model_dump()

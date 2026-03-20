@@ -1,5 +1,5 @@
-﻿from .settings import settings
-from .io import load_yaml, prune_config_for_saving, resolve_config, save_yaml
+from .settings import settings
+from .io import load_yaml, prune_config_for_saving, resolve_config, resolve_config_dict, save_yaml
 from .json_schema import (
     continue_training_json_schema,
     experiment_json_schema,
@@ -15,6 +15,7 @@ from .models import ContinueTrainingConfig, DataConfig, ExperimentConfig, Projec
 __all__ = [
     "settings",
     "resolve_config",
+    "resolve_config_dict",
     "prune_config_for_saving",
     "load_yaml",
     "save_yaml",

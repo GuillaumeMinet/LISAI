@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProjectMeta(BaseModel):
@@ -29,9 +29,15 @@ class Naming(BaseModel):
     sample_id: str
 
 
+class RunTracking(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    active_heartbeat_timeout_minutes: int = Field(default=10, ge=1)
+
+
 class ProjectConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     project: ProjectMeta
     paths: ProjectPaths
     run_layout: RunLayout
     naming: Naming
+    run_tracking: RunTracking = Field(default_factory=RunTracking)

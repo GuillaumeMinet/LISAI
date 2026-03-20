@@ -161,16 +161,15 @@ def _apply_mode_resolution(user_cfg: dict, mode: str, paths: Paths) -> dict:
     return origin_cfg
 
 
-def resolve_config(
-    experiment_cfg_path: str | Path,
+def _resolve_loaded_config(
+    exp_cfg: dict,
+    *,
     project_cfg_path: str | Path = "configs/project_config.yml",
     data_cfg_path: str | Path = "configs/data_config.yml",
 ) -> ResolvedExperiment:
-    experiment_cfg_path = Path(experiment_cfg_path)
-
     project_cfg = load_yaml(project_cfg_path)
     data_cfg = load_yaml(data_cfg_path)
-    exp_cfg = load_yaml(experiment_cfg_path)
+    exp_cfg = deepcopy(exp_cfg)
 
     mode = _normalize_mode(exp_cfg)
     _authoring_model_for_mode(mode).model_validate(exp_cfg)
@@ -204,6 +203,35 @@ def resolve_config(
     _normalize_mode(cfg)
     _normalize_load_model(mode, cfg, paths)
     return ResolvedExperiment.model_validate(cfg)
+
+
+def resolve_config(
+    experiment_cfg_path: str | Path,
+    project_cfg_path: str | Path = "configs/project_config.yml",
+    data_cfg_path: str | Path = "configs/data_config.yml",
+) -> ResolvedExperiment:
+    experiment_cfg_path = Path(experiment_cfg_path)
+    exp_cfg = load_yaml(experiment_cfg_path)
+    return _resolve_loaded_config(
+        exp_cfg,
+        project_cfg_path=project_cfg_path,
+        data_cfg_path=data_cfg_path,
+    )
+
+
+def resolve_config_dict(
+    experiment_cfg: dict,
+    project_cfg_path: str | Path = "configs/project_config.yml",
+    data_cfg_path: str | Path = "configs/data_config.yml",
+) -> ResolvedExperiment:
+    if not isinstance(experiment_cfg, dict):
+        raise TypeError("experiment_cfg must be a dictionary")
+
+    return _resolve_loaded_config(
+        experiment_cfg,
+        project_cfg_path=project_cfg_path,
+        data_cfg_path=data_cfg_path,
+    )
 
 
 def prune_config_for_saving(cfg: ResolvedExperiment) -> dict:
