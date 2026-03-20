@@ -22,7 +22,7 @@ routing:
 # Dataset / DataLoader configuration
 # ========================================================
 data:
-  dataset_name: Gag
+  dataset_name: Gag_timelapses
   data_format: timelapse
   canonical_load: true
   prep_before: true

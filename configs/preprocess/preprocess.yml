@@ -1,5 +1,5 @@
 ﻿# yaml-language-server: $schema=../schema/preprocess.schema.json
-dataset_name: "Gag_noisy_timelapses"
+dataset_name: "Gag_timelapses"
 pipeline: "recon_timelapse_simple"
 data_type: "recon"
 fmt: "timelapse"
