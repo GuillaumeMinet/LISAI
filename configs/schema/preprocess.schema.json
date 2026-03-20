@@ -1,0 +1,478 @@
+{
+  "title": "PreprocessConfig",
+  "type": "object",
+  "oneOf": [
+    {
+      "type": "object",
+      "title": "PreprocessConfig[recon_mltpl_snr]",
+      "additionalProperties": false,
+      "properties": {
+        "dataset_name": {
+          "description": "Dataset name as registered in the project data paths and registry.",
+          "title": "Dataset Name",
+          "type": "string"
+        },
+        "pipeline": {
+          "description": "Preprocess pipeline to run. This selects the valid schema for pipeline_cfg.",
+          "title": "Pipeline",
+          "type": "string",
+          "const": "recon_mltpl_snr",
+          "default": "recon_mltpl_snr"
+        },
+        "data_type": {
+          "description": "Dataset data type produced by preprocessing, typically raw or recon.",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "fmt": {
+          "description": "Output data format used for canonical naming and saving templates.",
+          "title": "Fmt",
+          "type": "string"
+        },
+        "log": {
+          "$ref": "#/$defs/PreprocessLogConfig",
+          "description": "Options controlling YAML manifest logging for the preprocess run."
+        },
+        "split": {
+          "$ref": "#/$defs/PreprocessSplitConfig",
+          "description": "Options controlling optional train, validation, and test split assignment."
+        },
+        "pipeline_cfg": {
+          "properties": {
+            "dump_subfolder": {
+              "default": "",
+              "description": "Optional subfolder inside the dataset dump/recon directory to read source stacks from.",
+              "title": "Dump Subfolder",
+              "type": "string"
+            },
+            "combine_subfolders": {
+              "default": false,
+              "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
+              "title": "Combine Subfolders",
+              "type": "boolean"
+            },
+            "first_low_inp": {
+              "default": false,
+              "description": "If true, treat the first frame as a dedicated low-SNR single input and save the remaining frames as the multi-SNR input stack.",
+              "title": "First Low Inp",
+              "type": "boolean"
+            },
+            "registration": {
+              "default": true,
+              "description": "If true, rigidly register the stack before generating outputs.",
+              "title": "Registration",
+              "type": "boolean"
+            },
+            "crop_size": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Optional centered crop size applied to the stack before outputs are extracted.",
+              "title": "Crop Size"
+            },
+            "gt_types": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Optional list of ground-truth outputs to create. Allowed values are 'snr0' and 'avg'.",
+              "title": "Gt Types"
+            },
+            "gt_clip_neg": {
+              "default": false,
+              "description": "If true, clamp negative values to zero in generated ground-truth outputs.",
+              "title": "Gt Clip Neg",
+              "type": "boolean"
+            },
+            "gt_avg_n_frames": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Optional number of leading frames to average when creating the gt_avg output. If omitted, all available GT frames are averaged.",
+              "title": "Gt Avg N Frames"
+            }
+          },
+          "title": "ReconMltplSnrConfig",
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Pipeline-specific configuration. Editor hints depend on the selected pipeline."
+        }
+      },
+      "required": [
+        "dataset_name",
+        "pipeline",
+        "data_type",
+        "fmt"
+      ]
+    },
+    {
+      "type": "object",
+      "title": "PreprocessConfig[recon_timelapse_simple]",
+      "additionalProperties": false,
+      "properties": {
+        "dataset_name": {
+          "description": "Dataset name as registered in the project data paths and registry.",
+          "title": "Dataset Name",
+          "type": "string"
+        },
+        "pipeline": {
+          "description": "Preprocess pipeline to run. This selects the valid schema for pipeline_cfg.",
+          "title": "Pipeline",
+          "type": "string",
+          "const": "recon_timelapse_simple",
+          "default": "recon_timelapse_simple"
+        },
+        "data_type": {
+          "description": "Dataset data type produced by preprocessing, typically raw or recon.",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "fmt": {
+          "description": "Output data format used for canonical naming and saving templates.",
+          "title": "Fmt",
+          "type": "string"
+        },
+        "log": {
+          "$ref": "#/$defs/PreprocessLogConfig",
+          "description": "Options controlling YAML manifest logging for the preprocess run."
+        },
+        "split": {
+          "$ref": "#/$defs/PreprocessSplitConfig",
+          "description": "Options controlling optional train, validation, and test split assignment."
+        },
+        "pipeline_cfg": {
+          "properties": {
+            "dump_subfolder": {
+              "default": "",
+              "description": "Optional subfolder inside the dataset dump/recon directory to read source timelapses from.",
+              "title": "Dump Subfolder",
+              "type": "string"
+            },
+            "combine_subfolders": {
+              "default": false,
+              "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
+              "title": "Combine Subfolders",
+              "type": "boolean"
+            },
+            "crop_size": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Optional centered crop size applied to each timelapse frame before saving.",
+              "title": "Crop Size"
+            },
+            "clip_neg": {
+              "default": false,
+              "description": "If true, clamp negative pixel values to zero after preprocessing.",
+              "title": "Clip Neg",
+              "type": "boolean"
+            },
+            "remove_first": {
+              "default": false,
+              "description": "If true, drop the first frame of each timelapse before any other processing.",
+              "title": "Remove First",
+              "type": "boolean"
+            },
+            "bleach_correction": {
+              "default": false,
+              "description": "If true, apply simple-ratio bleach correction to each timelapse stack.",
+              "title": "Bleach Correction",
+              "type": "boolean"
+            }
+          },
+          "title": "ReconTimelapseSimpleConfig",
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Pipeline-specific configuration. Editor hints depend on the selected pipeline."
+        }
+      },
+      "required": [
+        "dataset_name",
+        "pipeline",
+        "data_type",
+        "fmt"
+      ]
+    },
+    {
+      "type": "object",
+      "title": "PreprocessConfig[single_recon]",
+      "additionalProperties": false,
+      "properties": {
+        "dataset_name": {
+          "description": "Dataset name as registered in the project data paths and registry.",
+          "title": "Dataset Name",
+          "type": "string"
+        },
+        "pipeline": {
+          "description": "Preprocess pipeline to run. This selects the valid schema for pipeline_cfg.",
+          "title": "Pipeline",
+          "type": "string",
+          "const": "single_recon",
+          "default": "single_recon"
+        },
+        "data_type": {
+          "description": "Dataset data type produced by preprocessing, typically raw or recon.",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "fmt": {
+          "description": "Output data format used for canonical naming and saving templates.",
+          "title": "Fmt",
+          "type": "string"
+        },
+        "log": {
+          "$ref": "#/$defs/PreprocessLogConfig",
+          "description": "Options controlling YAML manifest logging for the preprocess run."
+        },
+        "split": {
+          "$ref": "#/$defs/PreprocessSplitConfig",
+          "description": "Options controlling optional train, validation, and test split assignment."
+        },
+        "pipeline_cfg": {
+          "properties": {
+            "dump_subfolder": {
+              "default": "",
+              "description": "Optional subfolder inside the dataset dump/recon directory to read source images from.",
+              "title": "Dump Subfolder",
+              "type": "string"
+            },
+            "combine_subfolders": {
+              "default": false,
+              "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
+              "title": "Combine Subfolders",
+              "type": "boolean"
+            },
+            "crop_size": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Optional centered crop size applied to each 2D image before saving.",
+              "title": "Crop Size"
+            }
+          },
+          "title": "SingleReconConfig",
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Pipeline-specific configuration. Editor hints depend on the selected pipeline."
+        }
+      },
+      "required": [
+        "dataset_name",
+        "pipeline",
+        "data_type",
+        "fmt"
+      ]
+    }
+  ],
+  "$defs": {
+    "PreprocessLogConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Whether to write a YAML preprocess manifest for this run.",
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "PreprocessLogConfig",
+      "type": "object"
+    },
+    "PreprocessSplitConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Whether to assign saved preprocess outputs to train, validation, and test folders.",
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "mode": {
+          "default": "random",
+          "description": "Split strategy to use when split.enabled is true: random, manual, or reuse.",
+          "enum": [
+            "random",
+            "manual",
+            "reuse"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "random": {
+          "$ref": "#/$defs/PreprocessSplitRandomConfig",
+          "description": "Parameters for random split assignment."
+        },
+        "manual": {
+          "$ref": "#/$defs/PreprocessSplitManualConfig",
+          "description": "Parameters for manually selecting validation and test items."
+        },
+        "reuse": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PreprocessSplitReuseConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Parameters for reusing split assignments from a previous preprocess manifest."
+        }
+      },
+      "title": "PreprocessSplitConfig",
+      "type": "object"
+    },
+    "PreprocessSplitManualConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "match_by": {
+          "default": "source_name",
+          "description": "Identifier style used to match manual split entries against source items. Use source_name for incoming filenames, source_relpath for paths relative to the dump root, or sample_id for generated preprocess names.",
+          "enum": [
+            "source_name",
+            "source_relpath",
+            "sample_id"
+          ],
+          "title": "Match By",
+          "type": "string"
+        },
+        "val": {
+          "description": "Items that should be assigned to the validation split.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Val",
+          "type": "array"
+        },
+        "test": {
+          "description": "Items that should be assigned to the test split.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Test",
+          "type": "array"
+        }
+      },
+      "title": "PreprocessSplitManualConfig",
+      "type": "object"
+    },
+    "PreprocessSplitRandomConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "seed": {
+          "default": 0,
+          "description": "Random seed used to shuffle items before assigning validation and test splits.",
+          "title": "Seed",
+          "type": "integer"
+        },
+        "val_fraction": {
+          "default": 0.1,
+          "description": "Fraction of source items assigned to the validation split.",
+          "title": "Val Fraction",
+          "type": "number"
+        },
+        "test_fraction": {
+          "default": 0.1,
+          "description": "Fraction of source items assigned to the test split.",
+          "title": "Test Fraction",
+          "type": "number"
+        }
+      },
+      "title": "PreprocessSplitRandomConfig",
+      "type": "object"
+    },
+    "PreprocessSplitReuseConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "manifest_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional path to a previous preprocess YAML manifest whose split assignments should be reused.",
+          "title": "Manifest Path"
+        },
+        "dataset_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dataset name of a previous preprocess run to reuse split assignments from.",
+          "title": "Dataset Name"
+        },
+        "data_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "raw",
+                "recon"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Data type of the previous preprocess run when reusing a split by dataset name.",
+          "title": "Data Type"
+        },
+        "match_by": {
+          "default": "source_relpath",
+          "description": "Identifier style used to match current source items to entries stored in the reused manifest.",
+          "enum": [
+            "source_name",
+            "source_relpath",
+            "sample_id"
+          ],
+          "title": "Match By",
+          "type": "string"
+        }
+      },
+      "title": "PreprocessSplitReuseConfig",
+      "type": "object"
+    }
+  }
+}

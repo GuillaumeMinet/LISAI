@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -129,6 +129,13 @@ class Paths:
         ds_path = self.dataset_dir(dataset_name=dataset_name)
         preprocess_subfolder = self.settings.data.subfolders.get("preprocess","preprocess")
         return ds_path / preprocess_subfolder / data_type
+
+    def preprocess_log_path(self, *, dataset_name: str, data_type: str) -> Path:
+        key = f"{data_type}_preprocess"
+        filename = self.settings.data.logs.get(key)
+        if filename is None:
+            raise KeyError(f"Unknown preprocess log key '{key}' in data config.")
+        return self.dataset_preprocess_dir(dataset_name=dataset_name, data_type=data_type) / filename
     
     def preprocessed_image_full_path(self, *, dataset_name:str, fmt:str,data_type:str = "",
                                      additional_subfolder:str="",**kwargs):
@@ -162,4 +169,5 @@ class Paths:
                 epoch_number=epoch_number,
             )
         return self.checkpoints_dir(run_dir=run_dir) / model_name
+
 

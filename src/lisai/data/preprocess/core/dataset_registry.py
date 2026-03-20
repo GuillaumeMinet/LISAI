@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,13 +25,6 @@ class DatasetRegistry:
 
     @staticmethod
     def _normalize_registry_data(raw: dict[str, Any]) -> dict[str, Any]:
-        """
-        Keep datasets at the top level.
-
-        Backward compatibility:
-        if a legacy registry contains a "datasets" key, merge its entries
-        into the top-level map.
-        """
         if not isinstance(raw, dict):
             return {}
 
@@ -61,18 +54,20 @@ class DatasetRegistry:
         self,
         *,
         dataset_name: str,
-        data_type: str,              # "recon" or "raw"
-        data_format: str | None,     # e.g. "single", "timelapse", "mltpl_snr"
+        data_type: str,
+        data_format: str | None,
         structure: list[str],
         result: PipelineResultLike,
+        split_summary: dict[str, Any] | None = None,
     ) -> None:
         ds = self.ensure_dataset(dataset_name)
 
         if data_format is not None:
-            ds["format"] = data_format  # matches registry.yml "format"
+            ds["format"] = data_format
 
         ds.setdefault("size", {})
         ds.setdefault("structure", {})
+        ds.setdefault("split", {})
 
         size_entry: dict[str, Any] = {"n_files": result.n_files}
         if result.n_frames is not None:
@@ -83,3 +78,4 @@ class DatasetRegistry:
 
         ds["size"][data_type] = size_entry
         ds["structure"][data_type] = structure
+        ds["split"][data_type] = split_summary or {}

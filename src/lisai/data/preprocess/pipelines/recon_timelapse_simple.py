@@ -1,7 +1,7 @@
 # lisai/data/preprocess/pipelines/recon_timelapse_upsamp.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict
 
 import numpy as np
@@ -30,12 +30,43 @@ class ReconTimelapseSimpleConfig:
       - center crop
       - clip negatives to 0
     """
-    dump_subfolder: str = ""             # inside dataset dump dir
-    combine_subfolders: bool = False
-    crop_size: int | None = None
-    clip_neg: bool = False
-    remove_first: bool = False
-    bleach_correction: bool = False
+
+    dump_subfolder: str = field(
+        default="",
+        metadata={
+            "description": "Optional subfolder inside the dataset dump/recon directory to read source timelapses from.",
+        },
+    )
+    combine_subfolders: bool = field(
+        default=False,
+        metadata={
+            "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
+        },
+    )
+    crop_size: int | None = field(
+        default=None,
+        metadata={
+            "description": "Optional centered crop size applied to each timelapse frame before saving.",
+        },
+    )
+    clip_neg: bool = field(
+        default=False,
+        metadata={
+            "description": "If true, clamp negative pixel values to zero after preprocessing.",
+        },
+    )
+    remove_first: bool = field(
+        default=False,
+        metadata={
+            "description": "If true, drop the first frame of each timelapse before any other processing.",
+        },
+    )
+    bleach_correction: bool = field(
+        default=False,
+        metadata={
+            "description": "If true, apply simple-ratio bleach correction to each timelapse stack.",
+        },
+    )
 
 
 class ReconTimelapseSimplePipeline(BasePipeline[ReconTimelapseSimpleConfig]):
@@ -65,7 +96,7 @@ class ReconTimelapseSimplePipeline(BasePipeline[ReconTimelapseSimpleConfig]):
 
         if stack.ndim != 3 or stack.shape[0] <= 1:
             raise ValueError(
-                f"ReconTimelapseUpsampPipeline expects 3D stack (T,Y,X) with T>1, "
+                f"Pipeline {self.name} expects 3D stack (T,Y,X) with T>1, "
                 f"got shape={getattr(stack, 'shape', None)} for {p}"
             )
 

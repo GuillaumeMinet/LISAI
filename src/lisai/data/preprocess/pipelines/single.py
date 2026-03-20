@@ -1,7 +1,7 @@
 # lisai/data/preprocess/pipelines/single.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict
 
 import numpy as np
@@ -20,11 +20,27 @@ if TYPE_CHECKING:
 @dataclass
 class SingleReconConfig:
     """
-    Preprocess reconstructed single images from dump/ into preprocess/recon/
+    Preprocess reconstructed single images from dump/ into preprocess/recon/.
     """
-    dump_subfolder: str = ""             # inside dataset dump dir
-    combine_subfolders: bool = False
-    crop_size: int | None = None
+
+    dump_subfolder: str = field(
+        default="",
+        metadata={
+            "description": "Optional subfolder inside the dataset dump/recon directory to read source images from.",
+        },
+    )
+    combine_subfolders: bool = field(
+        default=False,
+        metadata={
+            "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
+        },
+    )
+    crop_size: int | None = field(
+        default=None,
+        metadata={
+            "description": "Optional centered crop size applied to each 2D image before saving.",
+        },
+    )
 
 
 class SingleReconPipeline(BasePipeline[SingleReconConfig]):
@@ -43,13 +59,12 @@ class SingleReconPipeline(BasePipeline[SingleReconConfig]):
         )
 
     def build_source(self, *, run: PreprocessRun) -> Source:
-        
         dump_root = run.paths.dataset_dump_dir(
-            dataset_name = run.dataset_name,
-            data_type = run.data_type,
-            additional_subfolder =  self.cfg.dump_subfolder if self.cfg.dump_subfolder else "",
+            dataset_name=run.dataset_name,
+            data_type=run.data_type,
+            additional_subfolder=self.cfg.dump_subfolder if self.cfg.dump_subfolder else "",
         )
-        
+
         exts = tuple(settings.data.data_types[run.data_type])
 
         return FolderSource(root=dump_root, exts=exts, combine_subfolders=self.cfg.combine_subfolders)
@@ -65,10 +80,10 @@ class SingleReconPipeline(BasePipeline[SingleReconConfig]):
             img = crop_center_2d(img, self.cfg.crop_size)
 
         return {MAIN_OUTPUT_KEY: img}
-    
+
     def template_kwargs(self, *, item: Item, outputs: dict[str, np.ndarray]) -> dict[str, object]:
         return {}
-    
-    def make_result(self,*, n_files: int, stats: dict[str, Any]) -> PipelineResult:
+
+    def make_result(self, *, n_files: int, stats: dict[str, Any]) -> PipelineResult:
         result = PipelineResult(n_files=n_files)
         return result

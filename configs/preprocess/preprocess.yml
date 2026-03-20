@@ -1,5 +1,6 @@
-dataset_name: "Gag_timelapses"
-pipeline: "recon_timelapse_upsamp"
+﻿# yaml-language-server: $schema=../schema/preprocess.schema.json
+dataset_name: "Gag_noisy_timelapses"
+pipeline: "recon_timelapse_simple"
 data_type: "recon"
 fmt: "timelapse"
 
@@ -8,3 +9,18 @@ pipeline_cfg:
   combine_subfolders: false
   crop_size: 1200
 
+log:
+  enabled: true
+
+split:
+  enabled: true
+  mode: "random"
+  random:
+    seed: 0
+    val_fraction: 0.1
+    test_fraction: 0.1
+  manual:
+    match_by: "source_name"
+    val: []
+    test: []
+  reuse: null

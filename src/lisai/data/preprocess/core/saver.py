@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -13,6 +13,7 @@ from .output_spec import OutputSpec
 
 if TYPE_CHECKING:
     from lisai.infra.paths import Paths
+
 
 class PreprocessSaver:
     """
@@ -43,14 +44,12 @@ class PreprocessSaver:
         self.fmt = fmt
         self.overwrite_mode = overwrite_mode
 
-        # make sure base_dir exists
         base_dir = self.paths.dataset_preprocess_dir(
             dataset_name=self.dataset_name,
             data_type=self.data_type,
         )
         ensure_folder(base_dir, mode=self.overwrite_mode)
 
-        # create per-output dirs
         for out in self.spec.outputs:
             out_dir = base_dir / self.spec.folder_for(out.key)
             ensure_folder(out_dir, mode=self.overwrite_mode)
@@ -60,32 +59,36 @@ class PreprocessSaver:
         return fmt.format(id=idx)
 
     def save(
-            self,
-            *,
-            key: str,
-            array: np.ndarray,
-            sample_id: str,
-            **template_kwargs: Any,
-        ) -> Path:
-            """
-            Save array image as a tiff (for now, might need to update for hdf5 raw files later)
-            """
+        self,
+        *,
+        key: str,
+        array: np.ndarray,
+        sample_id: str,
+        split: str | None = None,
+        **template_kwargs: Any,
+    ) -> Path:
+        """
+        Save array image as a tiff (for now, might need to update for hdf5 raw files later)
+        """
 
-            out_path = self.paths.preprocessed_image_full_path(
-                dataset_name=self.dataset_name,
-                fmt=self.fmt,
-                data_type=self.data_type,
-                additional_subfolder=self.spec.folder_for(key),
-                sample_id=sample_id,
-                **template_kwargs,
-                )
+        additional_subfolder = Path(self.spec.folder_for(key))
+        if split:
+            additional_subfolder = additional_subfolder / split
 
-            ensure_folder(out_path.parent, mode="exist_ok")
+        out_path = self.paths.preprocessed_image_full_path(
+            dataset_name=self.dataset_name,
+            fmt=self.fmt,
+            data_type=self.data_type,
+            additional_subfolder=additional_subfolder.as_posix() if str(additional_subfolder) else "",
+            sample_id=sample_id,
+            **template_kwargs,
+        )
 
-            # Basic conventions: if stack, keep imagej metadata; else plain.
-            if array.ndim == 3:
-                tifffile.imwrite(out_path, array, imagej=True, metadata={"axes": "TYX"})
-            else:
-                tifffile.imwrite(out_path, array)
+        ensure_folder(out_path.parent, mode="exist_ok")
 
-            return out_path
+        if array.ndim == 3:
+            tifffile.imwrite(out_path, array, imagej=True, metadata={"axes": "TYX"})
+        else:
+            tifffile.imwrite(out_path, array)
+
+        return out_path

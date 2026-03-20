@@ -1,7 +1,7 @@
 # lisai/data/preprocess/pipelines/recon_mltpl_snr.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List
 
 import numpy as np
@@ -40,17 +40,55 @@ class ReconMltplSnrConfig:
       - Registration uses pystackreg via `register_stack` (rigid-body) if enabled.
       - `gt_avg_n_frames` controls how many leading frames are averaged for gt_avg.
     """
-    dump_subfolder: str = ""
-    combine_subfolders: bool = False
 
-    first_low_inp: bool = False
-    registration: bool = True
-    crop_size: int | None = None
-
-    gt_types: List[str] | None = None   # e.g. ["snr0","avg"]; None means no GT
-
-    gt_clip_neg: bool = False
-    gt_avg_n_frames: int | None = None
+    dump_subfolder: str = field(
+        default="",
+        metadata={
+            "description": "Optional subfolder inside the dataset dump/recon directory to read source stacks from.",
+        },
+    )
+    combine_subfolders: bool = field(
+        default=False,
+        metadata={
+            "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
+        },
+    )
+    first_low_inp: bool = field(
+        default=False,
+        metadata={
+            "description": "If true, treat the first frame as a dedicated low-SNR single input and save the remaining frames as the multi-SNR input stack.",
+        },
+    )
+    registration: bool = field(
+        default=True,
+        metadata={
+            "description": "If true, rigidly register the stack before generating outputs.",
+        },
+    )
+    crop_size: int | None = field(
+        default=None,
+        metadata={
+            "description": "Optional centered crop size applied to the stack before outputs are extracted.",
+        },
+    )
+    gt_types: List[str] | None = field(
+        default=None,
+        metadata={
+            "description": "Optional list of ground-truth outputs to create. Allowed values are 'snr0' and 'avg'.",
+        },
+    )
+    gt_clip_neg: bool = field(
+        default=False,
+        metadata={
+            "description": "If true, clamp negative values to zero in generated ground-truth outputs.",
+        },
+    )
+    gt_avg_n_frames: int | None = field(
+        default=None,
+        metadata={
+            "description": "Optional number of leading frames to average when creating the gt_avg output. If omitted, all available GT frames are averaged.",
+        },
+    )
 
     def __post_init__(self):
         if self.gt_types is None:
@@ -98,7 +136,7 @@ class ReconMltplSnrPipeline(BasePipeline[ReconMltplSnrConfig]):
 
         if stack.ndim != 3 or stack.shape[0] < 2:
             raise ValueError(
-                f"ReconMltplSnrPipeline expects 3D stack (T,Y,X) with T>1, got shape={getattr(stack,'shape',None)} for {p}"
+                f"ReconMltplSnrPipeline expects 3D stack (T,Y,X) with T>1, got shape={getattr(stack, 'shape', None)} for {p}"
             )
 
         # Optional registration and crop on the full stack

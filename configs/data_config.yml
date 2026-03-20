@@ -33,5 +33,5 @@ data_types:
   recon: [".tiff", ".tif"]
 
 logs:
-  raw_preprocess: "raw_preprocess_log.txt"
-  recon_preprocess: "recon_preprocess_log.txt"
+  raw_preprocess: "raw_preprocess_log.yaml"
+  recon_preprocess: "recon_preprocess_log.yaml"
