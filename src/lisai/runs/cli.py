@@ -43,8 +43,10 @@ def list_runs(
     return 0
 
 
+
 def run_list_from_args(args: argparse.Namespace) -> int:
     return list_runs(dataset=args.dataset, model_subfolder=args.model_subfolder, status=args.status)
+
 
 
 def add_list_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -58,6 +60,7 @@ def add_list_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPars
     )
     parser.add_argument("--status", choices=RUN_STATUSES, help="Filter runs by persisted status.")
     return parser
+
 
 
 def add_runs_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]):
@@ -76,6 +79,7 @@ def add_runs_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     )
     add_list_arguments(list_parser)
     list_parser.set_defaults(handler=run_list_from_args)
+
     return parser
 
 
@@ -91,6 +95,7 @@ def build_parser(*, prog: str = "lisai runs") -> argparse.ArgumentParser:
     )
     add_list_arguments(list_parser)
     list_parser.set_defaults(handler=run_list_from_args)
+
     return parser
 
 
@@ -149,4 +154,9 @@ def _format_epoch(run: DiscoveredRun) -> str:
     return f"{last_epoch}/{max_epoch}"
 
 
-__all__ = ["add_runs_subparser", "build_parser", "list_runs", "main"]
+__all__ = [
+    "add_runs_subparser",
+    "build_parser",
+    "list_runs",
+    "main",
+]

@@ -11,6 +11,9 @@ Filesystem layout in LISAI is defined through [`Paths`](../src/lisai/infra/paths
 - Evaluation outputs: `Paths.inference_dir(...)`
 - Noise model file: `Paths.noise_model_path(...)`
 
+With the default project configuration, training runs live under:
+`datasets/<dataset>/models/<models_subfolder>/<exp_name>`
+
 ## Training Run Layout
 
 Inside a run folder, `Paths` also resolves the standard artifacts:
