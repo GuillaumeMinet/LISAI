@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from lisai.training.callbacks.base import Callback
+
 from .lifecycle import update_run_progress
 
 
-class RunMetadataCallback:
+class RunMetadataCallback(Callback):
     def __init__(self, run_dir: str | Path, *, max_epoch: int | None, logger=None):
         self.run_dir = Path(run_dir)
         self.max_epoch = max_epoch
@@ -24,6 +26,12 @@ class RunMetadataCallback:
                 self.logger,
                 f"Failed to update run metadata for epoch {epoch}: {type(exc).__name__}: {exc}",
             )
+
+    def on_validation_batch_end(self, trainer, epoch: int, x, y, prediction):
+        return None
+
+    def on_validation_images_end(self, trainer, epoch: int, list_imgs):
+        return None
 
 
 def _log_warning(logger, message: str):

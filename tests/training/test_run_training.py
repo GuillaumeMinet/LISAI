@@ -59,9 +59,11 @@ class CallbackTrainer:
         if self.raise_on_train is not None:
             raise self.raise_on_train
         for callback in self.callbacks:
-            on_epoch_end = getattr(callback, "on_epoch_end", None)
-            if callable(on_epoch_end):
-                on_epoch_end(self, 3, {"train_loss": 1.2, "val_loss": 0.4})
+            callback.on_validation_batch_end(self, 3, "x", "y", "prediction")
+        for callback in self.callbacks:
+            callback.on_validation_images_end(self, 3, [("x", "y", "prediction")])
+        for callback in self.callbacks:
+            callback.on_epoch_end(self, 3, {"train_loss": 1.2, "val_loss": 0.4})
         return self.outcome
 
 
