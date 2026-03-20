@@ -98,11 +98,11 @@ def _make_prepared_data():
     )
 
 
-def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPatch):
+def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = _make_cfg()
     writer = DummyWriter()
     logger = DummyLogger()
-    runtime = _make_runtime(writer=writer, logger=logger, run_dir=Path("run_a"))
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "run_a")
     prepared_data = _make_prepared_data()
     trainer = DummyTrainer()
     captured = {}
@@ -140,11 +140,11 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
     assert captured["trainer_kwargs"]["patch_info"] is None
 
 
-def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.MonkeyPatch):
+def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = _make_cfg()
     writer = DummyWriter()
     logger = DummyLogger()
-    runtime = _make_runtime(writer=writer, logger=logger, run_dir=Path("run_b"))
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "run_b")
     prepared_data = _make_prepared_data()
     trainer = DummyTrainer(raise_on_train=RuntimeError("boom"))
 
@@ -167,11 +167,11 @@ def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.Mo
     assert logger.errors == [("Training crashed", True)]
 
 
-def test_run_training_triggers_post_training_evaluation_on_completion(monkeypatch: pytest.MonkeyPatch):
+def test_run_training_triggers_post_training_evaluation_on_completion(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = _make_cfg(post_training_inference=True)
     writer = DummyWriter()
     logger = DummyLogger()
-    runtime = _make_runtime(writer=writer, logger=logger, run_dir=Path("/runs/dataset_a/Upsamp/run_c"))
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_c")
     prepared_data = _make_prepared_data()
     trainer = DummyTrainer(outcome=SimpleNamespace(reason="completed", last_completed_epoch=12))
     captured = {}
@@ -198,11 +198,11 @@ def test_run_training_triggers_post_training_evaluation_on_completion(monkeypatc
     }
 
 
-def test_run_training_prompts_before_post_training_evaluation_on_interrupt(monkeypatch: pytest.MonkeyPatch):
+def test_run_training_prompts_before_post_training_evaluation_on_interrupt(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = _make_cfg(post_training_inference=True)
     writer = DummyWriter()
     logger = DummyLogger()
-    runtime = _make_runtime(writer=writer, logger=logger, run_dir=Path("/runs/dataset_a/Upsamp/run_d"))
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_d")
     prepared_data = _make_prepared_data()
     trainer = DummyTrainer(outcome=SimpleNamespace(reason="interrupted", last_completed_epoch=4))
     captured = {}
@@ -226,11 +226,11 @@ def test_run_training_prompts_before_post_training_evaluation_on_interrupt(monke
     assert captured["config"] == "post_training"
 
 
-def test_run_training_skips_post_training_evaluation_when_interrupt_prompt_declined(monkeypatch: pytest.MonkeyPatch):
+def test_run_training_skips_post_training_evaluation_when_interrupt_prompt_declined(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = _make_cfg(post_training_inference=True)
     writer = DummyWriter()
     logger = DummyLogger()
-    runtime = _make_runtime(writer=writer, logger=logger, run_dir=Path("/runs/dataset_a/Upsamp/run_e"))
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_e")
     prepared_data = _make_prepared_data()
     trainer = DummyTrainer(outcome=SimpleNamespace(reason="interrupted", last_completed_epoch=4))
     calls = []
