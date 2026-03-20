@@ -21,7 +21,9 @@ from .run_training import run_training_from_config_dict
 
 def continue_run(
     *,
-    run_id: str,
+    run_name: str | None = None,
+    run_index: int | None = None,
+    run_id: str | None = None,
     dataset: str | None = None,
     model_subfolder: str | None = None,
     assume_yes: bool = False,
@@ -36,15 +38,32 @@ def continue_run(
     err = sys.stderr if stderr is None else stderr
     in_stream = sys.stdin if stdin is None else stdin
 
+    if run_id is not None and (run_name is not None or run_index is not None):
+        print("Use either <run_name> <run_index> or --run-id, not both.", file=err)
+        return 1
+    if run_id is None:
+        if run_name is None or run_index is None:
+            print("Missing run selector. Use <run_name> <run_index> or --run-id <run_id>.", file=err)
+            return 1
+        if run_index < 0:
+            print("run_index must be >= 0.", file=err)
+            return 1
+
     matches = filter_runs(
         scan_result.runs,
         run_id=run_id,
+        run_name=run_name,
+        run_index=run_index,
         dataset=dataset,
         model_subfolder=model_subfolder,
     )
 
     if not matches:
-        print(f"No matching run found for run_id={run_id!r}.", file=err)
+        if run_id is not None:
+            selector_desc = f"run_id={run_id!r}"
+        else:
+            selector_desc = f"run_name={run_name!r}, run_index={run_index}"
+        print(f"No matching run found for {selector_desc}.", file=err)
         print("Use 'lisai runs list' to inspect available runs.", file=err)
         write_invalid_run_warnings(scan_result.invalid, stderr=err)
         return 1
@@ -52,7 +71,7 @@ def continue_run(
     if len(matches) > 1:
         print("Multiple matching runs found:", file=out)
         print(render_runs_table(matches), file=out)
-        print("Rerun with --dataset and/or --subfolder to disambiguate.", file=err)
+        print("Rerun with --dataset/--subfolder or with --run-id to disambiguate.", file=err)
         write_invalid_run_warnings(scan_result.invalid, stderr=err)
         return 1
 
@@ -83,7 +102,45 @@ def continue_run(
             file=err,
         )
 
-    if not assume_yes:
+    already_confirmed = False
+    if not selected_run.path_consistent:
+        issue_text = ", ".join(selected_run.consistency_issues) or "unknown inconsistency"
+        print(
+            "warning: selected run has inconsistent path metadata "
+            f"(likely moved/renamed folder): {issue_text}",
+            file=err,
+        )
+        if assume_yes and force:
+            print(
+                "warning: continuing with --yes --force despite inconsistent path metadata.",
+                file=err,
+            )
+            already_confirmed = True
+        elif assume_yes:
+            print(
+                "Selected run has inconsistent path metadata. "
+                "Rerun without --yes to confirm interactively, or use --yes --force.",
+                file=err,
+            )
+            return 1
+        else:
+            confirmed = _prompt_yes_no(
+                "Selected run has inconsistent path metadata. Continue anyway? [y/N]: ",
+                stdin=in_stream,
+                stdout=out,
+            )
+            if confirmed is None:
+                print(
+                    "Confirmation required. Rerun with --yes --force to continue non-interactively.",
+                    file=err,
+                )
+                return 1
+            if not confirmed:
+                print("Continue cancelled.", file=err)
+                return 1
+            already_confirmed = True
+
+    if not assume_yes and not already_confirmed:
         confirmed = _prompt_yes_no(
             "Continue training this run in place? [y/N]: ",
             stdin=in_stream,
@@ -104,10 +161,8 @@ def _build_continue_training_config(run: DiscoveredRun) -> dict:
     return {
         "experiment": {"mode": "continue_training"},
         "load_model": {
-            "canonical_load": True,
-            "dataset_name": run.dataset,
-            "subfolder": run.model_subfolder,
-            "exp_name": run.metadata.run_id,
+            "canonical_load": False,
+            "model_full_path": str(run.run_dir.resolve()),
             "load_method": "state_dict",
             "best_or_last": "last",
         },
@@ -128,6 +183,8 @@ def _prompt_yes_no(prompt: str, *, stdin, stdout) -> bool | None:
 
 def run_from_args(args: argparse.Namespace) -> int:
     return continue_run(
+        run_name=args.run_name,
+        run_index=args.run_index,
         run_id=args.run_id,
         dataset=args.dataset,
         model_subfolder=args.model_subfolder,
@@ -137,8 +194,10 @@ def run_from_args(args: argparse.Namespace) -> int:
 
 
 def add_continue_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    parser.add_argument("run_id", help="Run identifier to continue in place.")
-    add_run_filter_arguments(parser, include_status=False)
+    parser.add_argument("run_name", nargs="?", help="Semantic run_name to continue.")
+    parser.add_argument("run_index", nargs="?", type=int, help="Run index to continue.")
+    parser.add_argument("--run-id", help="Stable run identifier to continue in place.")
+    add_run_filter_arguments(parser, include_identity=False, include_status=False)
     parser.add_argument(
         "-y",
         "--yes",
@@ -148,7 +207,10 @@ def add_continue_arguments(parser: argparse.ArgumentParser) -> argparse.Argument
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Allow continuation even if the selected run still appears active from a recent heartbeat.",
+        help=(
+            "Allow continuation even if the selected run still appears active from a recent heartbeat, "
+            "and permit non-interactive continuation of path-inconsistent runs with --yes."
+        ),
     )
     return parser
 
