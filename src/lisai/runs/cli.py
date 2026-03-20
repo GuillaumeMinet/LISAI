@@ -4,13 +4,21 @@ import argparse
 import sys
 from typing import Sequence
 
-from .listing import filter_runs, render_runs_table, write_invalid_run_warnings
+from .listing import (
+    filter_runs,
+    has_path_inconsistencies,
+    render_runs_table,
+    write_invalid_run_warnings,
+)
 from .scanner import scan_runs
 from .schema import RUN_STATUSES
 
 
 def list_runs(
     *,
+    run_id: str | None = None,
+    run_name: str | None = None,
+    run_index: int | None = None,
     dataset: str | None = None,
     model_subfolder: str | None = None,
     status: str | None = None,
@@ -23,6 +31,9 @@ def list_runs(
 
     filtered_runs = filter_runs(
         scan_result.runs,
+        run_id=run_id,
+        run_name=run_name,
+        run_index=run_index,
         dataset=dataset,
         model_subfolder=model_subfolder,
         status=status,
@@ -30,6 +41,11 @@ def list_runs(
 
     if filtered_runs:
         print(render_runs_table(filtered_runs), file=out)
+        if has_path_inconsistencies(filtered_runs):
+            print(
+                "Some listed runs have inconsistent path metadata (likely moved/renamed folders).",
+                file=out,
+            )
     else:
         print("No runs found.", file=out)
 
@@ -38,14 +54,26 @@ def list_runs(
 
 
 def run_list_from_args(args: argparse.Namespace) -> int:
-    return list_runs(dataset=args.dataset, model_subfolder=args.model_subfolder, status=args.status)
+    return list_runs(
+        run_id=args.run_id,
+        run_name=args.run_name,
+        run_index=args.run_index,
+        dataset=args.dataset,
+        model_subfolder=args.model_subfolder,
+        status=args.status,
+    )
 
 
 def add_run_filter_arguments(
     parser: argparse.ArgumentParser,
     *,
+    include_identity: bool = True,
     include_status: bool = False,
 ) -> argparse.ArgumentParser:
+    if include_identity:
+        parser.add_argument("--run-id", help="Filter runs by stable run_id.")
+        parser.add_argument("--run-name", help="Filter runs by semantic run_name.")
+        parser.add_argument("--run-index", type=int, help="Filter runs by run_index.")
     parser.add_argument("--dataset", help="Filter runs by dataset name.")
     parser.add_argument(
         "--model-subfolder",

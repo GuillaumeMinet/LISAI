@@ -34,6 +34,8 @@ class DiscoveredRun:
     model_subfolder: str
     group_path: str | None
     path: str
+    path_consistent: bool = True
+    consistency_issues: tuple[str, ...] = ()
 
 
 
@@ -78,15 +80,6 @@ def scan_runs(datasets_root: str | Path | None = None) -> ScanResults:
                 inferred = infer_run_location(meta_path, root)
                 metadata = read_run_metadata(meta_path)
                 mismatches = metadata_path_mismatches(metadata, inferred)
-                if mismatches:
-                    invalid.append(
-                        InvalidRunMetadata(
-                            metadata_path=meta_path,
-                            kind="path_mismatch",
-                            message="; ".join(mismatches),
-                        )
-                    )
-                    continue
 
                 runs.append(
                     DiscoveredRun(
@@ -97,6 +90,8 @@ def scan_runs(datasets_root: str | Path | None = None) -> ScanResults:
                         model_subfolder=inferred.model_subfolder,
                         group_path=inferred.group_path,
                         path=inferred.path,
+                        path_consistent=not mismatches,
+                        consistency_issues=tuple(mismatches),
                     )
                 )
             except json.JSONDecodeError as exc:
@@ -162,32 +157,29 @@ def infer_run_location(metadata_path: str | Path, datasets_root: str | Path) -> 
 
 def metadata_path_mismatches(metadata: RunMetadata, inferred: InferredRunLocation) -> list[str]:
     mismatches: list[str] = []
-    if metadata.run_id != inferred.run_dir.name:
-        mismatches.append(
-            f"run_id mismatch: metadata={metadata.run_id!r}, filesystem={inferred.run_dir.name!r}"
-        )
     if metadata.dataset != inferred.dataset:
         mismatches.append(
-            f"dataset mismatch: metadata={metadata.dataset!r}, filesystem={inferred.dataset!r}"
+            f"dataset_mismatch: metadata={metadata.dataset!r}, filesystem={inferred.dataset!r}"
         )
 
     normalized_model_subfolder = normalize_posix_path(metadata.model_subfolder)
     if normalized_model_subfolder != inferred.model_subfolder:
         mismatches.append(
-            "model_subfolder mismatch: "
+            "model_subfolder_mismatch: "
             f"metadata={normalized_model_subfolder!r}, filesystem={inferred.model_subfolder!r}"
         )
 
-    if metadata.group_path is not None:
-        normalized_group_path = normalize_posix_path(metadata.group_path)
-        if normalized_group_path != inferred.group_path:
-            mismatches.append(
-                f"group_path mismatch: metadata={normalized_group_path!r}, filesystem={inferred.group_path!r}"
-            )
+    normalized_group_path = (
+        None if metadata.group_path is None else normalize_posix_path(metadata.group_path)
+    )
+    if normalized_group_path != inferred.group_path:
+        mismatches.append(
+            f"group_path_mismatch: metadata={normalized_group_path!r}, filesystem={inferred.group_path!r}"
+        )
 
     normalized_path = normalize_posix_path(metadata.path)
     if normalized_path != inferred.path:
-        mismatches.append(f"path mismatch: metadata={normalized_path!r}, filesystem={inferred.path!r}")
+        mismatches.append(f"path_mismatch: metadata={normalized_path!r}, filesystem={inferred.path!r}")
 
     return mismatches
 

@@ -19,6 +19,8 @@ def filter_runs(
     runs: Iterable[DiscoveredRun],
     *,
     run_id: str | None = None,
+    run_name: str | None = None,
+    run_index: int | None = None,
     dataset: str | None = None,
     model_subfolder: str | None = None,
     status: str | None = None,
@@ -27,6 +29,8 @@ def filter_runs(
         run
         for run in runs
         if (run_id is None or run.metadata.run_id == run_id)
+        and (run_name is None or run.metadata.run_name == run_name)
+        and (run_index is None or run.metadata.run_index == run_index)
         and (dataset is None or run.dataset == dataset)
         and (model_subfolder is None or run.model_subfolder == model_subfolder)
         and (status is None or run.metadata.status == status)
@@ -73,18 +77,23 @@ def render_runs_table(runs: Sequence[DiscoveredRun], *, now: datetime | None = N
     headers = [
         "dataset",
         "model_subfolder",
-        "run_id",
+        "run_name",
+        "idx",
         "status",
+        "path_consistent",
         "closed_cleanly",
         "epoch",
         "last_seen",
     ]
+    idx_width = int(getattr(settings.project.naming, "run_dir_index_width", 2))
     rows = [
         [
             run.dataset,
             run.model_subfolder,
-            run.metadata.run_id,
+            run.metadata.run_name,
+            f"{run.metadata.run_index:0{idx_width}d}",
             display_run_status(run, now=reference),
+            str(run.path_consistent).lower(),
             str(run.metadata.closed_cleanly).lower(),
             _format_epoch(run),
             format_timestamp(run.last_seen),
@@ -122,6 +131,10 @@ def write_invalid_run_warnings(
         )
 
 
+def has_path_inconsistencies(runs: Iterable[DiscoveredRun]) -> bool:
+    return any(not run.path_consistent for run in runs)
+
+
 def _format_epoch(run: DiscoveredRun) -> str:
     if run.metadata.last_epoch is None and run.metadata.max_epoch is None:
         return "-"
@@ -134,6 +147,7 @@ __all__ = [
     "active_heartbeat_timeout",
     "display_run_status",
     "filter_runs",
+    "has_path_inconsistencies",
     "is_run_heartbeat_fresh",
     "is_run_likely_active",
     "is_run_likely_stale",

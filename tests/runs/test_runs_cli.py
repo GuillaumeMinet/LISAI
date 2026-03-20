@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from lisai.infra.fs.run_naming import parse_run_dir_name
 import lisai.runs.cli as runs_cli
 import lisai.runs.listing as runs_listing
 from lisai.cli import main as root_main
@@ -12,9 +13,12 @@ from lisai.runs.schema import RunMetadata
 
 
 def _write_metadata(run_dir, *, dataset, model_subfolder, group_path, path, status="running"):
+    run_name, run_index = parse_run_dir_name(run_dir.name)
     payload = {
-        "schema_version": 1,
-        "run_id": run_dir.name,
+        "schema_version": 2,
+        "run_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "run_name": run_name,
+        "run_index": run_index,
         "dataset": dataset,
         "model_subfolder": model_subfolder,
         "status": status,
@@ -64,6 +68,7 @@ def test_runs_list_uses_filters_and_warns_on_invalid_files(monkeypatch, tmp_path
 
     assert exit_code == 0
     assert "dataset" in captured.out
+    assert "path_consistent" in captured.out
     assert "run_a" in captured.out
     assert "run_b" not in captured.out
     assert "warning: skipped invalid run metadata" in captured.err
@@ -156,3 +161,28 @@ def test_runs_list_marks_old_running_heartbeats_as_stale(monkeypatch, tmp_path, 
     assert exit_code == 0
     assert "run_a" in captured.out
     assert "stale?" in captured.out
+
+
+def test_runs_list_footer_notes_path_inconsistency_without_stderr_warning(monkeypatch, tmp_path, capsys):
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "HDN" / "run_a_00"
+
+    _write_metadata(
+        run_dir,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/not_the_real_folder",
+        status="completed",
+    )
+
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+
+    exit_code = root_main(["runs", "list", "--dataset", "Gag"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "path_consistent" in captured.out
+    assert "false" in captured.out
+    assert "inconsistent path metadata" in captured.out
+    assert "path_mismatch" not in captured.err
