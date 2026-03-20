@@ -113,8 +113,7 @@ def _render_table(runs: list[DiscoveredRun]) -> str:
         "status",
         "closed_cleanly",
         "epoch",
-        "last_seen",
-        "path",
+        "last_seen"
     ]
     rows = [
         [
@@ -125,7 +124,6 @@ def _render_table(runs: list[DiscoveredRun]) -> str:
             str(run.metadata.closed_cleanly).lower(),
             _format_epoch(run),
             format_timestamp(run.last_seen),
-            run.path,
         ]
         for run in runs
     ]
