@@ -59,10 +59,17 @@ def is_run_likely_stale(run: DiscoveredRun, *, now: datetime | None = None) -> b
     )
 
 
-def render_runs_table(runs: Sequence[DiscoveredRun]) -> str:
+def display_run_status(run: DiscoveredRun, *, now: datetime | None = None) -> str:
+    if is_run_likely_stale(run, now=now):
+        return "stale?"
+    return run.metadata.status
+
+
+def render_runs_table(runs: Sequence[DiscoveredRun], *, now: datetime | None = None) -> str:
     if not runs:
         return ""
 
+    reference = utc_now() if now is None else now
     headers = [
         "dataset",
         "model_subfolder",
@@ -77,7 +84,7 @@ def render_runs_table(runs: Sequence[DiscoveredRun]) -> str:
             run.dataset,
             run.model_subfolder,
             run.metadata.run_id,
-            run.metadata.status,
+            display_run_status(run, now=reference),
             str(run.metadata.closed_cleanly).lower(),
             _format_epoch(run),
             format_timestamp(run.last_seen),
@@ -125,6 +132,7 @@ def _format_epoch(run: DiscoveredRun) -> str:
 
 __all__ = [
     "active_heartbeat_timeout",
+    "display_run_status",
     "filter_runs",
     "is_run_heartbeat_fresh",
     "is_run_likely_active",

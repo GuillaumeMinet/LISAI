@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import lisai.runs.cli as runs_cli
+import lisai.runs.listing as runs_listing
 from lisai.cli import main as root_main
+from lisai.config import settings
 from lisai.runs.io import write_run_metadata_atomic
 from lisai.runs.scanner import scan_runs
 from lisai.runs.schema import RunMetadata
@@ -127,3 +131,28 @@ def test_runs_list_subfolder_alias_works(monkeypatch, tmp_path, capsys):
     assert exit_code == 0
     assert "run_a" in captured.out
     assert "run_b" not in captured.out
+
+
+def test_runs_list_marks_old_running_heartbeats_as_stale(monkeypatch, tmp_path, capsys):
+    datasets_root = tmp_path / "datasets"
+    run_a = datasets_root / "Gag" / "models" / "HDN" / "run_a"
+
+    _write_metadata(
+        run_a,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/run_a",
+        status="running",
+    )
+
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(runs_listing, "utc_now", lambda: datetime(2026, 3, 20, 11, 0, tzinfo=timezone.utc))
+    monkeypatch.setattr(settings.project.run_tracking, "active_heartbeat_timeout_minutes", 10)
+
+    exit_code = root_main(["runs", "list", "--dataset", "Gag", "--status", "running"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "run_a" in captured.out
+    assert "stale?" in captured.out
