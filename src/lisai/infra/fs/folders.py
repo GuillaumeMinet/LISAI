@@ -5,7 +5,12 @@ from pathlib import Path
 
 from lisai.infra.paths import Paths as LisaiPaths
 
-from .run_naming import get_unique_exp_name
+from .run_naming import (
+    allocate_run_dir_name,
+    format_run_dir_name,
+    get_unique_exp_name,
+    run_dir_index_width,
+)
 
 logger = logging.getLogger("lisai.fs")
 
@@ -49,20 +54,18 @@ def ensure_folder(path: Path, mode: str = "exist_ok") -> Path:
     return path
 
 
-def create_run_dir(paths: LisaiPaths,ds_name: str, exp_name: str, 
-                   subfolder: str = "", overwrite: bool = False):
+def create_run_dir(paths: LisaiPaths, ds_name: str, exp_name: str, subfolder: str = "", overwrite: bool = False):
     """
-    Creates unique saving folder (auto-incrementating exp_name), unless
-    `overwrite` is set to True.
+    Creates unique run folder using run_name + index naming (`run_name_00`).
     Args:
         paths (Paths object): runtime paths
         ds_name (str): dataset name
-        exp_name (str): raw experiment name
+        exp_name (str): semantic run name
         subfolder (str): dataset subfolder
         overwrite (bool): to overwrite previous savings with same exp_name
     Returns:
         path: final full saving path
-        exp_name: final exp_name
+        exp_name: final run directory name
     """
     intended_run_dir = paths.run_dir(dataset_name=ds_name,
                                  models_subfolder=subfolder,
@@ -72,13 +75,14 @@ def create_run_dir(paths: LisaiPaths,ds_name: str, exp_name: str,
 
     if overwrite:
         mode = "overwrite"
+        final_name = format_run_dir_name(exp_name, 0, width=run_dir_index_width())
     else:
         mode = "strict"
-        exp_name = get_unique_exp_name(runs_root, exp_name)
+        final_name, _ = allocate_run_dir_name(runs_root, exp_name, width=run_dir_index_width())
 
-    final_run_dir = runs_root / exp_name
+    final_run_dir = runs_root / final_name
     final_run_dir = ensure_folder(final_run_dir, mode=mode)
-    return final_run_dir, exp_name
+    return final_run_dir, final_name
 
 
 def create_tb_folder(tb_folder: Path, exp_name: str, exist_ok: bool = True):

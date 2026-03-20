@@ -8,8 +8,10 @@ from lisai.runs.schema import RunMetadata
 
 def _payload(**overrides):
     payload = {
-        "schema_version": 1,
-        "run_id": "HDN_Gag_KL07_01",
+        "schema_version": 2,
+        "run_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "run_name": "HDN_Gag_KL07",
+        "run_index": 1,
         "dataset": "Gag",
         "model_subfolder": "HDN",
         "status": "running",
@@ -34,6 +36,8 @@ def test_run_metadata_accepts_running_payload():
     assert metadata.status == "running"
     assert metadata.ended_at is None
     assert metadata.model_subfolder == "HDN"
+    assert metadata.run_name == "HDN_Gag_KL07"
+    assert metadata.run_index == 1
 
 
 
@@ -43,6 +47,7 @@ def test_run_metadata_accepts_running_payload():
     ("field", "value"),
     [
         ("status", "stale"),
+        ("run_id", "not-a-valid-ulid"),
         ("created_at", "not-a-timestamp"),
         ("extra_field", True),
 
@@ -63,4 +68,3 @@ def test_run_metadata_rejects_missing_required_field():
 
     with pytest.raises(ValidationError):
         RunMetadata.model_validate(payload)
-

@@ -6,8 +6,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
+from .identifiers import is_valid_run_id
+
 RUN_METADATA_FILENAME = ".lisai_run_meta.json"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 RUN_STATUSES = ("running", "completed", "stopped", "failed")
 RunStatus = Literal["running", "completed", "stopped", "failed"]
 
@@ -53,6 +55,8 @@ class RunMetadata(BaseModel):
 
     schema_version: int = Field(default=SCHEMA_VERSION)
     run_id: str
+    run_name: str
+    run_index: int = Field(ge=0)
     dataset: str
     model_subfolder: str
 
@@ -77,7 +81,19 @@ class RunMetadata(BaseModel):
             raise ValueError(f"Unsupported schema_version {value!r}. Expected {SCHEMA_VERSION}.")
         return value
 
-    @field_validator("run_id", "dataset", "model_subfolder")
+    @field_validator("run_id", mode="before")
+    @classmethod
+    def _normalize_run_id(cls, value: str) -> str:
+        if not isinstance(value, str):
+            raise TypeError("run_id must be a string.")
+        text = value.strip().upper()
+        if not text:
+            raise ValueError("run_id must not be empty.")
+        if not is_valid_run_id(text):
+            raise ValueError("run_id must be a ULID-like 26-character identifier.")
+        return text
+
+    @field_validator("run_name", "dataset", "model_subfolder")
     @classmethod
     def _validate_required_text(cls, value: str) -> str:
         text = value.strip()

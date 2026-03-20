@@ -11,8 +11,10 @@ from lisai.runs.schema import RunMetadata
 
 def _payload(**overrides):
     payload = {
-        "schema_version": 1,
-        "run_id": "run_01",
+        "schema_version": 2,
+        "run_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "run_name": "run",
+        "run_index": 1,
         "dataset": "Gag",
         "model_subfolder": "HDN",
         "status": "running",
@@ -57,7 +59,7 @@ def test_read_run_metadata_raises_on_invalid_json(tmp_path):
 def test_read_run_metadata_raises_on_schema_validation_error(tmp_path):
     run_dir = tmp_path / "run_03"
     run_dir.mkdir(parents=True, exist_ok=True)
-    metadata_path(run_dir).write_text(json.dumps({"schema_version": 1}), encoding="utf-8")
+    metadata_path(run_dir).write_text(json.dumps({"schema_version": 2}), encoding="utf-8")
 
     with pytest.raises(ValidationError):
         read_run_metadata(run_dir)

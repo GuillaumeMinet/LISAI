@@ -6,7 +6,9 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from lisai.config import settings
+from lisai.infra.fs.run_naming import parse_run_dir_name
 
+from .identifiers import generate_run_id
 from .io import read_run_metadata, write_run_metadata_atomic
 from .schema import SCHEMA_VERSION, RunMetadata, normalize_posix_path, utc_now
 
@@ -51,6 +53,7 @@ def create_run_metadata(
     preserve_existing: bool = False,
 ) -> RunMetadata:
     run_dir = Path(run_dir)
+    run_name, run_index = parse_run_dir_name(run_dir.name)
     normalized_model_subfolder = normalize_model_subfolder(model_subfolder)
     if normalized_model_subfolder is None:
         normalized_model_subfolder = run_dir.parent.name.strip() or "unknown_model_subfolder"
@@ -62,7 +65,9 @@ def create_run_metadata(
     if existing is None:
         metadata = RunMetadata(
             schema_version=SCHEMA_VERSION,
-            run_id=run_dir.name,
+            run_id=generate_run_id(),
+            run_name=run_name,
+            run_index=run_index,
             dataset=dataset.strip(),
             model_subfolder=normalized_model_subfolder,
             status="running",
@@ -80,7 +85,9 @@ def create_run_metadata(
     else:
         metadata = existing.model_copy(
             update={
-                "run_id": run_dir.name,
+                "run_id": existing.run_id,
+                "run_name": run_name,
+                "run_index": run_index,
                 "dataset": dataset.strip(),
                 "model_subfolder": normalized_model_subfolder,
                 "status": "running",

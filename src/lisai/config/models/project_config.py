@@ -27,6 +27,7 @@ class Naming(BaseModel):
     model_config = ConfigDict(extra="forbid")
     exp_name_format: str
     sample_id: str
+    run_dir_index_width: int = Field(default=2, ge=1, le=6)
 
 
 class RunTracking(BaseModel):
