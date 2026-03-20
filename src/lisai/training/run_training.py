@@ -11,6 +11,15 @@ from typing import TYPE_CHECKING
 
 from lisai.config import resolve_config
 from lisai.evaluation import run_evaluate
+from lisai.runs import (
+    RunMetadataCallback,
+    create_run_metadata,
+    finalize_run_completed,
+    finalize_run_failed,
+    finalize_run_stopped,
+    group_path_from_model_subfolder,
+    update_run_heartbeat,
+)
 
 from . import setup
 from .runtime import initialize_runtime
@@ -58,6 +67,81 @@ def _should_run_post_training_evaluation(cfg, runtime, outcome: "TrainingOutcome
     )
 
 
+def _log_runtime_warning(runtime, message: str):
+    logger = getattr(runtime, "logger", None)
+    if logger is None:
+        return
+
+    warning = getattr(logger, "warning", None)
+    if callable(warning):
+        warning(message)
+        return
+
+    info = getattr(logger, "info", None)
+    if callable(info):
+        info(message)
+
+
+def _safe_run_metadata_call(runtime, action: str, func, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except Exception as exc:
+        _log_runtime_warning(runtime, f"Run metadata {action} failed: {type(exc).__name__}: {exc}")
+        return None
+
+
+def _install_run_monitor(cfg, runtime) -> bool:
+    if runtime.run_dir is None:
+        return False
+
+    model_subfolder = getattr(cfg.routing, "models_subfolder", "")
+    group_path = group_path_from_model_subfolder(model_subfolder)
+    preserve_existing = getattr(cfg.experiment, "mode", "train") == "continue_training"
+
+    metadata = _safe_run_metadata_call(
+        runtime,
+        "initialization",
+        create_run_metadata,
+        runtime.run_dir,
+        dataset=cfg.data.dataset_name,
+        model_subfolder=model_subfolder,
+        max_epoch=getattr(cfg.training, "n_epochs", None),
+        group_path=group_path,
+        preserve_existing=preserve_existing,
+    )
+    if metadata is None:
+        return False
+
+    runtime.callbacks.append(
+        RunMetadataCallback(
+            runtime.run_dir,
+            max_epoch=getattr(cfg.training, "n_epochs", None),
+            logger=runtime.logger,
+        )
+    )
+    return True
+
+
+def _refresh_run_monitor_heartbeat(runtime, monitor_enabled: bool):
+    if not monitor_enabled or runtime.run_dir is None:
+        return
+    _safe_run_metadata_call(runtime, "heartbeat update", update_run_heartbeat, runtime.run_dir)
+
+
+def _finalize_run_monitor(runtime, monitor_enabled: bool, outcome: "TrainingOutcome"):
+    if not monitor_enabled or runtime.run_dir is None:
+        return
+
+    if outcome.reason in {"completed", "early_stopped", "no_epochs"}:
+        finalizer = finalize_run_completed
+    elif outcome.reason == "interrupted":
+        finalizer = finalize_run_stopped
+    else:
+        return
+
+    _safe_run_metadata_call(runtime, "finalization", finalizer, runtime.run_dir)
+
+
 def _run_post_training_evaluation(cfg, runtime) -> None:
     if runtime.run_dir is None:
         return
@@ -75,47 +159,59 @@ def run_training(config_path):
     cfg = resolve_config(config_path)
     runtime = initialize_runtime(cfg)
     is_volumetric = cfg.model.architecture == "unet3d"
+    monitor_enabled = _install_run_monitor(cfg, runtime)
 
-    prepared_data = setup.prepare_data(cfg, runtime)
-    setup.save_training_config(
-        cfg,
-        runtime,
-        prepared_data.data_norm_prm,
-        prepared_data.model_norm_prm,
-    )
-
-    model, state_dict = setup.build_model(
-        cfg,
-        runtime.device,
-        runtime.paths,
-        prepared_data.model_norm_prm,
-    )
-
-    trainer = get_trainer(
-        architecture=cfg.model.architecture,
-        model=model,
-        train_loader=prepared_data.train_loader,
-        val_loader=prepared_data.val_loader,
-        device=runtime.device,
-        cfg=cfg,
-        run_dir=runtime.run_dir,
-        volumetric=is_volumetric,
-        writer=runtime.writer,
-        state_dict=state_dict,
-        callbacks=runtime.callbacks,
-        patch_info=prepared_data.patch_info,
-        console_filter=runtime.console_filter,
-        file_filter=runtime.file_filter,
-    )
-
+    trainer = None
     try:
+        prepared_data = setup.prepare_data(cfg, runtime)
+        _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
+
+        setup.save_training_config(
+            cfg,
+            runtime,
+            prepared_data.data_norm_prm,
+            prepared_data.model_norm_prm,
+        )
+        _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
+
+        model, state_dict = setup.build_model(
+            cfg,
+            runtime.device,
+            runtime.paths,
+            prepared_data.model_norm_prm,
+        )
+        _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
+
+        trainer = get_trainer(
+            architecture=cfg.model.architecture,
+            model=model,
+            train_loader=prepared_data.train_loader,
+            val_loader=prepared_data.val_loader,
+            device=runtime.device,
+            cfg=cfg,
+            run_dir=runtime.run_dir,
+            volumetric=is_volumetric,
+            writer=runtime.writer,
+            state_dict=state_dict,
+            callbacks=runtime.callbacks,
+            patch_info=prepared_data.patch_info,
+            console_filter=runtime.console_filter,
+            file_filter=runtime.file_filter,
+        )
+
         outcome = _normalize_training_outcome(trainer.train())
+    except KeyboardInterrupt:
+        _safe_run_metadata_call(runtime, "stop finalization", finalize_run_stopped, runtime.run_dir)
+        raise
     except Exception:
         runtime.logger.error("Training crashed", exc_info=True)
+        _safe_run_metadata_call(runtime, "failure finalization", finalize_run_failed, runtime.run_dir)
         raise
     finally:
         if runtime.writer:
             runtime.writer.close()
+
+    _finalize_run_monitor(runtime, monitor_enabled, outcome)
 
     try:
         if _should_run_post_training_evaluation(cfg, runtime, outcome):
