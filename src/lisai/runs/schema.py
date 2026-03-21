@@ -50,6 +50,55 @@ def normalize_posix_path(value: str) -> str:
     return normalized
 
 
+class TrainingSignature(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    architecture: str
+    batch_size: int = Field(ge=1)
+    patch_size: int | list[int] | None = None
+
+    @field_validator("architecture")
+    @classmethod
+    def _validate_architecture(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("architecture must not be empty.")
+        return text
+
+    @field_validator("patch_size", mode="before")
+    @classmethod
+    def _normalize_patch_size(cls, value):
+        if isinstance(value, tuple):
+            return list(value)
+        return value
+
+    @field_validator("patch_size")
+    @classmethod
+    def _validate_patch_size(cls, value: int | list[int] | None):
+        if value is None:
+            return None
+        if isinstance(value, int):
+            if value <= 0:
+                raise ValueError("patch_size must be > 0.")
+            return value
+        if isinstance(value, list):
+            if not value:
+                raise ValueError("patch_size list must not be empty.")
+            normalized: list[int] = []
+            for item in value:
+                if not isinstance(item, int) or item <= 0:
+                    raise ValueError("patch_size list values must be integers > 0.")
+                normalized.append(item)
+            return normalized
+        raise TypeError("patch_size must be an int, a list of ints, or null.")
+
+
+class RuntimeStats(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    peak_gpu_mem_mb: int | None = Field(default=None, ge=0)
+
+
 class RunMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -71,6 +120,8 @@ class RunMetadata(BaseModel):
     best_val_loss: float | None = None
     path: str
     group_path: str | None = None
+    training_signature: TrainingSignature | None = None
+    runtime_stats: RuntimeStats | None = None
 
 
 
@@ -192,6 +243,8 @@ __all__ = [
     "RUN_METADATA_FILENAME",
     "RUN_STATUSES",
     "SCHEMA_VERSION",
+    "RuntimeStats",
+    "TrainingSignature",
     "RunMetadata",
     "RunStatus",
     "format_timestamp",

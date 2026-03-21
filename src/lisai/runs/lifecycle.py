@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Mapping
 
 from pydantic import ValidationError
 
@@ -10,7 +11,14 @@ from lisai.infra.fs.run_naming import parse_run_dir_name
 
 from .identifiers import generate_run_id
 from .io import read_run_metadata, write_run_metadata_atomic
-from .schema import SCHEMA_VERSION, RunMetadata, normalize_posix_path, utc_now
+from .schema import (
+    SCHEMA_VERSION,
+    RunMetadata,
+    RuntimeStats,
+    TrainingSignature,
+    normalize_posix_path,
+    utc_now,
+)
 
 
 def normalize_model_subfolder(model_subfolder: str | None) -> str | None:
@@ -152,6 +160,42 @@ def update_run_progress(
     return updated
 
 
+def update_run_runtime_details(
+    run_dir: str | Path,
+    *,
+    training_signature: TrainingSignature | Mapping[str, object] | None = None,
+    peak_gpu_mem_mb: int | None = None,
+) -> RunMetadata:
+    metadata = read_run_metadata(run_dir)
+    now = utc_now()
+
+    resolved_signature = metadata.training_signature
+    if training_signature is not None:
+        if isinstance(training_signature, TrainingSignature):
+            resolved_signature = training_signature
+        else:
+            resolved_signature = TrainingSignature.model_validate(training_signature)
+
+    resolved_stats = metadata.runtime_stats
+    if peak_gpu_mem_mb is not None:
+        peak_mb = int(peak_gpu_mem_mb)
+        if peak_mb < 0:
+            raise ValueError("peak_gpu_mem_mb must be >= 0.")
+        existing_peak = None if resolved_stats is None else resolved_stats.peak_gpu_mem_mb
+        merged_peak = peak_mb if existing_peak is None else max(existing_peak, peak_mb)
+        resolved_stats = RuntimeStats(peak_gpu_mem_mb=merged_peak)
+
+    updated = metadata.model_copy(
+        update={
+            "updated_at": now,
+            "training_signature": resolved_signature,
+            "runtime_stats": resolved_stats,
+        }
+    )
+    write_run_metadata_atomic(run_dir, updated)
+    return updated
+
+
 def finalize_run_completed(run_dir: str | Path) -> RunMetadata:
     return _finalize_run(run_dir, status="completed")
 
@@ -197,4 +241,5 @@ __all__ = [
     "stored_run_path",
     "update_run_heartbeat",
     "update_run_progress",
+    "update_run_runtime_details",
 ]

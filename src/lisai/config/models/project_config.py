@@ -35,6 +35,22 @@ class RunTracking(BaseModel):
     active_heartbeat_timeout_minutes: int = Field(default=10, ge=1)
 
 
+class QueueResourceClassVRAM(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    light: int = Field(default=2000, ge=1)
+    medium: int = Field(default=4000, ge=1)
+    heavy: int = Field(default=6000, ge=1)
+
+
+class QueueConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resource_class_vram_mb: QueueResourceClassVRAM = Field(default_factory=QueueResourceClassVRAM)
+    safety_margin_mb: int = Field(default=3000, ge=0)
+    poll_seconds: int = Field(default=5, ge=1)
+
+
 class ProjectConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     project: ProjectMeta
@@ -42,3 +58,4 @@ class ProjectConfig(BaseModel):
     run_layout: RunLayout
     naming: Naming
     run_tracking: RunTracking = Field(default_factory=RunTracking)
+    queue: QueueConfig = Field(default_factory=QueueConfig)

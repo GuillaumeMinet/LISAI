@@ -10,6 +10,7 @@ from .lifecycle import (
     stored_run_path,
     update_run_heartbeat,
     update_run_progress,
+    update_run_runtime_details,
 )
 from .listing import (
     active_heartbeat_timeout,
@@ -21,7 +22,14 @@ from .listing import (
     write_invalid_run_warnings,
 )
 from .scanner import scan_runs
-from .schema import RUN_METADATA_FILENAME, RUN_STATUSES, RunMetadata, RunStatus
+from .schema import (
+    RUN_METADATA_FILENAME,
+    RUN_STATUSES,
+    RunMetadata,
+    RunStatus,
+    RuntimeStats,
+    TrainingSignature,
+)
 
 __all__ = [
     "RUN_METADATA_FILENAME",
@@ -29,6 +37,8 @@ __all__ = [
     "RunMetadata",
     "RunMetadataCallback",
     "RunStatus",
+    "RuntimeStats",
+    "TrainingSignature",
     "active_heartbeat_timeout",
     "create_run_metadata",
     "filter_runs",
@@ -47,6 +57,7 @@ __all__ = [
     "stored_run_path",
     "update_run_heartbeat",
     "update_run_progress",
+    "update_run_runtime_details",
     "write_invalid_run_warnings",
     "write_run_metadata_atomic",
 ]

@@ -40,6 +40,28 @@ def test_run_metadata_accepts_running_payload():
     assert metadata.run_index == 1
 
 
+def test_run_metadata_accepts_optional_training_signature_and_runtime_stats():
+    metadata = RunMetadata.model_validate(
+        _payload(
+            training_signature={
+                "architecture": "unet",
+                "batch_size": 8,
+                "patch_size": 128,
+            },
+            runtime_stats={
+                "peak_gpu_mem_mb": 4096,
+            },
+        )
+    )
+
+    assert metadata.training_signature is not None
+    assert metadata.training_signature.architecture == "unet"
+    assert metadata.training_signature.batch_size == 8
+    assert metadata.training_signature.patch_size == 128
+    assert metadata.runtime_stats is not None
+    assert metadata.runtime_stats.peak_gpu_mem_mb == 4096
+
+
 
 
 

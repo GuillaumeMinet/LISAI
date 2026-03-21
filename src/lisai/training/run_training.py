@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import torch
+
 from lisai.config import resolve_config, resolve_config_dict
 from lisai.evaluation import run_evaluate
 from lisai.runs import (
@@ -19,6 +21,7 @@ from lisai.runs import (
     finalize_run_stopped,
     group_path_from_model_subfolder,
     update_run_heartbeat,
+    update_run_runtime_details,
 )
 
 from . import setup
@@ -91,6 +94,90 @@ def _safe_run_metadata_call(runtime, action: str, func, *args, **kwargs):
         return None
 
 
+def _effective_batch_size(cfg) -> int:
+    data_batch = getattr(getattr(cfg, "data", None), "batch_size", None)
+    if data_batch is not None:
+        batch = int(data_batch)
+        if batch > 0:
+            return batch
+
+    training_batch = getattr(getattr(cfg, "training", None), "batch_size", None)
+    if training_batch is not None:
+        batch = int(training_batch)
+        if batch > 0:
+            return batch
+
+    return 1
+
+
+def _effective_patch_size(cfg):
+    data = getattr(cfg, "data", None)
+    if data is None:
+        return None
+
+    patch = getattr(data, "patch_size", None)
+    if patch is None:
+        patch = getattr(data, "val_patch_size", None)
+    if patch is None and hasattr(data, "model_patch_size"):
+        patch = getattr(data, "model_patch_size")
+    if patch is None:
+        return None
+
+    if isinstance(patch, (tuple, list)):
+        return [int(item) for item in patch]
+    return int(patch)
+
+
+def _build_training_signature_payload(cfg) -> dict[str, object]:
+    return {
+        "architecture": str(getattr(getattr(cfg, "model", None), "architecture", "unknown")).strip(),
+        "batch_size": _effective_batch_size(cfg),
+        "patch_size": _effective_patch_size(cfg),
+    }
+
+
+def _reset_peak_gpu_memory_stats(runtime, monitor_enabled: bool):
+    if not monitor_enabled or runtime.run_dir is None:
+        return
+    device = getattr(runtime, "device", None)
+    if getattr(device, "type", None) != "cuda":
+        return
+    if not torch.cuda.is_available():
+        return
+
+    try:
+        device_index = device.index if device.index is not None else torch.cuda.current_device()
+        torch.cuda.reset_peak_memory_stats(device_index)
+    except Exception as exc:
+        _log_runtime_warning(runtime, f"Failed to reset CUDA peak memory stats: {type(exc).__name__}: {exc}")
+
+
+def _persist_peak_gpu_memory_stats(runtime, monitor_enabled: bool):
+    if not monitor_enabled or runtime.run_dir is None:
+        return
+    device = getattr(runtime, "device", None)
+    if getattr(device, "type", None) != "cuda":
+        return
+    if not torch.cuda.is_available():
+        return
+
+    try:
+        device_index = device.index if device.index is not None else torch.cuda.current_device()
+        peak_bytes = int(torch.cuda.max_memory_allocated(device_index))
+    except Exception as exc:
+        _log_runtime_warning(runtime, f"Failed to read CUDA peak memory stats: {type(exc).__name__}: {exc}")
+        return
+
+    peak_mb = (peak_bytes + (1024 * 1024 - 1)) // (1024 * 1024)
+    _safe_run_metadata_call(
+        runtime,
+        "runtime stats update",
+        update_run_runtime_details,
+        runtime.run_dir,
+        peak_gpu_mem_mb=peak_mb,
+    )
+
+
 def _install_run_monitor(cfg, runtime) -> bool:
     if runtime.run_dir is None:
         return False
@@ -112,6 +199,14 @@ def _install_run_monitor(cfg, runtime) -> bool:
     )
     if metadata is None:
         return False
+
+    _safe_run_metadata_call(
+        runtime,
+        "training signature update",
+        update_run_runtime_details,
+        runtime.run_dir,
+        training_signature=_build_training_signature_payload(cfg),
+    )
 
     runtime.callbacks.append(
         RunMetadataCallback(
@@ -208,6 +303,7 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
             console_filter=runtime.console_filter,
             file_filter=runtime.file_filter,
         )
+        _reset_peak_gpu_memory_stats(runtime, monitor_enabled)
 
         outcome = _normalize_training_outcome(trainer.train())
     except KeyboardInterrupt:
@@ -218,6 +314,7 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
         _safe_run_metadata_call(runtime, "failure finalization", finalize_run_failed, runtime.run_dir)
         raise
     finally:
+        _persist_peak_gpu_memory_stats(runtime, monitor_enabled)
         if runtime.writer:
             runtime.writer.close()
 

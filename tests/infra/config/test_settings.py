@@ -57,3 +57,10 @@ def test_get_data_filename_matches_data_yml(
 
 def test_project_run_tracking_timeout_is_configured(settings_obj: Settings):
     assert settings_obj.project.run_tracking.active_heartbeat_timeout_minutes == 10
+
+
+def test_project_queue_resource_classes_are_configured(settings_obj: Settings):
+    defaults = settings_obj.project.queue.resource_class_vram_mb
+    assert defaults.light == 2000
+    assert defaults.medium == 4000
+    assert defaults.heavy == 6000

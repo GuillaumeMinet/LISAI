@@ -288,6 +288,10 @@ def test_run_training_writes_and_finalizes_run_metadata_on_completion(monkeypatc
     assert metadata.last_epoch == 3
     assert metadata.max_epoch == 10
     assert metadata.best_val_loss == pytest.approx(0.4)
+    assert metadata.training_signature is not None
+    assert metadata.training_signature.architecture == "unet"
+    assert metadata.training_signature.batch_size == 1
+    assert metadata.training_signature.patch_size is None
     assert metadata.ended_at is not None
 
 
@@ -354,3 +358,56 @@ def test_run_training_finalizes_run_metadata_as_failed(monkeypatch: pytest.Monke
     assert metadata.status == "failed"
     assert metadata.closed_cleanly is True
     assert metadata.ended_at is not None
+
+
+def test_run_training_persists_peak_gpu_memory_stats_when_cuda_available(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    cfg = _make_cfg()
+    writer = DummyWriter()
+    logger = DummyLogger()
+    run_dir = tmp_path / "datasets" / "dataset_a" / "models" / "Upsamp" / "run_cuda"
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
+    runtime.device = SimpleNamespace(type="cuda", index=0)
+    prepared_data = _make_prepared_data()
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+    )
+
+    def fake_get_trainer(**kwargs):
+        return CallbackTrainer(
+            kwargs["callbacks"],
+            outcome=SimpleNamespace(reason="completed", last_completed_epoch=3),
+        )
+
+    class FakeCuda:
+        @staticmethod
+        def is_available():
+            return True
+
+        @staticmethod
+        def current_device():
+            return 0
+
+        @staticmethod
+        def reset_peak_memory_stats(index):
+            return None
+
+        @staticmethod
+        def max_memory_allocated(index):
+            return 10 * 1024 * 1024
+
+    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+    monkeypatch.setattr(run_training_mod, "get_trainer", fake_get_trainer)
+    monkeypatch.setattr(run_training_mod.torch, "cuda", FakeCuda)
+
+    run_training_mod.run_training("configs/training/hdn_training.yml")
+    metadata = read_run_metadata(run_dir)
+
+    assert metadata.runtime_stats is not None
+    assert metadata.runtime_stats.peak_gpu_mem_mb == 10
