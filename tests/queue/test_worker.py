@@ -159,3 +159,35 @@ def test_worker_treats_old_running_heartbeat_as_stale_not_active(monkeypatch, tm
     worker.run_once()
 
     assert captured_active_counts == [0]
+
+
+def test_worker_launch_sets_env_flag_to_disable_tqdm(monkeypatch, tmp_path):
+    created = _queued_job(tmp_path)
+    queued_records, _invalid = discover_jobs(status="queued", queue_root=tmp_path / ".lisai" / "queue")
+    record = queued_records[0]
+    assert record.job.job_id == created.job.job_id
+
+    captured: dict[str, object] = {}
+
+    class DummyProcess:
+        pid = 12345
+
+        def poll(self):
+            return None
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return DummyProcess()
+
+    monkeypatch.setattr(worker_mod.subprocess, "Popen", fake_popen)
+
+    worker = QueueWorker(queue_root=tmp_path / ".lisai" / "queue", safety_margin_mb=1000)
+    launched = worker._launch_job(record)
+
+    assert launched is True
+    popen_kwargs = captured["kwargs"]
+    assert isinstance(popen_kwargs, dict)
+    assert popen_kwargs["env"]["LISAI_DISABLE_TQDM"] == "1"
+    running = worker._running_processes.pop(record.job.job_id)
+    running.log_handle.close()

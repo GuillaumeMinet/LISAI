@@ -20,6 +20,13 @@ except Exception:
 TrainingStopReason = Literal["completed", "early_stopped", "interrupted", "no_epochs"]
 
 
+def _env_truthy(name: str) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class TrainingOutcome:
     reason: TrainingStopReason
@@ -75,8 +82,10 @@ class BaseTrainer(ABC):
         self.pos_encod = self.training_prm.get("pos_encod", False)
 
         # progress bar policy
-        self.pbar = bool(self.training_prm.get("progress_bar")) and _tqdm_available
-        self.update_console = not self.pbar
+        disable_tqdm = _env_truthy("LISAI_DISABLE_TQDM")
+        self.pbar = bool(self.training_prm.get("progress_bar")) and _tqdm_available and not disable_tqdm
+        # Queue workers disable tqdm via env var; also suppress per-batch log spam in that mode.
+        self.update_console = (not self.pbar) and (not disable_tqdm)
 
         # state dict
         self.state_dict = state_dict if state_dict is not None else {"epoch": -1}
@@ -265,6 +274,7 @@ class BaseTrainer(ABC):
                 val_loss = val_metrics["loss"]
                 last_train_loss = train_loss
                 last_val_loss = val_loss
+                self._log_epoch_metrics(epoch, train_metrics, val_metrics)
 
                 self.state_dict.update(
                     {
@@ -345,6 +355,22 @@ class BaseTrainer(ABC):
         self.logger.info(f"epochs: {epoch}/{self.n_epochs}, batch_id: {batch_id}/{total_batches}")
         if self.file_filter is not None:
             self.file_filter.enable = True
+
+    def _log_epoch_metrics(self, epoch: int, train_metrics: dict, val_metrics: dict):
+        epoch_idx = epoch + 1
+        message = (
+            f"epoch {epoch_idx}/{self.n_epochs}: "
+            f"train_loss={float(train_metrics['loss']):.6f} "
+            f"val_loss={float(val_metrics['loss']):.6f}"
+        )
+        if self.is_lvae:
+            message += (
+                f" train_kl={float(train_metrics['kl_loss']):.6f}"
+                f" val_kl={float(val_metrics['kl_loss']):.6f}"
+                f" train_recons={float(train_metrics['recons_loss']):.6f}"
+                f" val_recons={float(val_metrics['recons_loss']):.6f}"
+            )
+        self.logger.info(message)
 
     def _initialize_log_file(self):
         if self._training_log_initialized:

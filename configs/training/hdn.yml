@@ -4,7 +4,7 @@
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: HDN_Gag_KL07
+  exp_name: HDN_Gag_KL06
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
 
@@ -12,7 +12,7 @@ experiment:
 # Paths
 # ========================================================
 routing:
-  data_subfolder: "preprocess/recon_noisy"
+  data_subfolder: "preprocess/recon"
   models_subfolder: "HDN"
   tensorboard_subfolder: "HDN"
   # used only for non-canonical loads => full path is used directly
@@ -22,7 +22,7 @@ routing:
 # Dataset / DataLoader configuration
 # ========================================================
 data:
-  dataset_name: Gag
+  dataset_name: Gag_noisy_timelapses
   data_format: timelapse
   canonical_load: true
   prep_before: true
@@ -79,7 +79,7 @@ training:
   n_epochs: 100
   batch_size: 8
   learning_rate: 0.0005
-  betaKL: 0.7
+  betaKL: 0.6
   val_loss_patience: 30
   optimizer: Adam
   scheduler: ReduceLROnPlateau
