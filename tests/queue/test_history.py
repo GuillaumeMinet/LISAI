@@ -52,8 +52,29 @@ def _run(
     )
 
 
+def _signature(
+    *,
+    architecture: str = "unet",
+    train_batch_size: int = 8,
+    train_patch_size: int = 128,
+    val_patch_size: int = 128,
+    input_channels: int = 1,
+    upsampling_factor: int = 1,
+    trainable_params: int | None = None,
+) -> TrainingSignature:
+    return TrainingSignature(
+        architecture=architecture,
+        train_batch_size=train_batch_size,
+        train_patch_size=train_patch_size,
+        val_patch_size=val_patch_size,
+        input_channels=input_channels,
+        upsampling_factor=upsampling_factor,
+        trainable_params=trainable_params,
+    )
+
+
 def test_estimate_expected_vram_prefers_matching_history_over_resource_class():
-    target_signature = TrainingSignature(architecture="unet", batch_size=8, patch_size=128)
+    target_signature = _signature()
     runs = (
         _run(
             run_id="01ARZ3NDEKTSV4RRFFQ69G5FAA",
@@ -70,7 +91,7 @@ def test_estimate_expected_vram_prefers_matching_history_over_resource_class():
         _run(
             run_id="01ARZ3NDEKTSV4RRFFQ69G5FAC",
             dataset="B",
-            signature=TrainingSignature(architecture="unet", batch_size=4, patch_size=128),
+            signature=_signature(train_batch_size=4),
             peak_gpu_mem_mb=3000,
         ),
     )
@@ -88,7 +109,7 @@ def test_estimate_expected_vram_prefers_matching_history_over_resource_class():
 
 def test_estimate_expected_vram_falls_back_to_resource_class_without_history():
     expected, source = estimate_expected_vram_mb(
-        signature=TrainingSignature(architecture="lvae", batch_size=2, patch_size=64),
+        signature=_signature(architecture="lvae", train_batch_size=2, train_patch_size=64, val_patch_size=64),
         resource_class="heavy",
         runs=(),
         resource_defaults_mb={"light": 2000, "medium": 4000, "heavy": 6000},
@@ -96,3 +117,92 @@ def test_estimate_expected_vram_falls_back_to_resource_class_without_history():
 
     assert expected == 6000
     assert source == "resource_class:heavy"
+
+
+def test_estimate_expected_vram_uses_relaxed_matching_when_strict_is_empty():
+    target_signature = _signature(
+        architecture="unet_rcan",
+        train_batch_size=8,
+        train_patch_size=96,
+        val_patch_size=240,
+        input_channels=3,
+        upsampling_factor=2,
+    )
+    runs = (
+        _run(
+            run_id="01ARZ3NDEKTSV4RRFFQ69G5FAD",
+            dataset="A",
+            signature=_signature(
+                architecture="unet_rcan",
+                train_batch_size=4,
+                train_patch_size=64,
+                val_patch_size=240,
+                input_channels=3,
+                upsampling_factor=2,
+            ),
+            peak_gpu_mem_mb=5300,
+        ),
+        _run(
+            run_id="01ARZ3NDEKTSV4RRFFQ69G5FAE",
+            dataset="A",
+            signature=_signature(
+                architecture="unet_rcan",
+                train_batch_size=4,
+                train_patch_size=64,
+                val_patch_size=192,
+                input_channels=3,
+                upsampling_factor=2,
+            ),
+            peak_gpu_mem_mb=6000,
+        ),
+    )
+
+    expected, source = estimate_expected_vram_mb(
+        signature=target_signature,
+        resource_class="light",
+        runs=runs,
+        resource_defaults_mb={"light": 2000, "medium": 4000, "heavy": 6000},
+    )
+
+    assert expected == 5300
+    assert source == "history"
+
+
+def test_estimate_expected_vram_applies_trainable_params_tiebreaker():
+    target_signature = _signature(trainable_params=1_000)
+    runs = (
+        _run(
+            run_id="01ARZ3NDEKTSV4RRFFQ69G5FAF",
+            dataset="A",
+            signature=_signature(trainable_params=900),
+            peak_gpu_mem_mb=4500,
+        ),
+        _run(
+            run_id="01ARZ3NDEKTSV4RRFFQ69G5FAG",
+            dataset="A",
+            signature=_signature(trainable_params=1_100),
+            peak_gpu_mem_mb=4700,
+        ),
+        _run(
+            run_id="01ARZ3NDEKTSV4RRFFQ69G5FAH",
+            dataset="A",
+            signature=_signature(trainable_params=1_500),
+            peak_gpu_mem_mb=6200,
+        ),
+        _run(
+            run_id="01ARZ3NDEKTSV4RRFFQ69G5FAJ",
+            dataset="A",
+            signature=_signature(trainable_params=None),
+            peak_gpu_mem_mb=7000,
+        ),
+    )
+
+    expected, source = estimate_expected_vram_mb(
+        signature=target_signature,
+        resource_class="light",
+        runs=runs,
+        resource_defaults_mb={"light": 2000, "medium": 4000, "heavy": 6000},
+    )
+
+    assert expected == 4700
+    assert source == "history"

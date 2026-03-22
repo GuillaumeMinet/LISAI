@@ -30,6 +30,7 @@ from .schema import (
     RuntimeStats,
     TrainingSignature,
 )
+from .signature import build_training_signature_from_resolved_config, count_trainable_parameters
 
 __all__ = [
     "RUN_METADATA_FILENAME",
@@ -58,6 +59,8 @@ __all__ = [
     "update_run_heartbeat",
     "update_run_progress",
     "update_run_runtime_details",
+    "build_training_signature_from_resolved_config",
+    "count_trainable_parameters",
     "write_invalid_run_warnings",
     "write_run_metadata_atomic",
 ]

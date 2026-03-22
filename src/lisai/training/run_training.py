@@ -7,6 +7,7 @@ build the model, construct the trainer, and execute the training loop.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 import torch
@@ -15,6 +16,8 @@ from lisai.config import resolve_config, resolve_config_dict
 from lisai.evaluation import run_evaluate
 from lisai.runs import (
     RunMetadataCallback,
+    build_training_signature_from_resolved_config,
+    count_trainable_parameters,
     create_run_metadata,
     finalize_run_completed,
     finalize_run_failed,
@@ -94,46 +97,70 @@ def _safe_run_metadata_call(runtime, action: str, func, *args, **kwargs):
         return None
 
 
-def _effective_batch_size(cfg) -> int:
-    data_batch = getattr(getattr(cfg, "data", None), "batch_size", None)
-    if data_batch is not None:
-        batch = int(data_batch)
-        if batch > 0:
-            return batch
-
-    training_batch = getattr(getattr(cfg, "training", None), "batch_size", None)
-    if training_batch is not None:
-        batch = int(training_batch)
-        if batch > 0:
-            return batch
-
-    return 1
+def _build_training_signature_payload(
+    cfg,
+    *,
+    trainable_params: int | None = None,
+):
+    return build_training_signature_from_resolved_config(
+        cfg,
+        trainable_params=trainable_params,
+    )
 
 
-def _effective_patch_size(cfg):
-    data = getattr(cfg, "data", None)
-    if data is None:
+def _update_training_signature(
+    cfg,
+    runtime,
+    monitor_enabled: bool,
+    *,
+    trainable_params: int | None = None,
+):
+    if not monitor_enabled or runtime.run_dir is None:
+        return
+    _safe_run_metadata_call(
+        runtime,
+        "training signature update",
+        update_run_runtime_details,
+        runtime.run_dir,
+        training_signature=_build_training_signature_payload(
+            cfg,
+            trainable_params=trainable_params,
+        ),
+    )
+
+
+def _update_training_timing(
+    runtime,
+    monitor_enabled: bool,
+    *,
+    total_training_time_sec: float,
+    training_time_per_epoch_sec: float | None,
+):
+    if not monitor_enabled or runtime.run_dir is None:
+        return
+    _safe_run_metadata_call(
+        runtime,
+        "runtime stats update",
+        update_run_runtime_details,
+        runtime.run_dir,
+        total_training_time_sec=total_training_time_sec,
+        training_time_per_epoch_sec=training_time_per_epoch_sec,
+    )
+
+
+def _training_time_per_epoch_sec(
+    *,
+    total_training_time_sec: float | None,
+    outcome: "TrainingOutcome",
+) -> float | None:
+    if total_training_time_sec is None:
         return None
-
-    patch = getattr(data, "patch_size", None)
-    if patch is None:
-        patch = getattr(data, "val_patch_size", None)
-    if patch is None and hasattr(data, "model_patch_size"):
-        patch = getattr(data, "model_patch_size")
-    if patch is None:
+    if outcome.last_completed_epoch is None:
         return None
-
-    if isinstance(patch, (tuple, list)):
-        return [int(item) for item in patch]
-    return int(patch)
-
-
-def _build_training_signature_payload(cfg) -> dict[str, object]:
-    return {
-        "architecture": str(getattr(getattr(cfg, "model", None), "architecture", "unknown")).strip(),
-        "batch_size": _effective_batch_size(cfg),
-        "patch_size": _effective_patch_size(cfg),
-    }
+    epochs_completed = int(outcome.last_completed_epoch) + 1
+    if epochs_completed <= 0:
+        return None
+    return float(total_training_time_sec / epochs_completed)
 
 
 def _reset_peak_gpu_memory_stats(runtime, monitor_enabled: bool):
@@ -200,13 +227,7 @@ def _install_run_monitor(cfg, runtime) -> bool:
     if metadata is None:
         return False
 
-    _safe_run_metadata_call(
-        runtime,
-        "training signature update",
-        update_run_runtime_details,
-        runtime.run_dir,
-        training_signature=_build_training_signature_payload(cfg),
-    )
+    _update_training_signature(cfg, runtime, True)
 
     runtime.callbacks.append(
         RunMetadataCallback(
@@ -267,6 +288,8 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
     monitor_enabled = _install_run_monitor(cfg, runtime)
 
     trainer = None
+    trainable_params: int | None = None
+    training_start_perf: float | None = None
     try:
         prepared_data = setup.prepare_data(cfg, runtime)
         _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
@@ -284,6 +307,13 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
             runtime.device,
             runtime.paths,
             prepared_data.model_norm_prm,
+        )
+        trainable_params = count_trainable_parameters(model)
+        _update_training_signature(
+            cfg,
+            runtime,
+            monitor_enabled,
+            trainable_params=trainable_params,
         )
         _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
 
@@ -305,7 +335,18 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
         )
         _reset_peak_gpu_memory_stats(runtime, monitor_enabled)
 
+        training_start_perf = time.perf_counter()
         outcome = _normalize_training_outcome(trainer.train())
+        total_training_time_sec = max(time.perf_counter() - training_start_perf, 0.0)
+        _update_training_timing(
+            runtime,
+            monitor_enabled,
+            total_training_time_sec=total_training_time_sec,
+            training_time_per_epoch_sec=_training_time_per_epoch_sec(
+                total_training_time_sec=total_training_time_sec,
+                outcome=outcome,
+            ),
+        )
     except KeyboardInterrupt:
         _safe_run_metadata_call(runtime, "stop finalization", finalize_run_stopped, runtime.run_dir)
         raise

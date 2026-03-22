@@ -58,8 +58,30 @@ class TrainingSignature(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     architecture: str
-    batch_size: int = Field(ge=1)
-    patch_size: int | list[int] | None = None
+    train_batch_size: int = Field(default=1, ge=1)
+    train_patch_size: int | list[int] | None = None
+    val_patch_size: int | list[int] | None = None
+    input_channels: int | None = Field(default=None, ge=1)
+    upsampling_factor: int | None = Field(default=None, ge=1)
+    trainable_params: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _upgrade_legacy_fields(cls, value):
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        legacy_batch = payload.pop("batch_size", None)
+        if "train_batch_size" not in payload and legacy_batch is not None:
+            payload["train_batch_size"] = legacy_batch
+        legacy_patch = payload.pop("patch_size", None)
+        if "train_patch_size" not in payload and legacy_patch is not None:
+            payload["train_patch_size"] = legacy_patch
+        if "val_patch_size" not in payload and legacy_patch is not None:
+            payload["val_patch_size"] = legacy_patch
+        payload.pop("total_training_time_sec", None)
+        payload.pop("training_time_per_epoch_sec", None)
+        return payload
 
     @field_validator("architecture")
     @classmethod
@@ -69,38 +91,56 @@ class TrainingSignature(BaseModel):
             raise ValueError("architecture must not be empty.")
         return text
 
-    @field_validator("patch_size", mode="before")
+    @field_validator("train_patch_size", "val_patch_size", mode="before")
     @classmethod
     def _normalize_patch_size(cls, value):
         if isinstance(value, tuple):
             return list(value)
         return value
 
-    @field_validator("patch_size")
+    @field_validator("train_patch_size", "val_patch_size")
     @classmethod
     def _validate_patch_size(cls, value: int | list[int] | None):
         if value is None:
             return None
         if isinstance(value, int):
             if value <= 0:
-                raise ValueError("patch_size must be > 0.")
+                raise ValueError("patch size must be > 0.")
             return value
         if isinstance(value, list):
             if not value:
-                raise ValueError("patch_size list must not be empty.")
+                raise ValueError("patch size list must not be empty.")
             normalized: list[int] = []
             for item in value:
                 if not isinstance(item, int) or item <= 0:
-                    raise ValueError("patch_size list values must be integers > 0.")
+                    raise ValueError("patch size list values must be integers > 0.")
                 normalized.append(item)
             return normalized
-        raise TypeError("patch_size must be an int, a list of ints, or null.")
+        raise TypeError("patch size must be an int, a list of ints, or null.")
+
+    @model_validator(mode="after")
+    def _default_val_patch_size(self):
+        if self.val_patch_size is None:
+            self.val_patch_size = self.train_patch_size
+        return self
+
+    @property
+    def batch_size(self) -> int:
+        """Backward-compatible alias for legacy callers."""
+        return int(self.train_batch_size)
+
+    @property
+    def patch_size(self) -> int | list[int] | None:
+        """Backward-compatible alias for legacy callers."""
+        return self.train_patch_size
 
 
 class RuntimeStats(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     peak_gpu_mem_mb: int | None = Field(default=None, ge=0)
+    total_training_time_sec: float | None = Field(default=None, ge=0.0)
+    training_time_per_epoch_sec: float | None = Field(default=None, ge=0.0)
 
 
 class RunMetadata(BaseModel):

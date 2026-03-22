@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 import sys
@@ -52,6 +53,7 @@ class QueueWorker:
         queue_root: str | Path | None = None,
         poll_seconds: int | None = None,
         safety_margin_mb: int | None = None,
+        fixed_margin_pct: float | None = None,
         stdout=None,
         stderr=None,
     ):
@@ -61,6 +63,9 @@ class QueueWorker:
         )
         self.safety_margin_mb = int(
             settings.project.queue.safety_margin_mb if safety_margin_mb is None else safety_margin_mb
+        )
+        self.fixed_margin_pct = float(
+            settings.project.queue.fixed_margin_pct if fixed_margin_pct is None else fixed_margin_pct
         )
         self.stdout = sys.stdout if stdout is None else stdout
         self.stderr = sys.stderr if stderr is None else stderr
@@ -109,7 +114,14 @@ class QueueWorker:
             runs=runs,
             resource_defaults_mb=resource_class_defaults_mb(),
         )
-        required_vram_mb = expected_vram_mb + self.safety_margin_mb
+        required_vram_mb = int(
+            math.ceil(
+                max(
+                    expected_vram_mb * (1.0 + self.fixed_margin_pct),
+                    expected_vram_mb + self.safety_margin_mb,
+                )
+            )
+        )
 
         try:
             free_vram_mb = query_free_vram_mb(job.device)

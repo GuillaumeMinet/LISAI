@@ -191,3 +191,31 @@ def test_worker_launch_sets_env_flag_to_disable_tqdm(monkeypatch, tmp_path):
     assert popen_kwargs["env"]["LISAI_DISABLE_TQDM"] == "1"
     running = worker._running_processes.pop(record.job.job_id)
     running.log_handle.close()
+
+
+def test_worker_fixed_margin_pct_can_be_more_conservative_than_safety_margin(monkeypatch, tmp_path):
+    created = _queued_job(tmp_path)
+    matching_signature = TrainingSignature(architecture="unet", batch_size=8, patch_size=128)
+    past_run = _run(
+        run_id="01ARZ3NDEKTSV4RRFFQ69G5FAJ",
+        status="completed",
+        closed_cleanly=True,
+        last_heartbeat_at="2026-03-20T11:00:00Z",
+        signature=matching_signature,
+        peak_gpu_mem_mb=5000,
+    )
+
+    queued_records, _invalid = discover_jobs(status="queued", queue_root=tmp_path / ".lisai" / "queue")
+    assert queued_records[0].job.job_id == created.job.job_id
+
+    monkeypatch.setattr(worker_mod, "query_free_vram_mb", lambda _device: 5900)
+    worker = QueueWorker(
+        queue_root=tmp_path / ".lisai" / "queue",
+        safety_margin_mb=100,
+        fixed_margin_pct=0.20,
+    )
+
+    decision = worker._launch_decision(queued_records[0].job, (past_run,), active_runs=[])
+    assert decision.expected_vram_mb == 5000
+    assert decision.required_vram_mb == 6000
+    assert decision.should_launch is False

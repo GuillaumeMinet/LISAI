@@ -293,6 +293,13 @@ def test_run_training_writes_and_finalizes_run_metadata_on_completion(monkeypatc
     assert metadata.training_signature.architecture == "unet"
     assert metadata.training_signature.batch_size == 1
     assert metadata.training_signature.patch_size is None
+    assert metadata.runtime_stats is not None
+    assert metadata.runtime_stats.total_training_time_sec is not None
+    assert metadata.runtime_stats.total_training_time_sec >= 0.0
+    assert metadata.runtime_stats.training_time_per_epoch_sec is not None
+    assert metadata.runtime_stats.training_time_per_epoch_sec == pytest.approx(
+        metadata.runtime_stats.total_training_time_sec / 4,
+    )
     assert metadata.ended_at is not None
 
 

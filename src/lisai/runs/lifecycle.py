@@ -165,6 +165,8 @@ def update_run_runtime_details(
     *,
     training_signature: TrainingSignature | Mapping[str, object] | None = None,
     peak_gpu_mem_mb: int | None = None,
+    total_training_time_sec: float | None = None,
+    training_time_per_epoch_sec: float | None = None,
 ) -> RunMetadata:
     metadata = read_run_metadata(run_dir)
     now = utc_now()
@@ -177,13 +179,38 @@ def update_run_runtime_details(
             resolved_signature = TrainingSignature.model_validate(training_signature)
 
     resolved_stats = metadata.runtime_stats
+    peak_mb_value = None if resolved_stats is None else resolved_stats.peak_gpu_mem_mb
+    total_time_value = None if resolved_stats is None else resolved_stats.total_training_time_sec
+    time_per_epoch_value = None if resolved_stats is None else resolved_stats.training_time_per_epoch_sec
+    runtime_stats_changed = False
+
     if peak_gpu_mem_mb is not None:
         peak_mb = int(peak_gpu_mem_mb)
         if peak_mb < 0:
             raise ValueError("peak_gpu_mem_mb must be >= 0.")
-        existing_peak = None if resolved_stats is None else resolved_stats.peak_gpu_mem_mb
-        merged_peak = peak_mb if existing_peak is None else max(existing_peak, peak_mb)
-        resolved_stats = RuntimeStats(peak_gpu_mem_mb=merged_peak)
+        peak_mb_value = peak_mb if peak_mb_value is None else max(peak_mb_value, peak_mb)
+        runtime_stats_changed = True
+
+    if total_training_time_sec is not None:
+        total_time = float(total_training_time_sec)
+        if total_time < 0:
+            raise ValueError("total_training_time_sec must be >= 0.")
+        total_time_value = total_time
+        runtime_stats_changed = True
+
+    if training_time_per_epoch_sec is not None:
+        per_epoch = float(training_time_per_epoch_sec)
+        if per_epoch < 0:
+            raise ValueError("training_time_per_epoch_sec must be >= 0.")
+        time_per_epoch_value = per_epoch
+        runtime_stats_changed = True
+
+    if runtime_stats_changed:
+        resolved_stats = RuntimeStats(
+            peak_gpu_mem_mb=peak_mb_value,
+            total_training_time_sec=total_time_value,
+            training_time_per_epoch_sec=time_per_epoch_value,
+        )
 
     updated = metadata.model_copy(
         update={

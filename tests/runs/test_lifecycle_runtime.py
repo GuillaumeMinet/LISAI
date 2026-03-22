@@ -41,6 +41,8 @@ def test_update_run_runtime_details_sets_signature_and_peak(tmp_path):
             "patch_size": 96,
         },
         peak_gpu_mem_mb=5120,
+        total_training_time_sec=120.0,
+        training_time_per_epoch_sec=12.0,
     )
     metadata = read_run_metadata(run_dir)
 
@@ -50,6 +52,8 @@ def test_update_run_runtime_details_sets_signature_and_peak(tmp_path):
     assert metadata.training_signature.patch_size == 96
     assert metadata.runtime_stats is not None
     assert metadata.runtime_stats.peak_gpu_mem_mb == 5120
+    assert metadata.runtime_stats.total_training_time_sec == 120.0
+    assert metadata.runtime_stats.training_time_per_epoch_sec == 12.0
     assert metadata.status == "running"
 
 
@@ -71,3 +75,38 @@ def test_update_run_runtime_details_keeps_max_peak(tmp_path):
     metadata = read_run_metadata(run_dir)
     assert metadata.runtime_stats is not None
     assert metadata.runtime_stats.peak_gpu_mem_mb == 4000
+
+
+def test_update_run_runtime_details_preserves_legacy_peak_only_stats(tmp_path):
+    run_dir = tmp_path / "demo_00"
+    write_run_metadata_atomic(
+        run_dir,
+        RunMetadata.model_validate(
+            _payload(
+                run_dir,
+                runtime_stats={
+                    "peak_gpu_mem_mb": 4096,
+                },
+            )
+        ),
+    )
+
+    update_run_runtime_details(
+        run_dir,
+        training_signature={
+            "architecture": "unet_rcan",
+            "train_batch_size": 8,
+            "train_patch_size": 96,
+            "val_patch_size": 128,
+            "input_channels": 1,
+            "upsampling_factor": 2,
+        },
+    )
+    metadata = read_run_metadata(run_dir)
+
+    assert metadata.training_signature is not None
+    assert metadata.training_signature.architecture == "unet_rcan"
+    assert metadata.runtime_stats is not None
+    assert metadata.runtime_stats.peak_gpu_mem_mb == 4096
+    assert metadata.runtime_stats.total_training_time_sec is None
+    assert metadata.runtime_stats.training_time_per_epoch_sec is None
