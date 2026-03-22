@@ -24,7 +24,7 @@ class RunMetadataCallback(Callback):
         except Exception as exc:
             _log_warning(
                 self.logger,
-                f"Failed to update run metadata for epoch {epoch}: {type(exc).__name__}: {exc}",
+                f"Failed to update run metadata for epoch {epoch + 1}: {type(exc).__name__}: {exc}",
             )
 
     def on_validation_batch_end(self, trainer, epoch: int, x, y, prediction):

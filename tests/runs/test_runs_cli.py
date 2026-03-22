@@ -70,6 +70,7 @@ def test_runs_list_uses_filters_and_warns_on_invalid_files(monkeypatch, tmp_path
     assert "dataset" in captured.out
     assert "path_consistent" in captured.out
     assert "run_a" in captured.out
+    assert "4/10" in captured.out
     assert "run_b" not in captured.out
     assert "warning: skipped invalid run metadata" in captured.err
 

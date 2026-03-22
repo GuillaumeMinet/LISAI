@@ -7,6 +7,7 @@ import pytest
 
 import lisai.training.run_training as run_training_mod
 from lisai.runs.io import read_run_metadata
+from lisai.training.trainers.base import BaseTrainer
 from lisai.training.setup.data import PreparedTrainingData
 
 
@@ -411,3 +412,8 @@ def test_run_training_persists_peak_gpu_memory_stats_when_cuda_available(
 
     assert metadata.runtime_stats is not None
     assert metadata.runtime_stats.peak_gpu_mem_mb == 10
+
+
+def test_display_epoch_is_one_based():
+    assert BaseTrainer._display_epoch(0) == 1
+    assert BaseTrainer._display_epoch(99) == 100

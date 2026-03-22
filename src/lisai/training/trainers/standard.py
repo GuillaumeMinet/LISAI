@@ -42,7 +42,7 @@ class StandardTrainer(BaseTrainer):
         iter_loader = self.train_loader
         if self.pbar:
             iter_loader = tqdm(iter_loader, leave=False, position=0)
-            iter_loader.set_description(f"Training - Epoch {epoch}")
+            iter_loader.set_description(f"Training - Epoch {self._display_epoch(epoch)}")
 
         for batch_id, batch in enumerate(iter_loader):
             if self.update_console:
@@ -81,7 +81,7 @@ class StandardTrainer(BaseTrainer):
                 from tqdm import tqdm
 
                 iter_val = tqdm(iter_val, position=0, leave=False)
-                iter_val.set_description(f"Validation - Epoch {epoch}")
+                iter_val.set_description(f"Validation - Epoch {self._display_epoch(epoch)}")
 
             for batch in iter_val:
                 virtual_batches = self._split_batch(batch)

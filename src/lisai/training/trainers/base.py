@@ -302,7 +302,9 @@ class BaseTrainer(ABC):
                 is_best = val_loss < best_loss
                 if is_best:
                     best_loss = val_loss
-                    self.logger.info(f"epoch {epoch}: Best model saved with best_val = {best_loss}.")
+                    self.logger.info(
+                        f"epoch {self._display_epoch(epoch)}: Best model saved with best_val = {best_loss}."
+                    )
 
                 if self.scheduler is not None:
                     if getattr(self, "_scheduler_name", None) == "ReduceLROnPlateau":
@@ -336,7 +338,8 @@ class BaseTrainer(ABC):
                 )
             except Exception as e:
                 self.logger.error(
-                    f"Training stopped during epoch {epoch}, because of error:\n{type(e)}\n{e}\n"
+                    f"Training stopped during epoch {self._display_epoch(epoch)}, because of error:\n"
+                    f"{type(e)}\n{e}\n"
                 )
                 raise
 
@@ -352,12 +355,15 @@ class BaseTrainer(ABC):
         """ Update console with epoch and batch number, without logging into log file."""
         if self.file_filter is not None:
             self.file_filter.enable = False
-        self.logger.info(f"epochs: {epoch}/{self.n_epochs}, batch_id: {batch_id}/{total_batches}")
+        self.logger.info(
+            f"epochs: {self._display_epoch(epoch)}/{self.n_epochs}, "
+            f"batch_id: {batch_id}/{total_batches}"
+        )
         if self.file_filter is not None:
             self.file_filter.enable = True
 
     def _log_epoch_metrics(self, epoch: int, train_metrics: dict, val_metrics: dict):
-        epoch_idx = epoch + 1
+        epoch_idx = self._display_epoch(epoch)
         message = (
             f"epoch {epoch_idx}/{self.n_epochs}: "
             f"train_loss={float(train_metrics['loss']):.6f} "
@@ -451,27 +457,33 @@ class BaseTrainer(ABC):
             return "CPU"
 
     def _log_keyboard_interrupt(self, epoch: int, best_loss: float, train_loss, val_loss):
+        epoch_idx = self._display_epoch(epoch)
         if train_loss is None or val_loss is None:
-            self.logger.info(f"Training manually stopped during epoch {epoch}.")
+            self.logger.info(f"Training manually stopped during epoch {epoch_idx}.")
             return
 
         self.logger.info(
-            f"Training manually stopped during epoch {epoch}.\n"
+            f"Training manually stopped during epoch {epoch_idx}.\n"
             f"Model perf: best_val_loss: {best_loss} - "
             f"current_train_loss: {train_loss} - "
             f"current_val_loss: {val_loss}.\n"
         )
 
     def _log_training_finished(self, epoch: int, best_loss: float, val_loss):
+        epoch_idx = self._display_epoch(epoch)
         if val_loss is None:
-            self.logger.info(f"Finished training: {epoch+1}/{self.n_epochs} epochs.")
+            self.logger.info(f"Finished training: {epoch_idx}/{self.n_epochs} epochs.")
             return
 
         self.logger.info(
-            f"Finished training: {epoch+1}/{self.n_epochs} epochs.\n"
+            f"Finished training: {epoch_idx}/{self.n_epochs} epochs.\n"
             f"Model perf: best_val_loss: {best_loss} - "
             f"current_val_loss: {val_loss}.\n"
         )
+
+    @staticmethod
+    def _display_epoch(epoch: int) -> int:
+        return int(epoch) + 1
 
     # must be implemented in children
     @abstractmethod

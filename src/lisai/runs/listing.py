@@ -138,7 +138,9 @@ def has_path_inconsistencies(runs: Iterable[DiscoveredRun]) -> bool:
 def _format_epoch(run: DiscoveredRun) -> str:
     if run.metadata.last_epoch is None and run.metadata.max_epoch is None:
         return "-"
-    last_epoch = "-" if run.metadata.last_epoch is None else str(run.metadata.last_epoch)
+    # Internally, last_epoch is zero-based (checkpoint index). For user-facing
+    # CLI output, display one-based epoch numbers.
+    last_epoch = "-" if run.metadata.last_epoch is None else str(run.metadata.last_epoch + 1)
     max_epoch = "-" if run.metadata.max_epoch is None else str(run.metadata.max_epoch)
     return f"{last_epoch}/{max_epoch}"
 
