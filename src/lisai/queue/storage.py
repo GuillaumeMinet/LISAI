@@ -50,8 +50,16 @@ def ensure_queue_dirs(*, queue_root: str | Path | None = None) -> Path:
     return root
 
 
-def job_filename(job_id: str) -> str:
+def job_filename(job_id: str, *, selector: str | None = None) -> str:
+    if selector:
+        return f"job_{selector}_{job_id}.json"
     return f"{job_id}.json"
+
+
+def job_log_filename(job_id: str, *, selector: str | None = None) -> str:
+    if selector:
+        return f"job_{selector}_{job_id}.log"
+    return f"{job_id}.log"
 
 
 def read_job(path: str | Path) -> QueueJob:
@@ -171,6 +179,7 @@ __all__ = [
     "discover_jobs",
     "ensure_queue_dirs",
     "find_job",
+    "job_log_filename",
     "job_filename",
     "queue_logs_dir",
     "queue_state_dir",

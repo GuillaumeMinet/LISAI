@@ -138,6 +138,29 @@ def test_runs_list_subfolder_alias_works(monkeypatch, tmp_path, capsys):
     assert "run_b" not in captured.out
 
 
+def test_runs_list_uses_local_timestamp_formatter(monkeypatch, tmp_path, capsys):
+    datasets_root = tmp_path / "datasets"
+    run_a = datasets_root / "Gag" / "models" / "HDN" / "run_a"
+
+    _write_metadata(
+        run_a,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/run_a",
+        status="running",
+    )
+
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(runs_listing, "format_timestamp_local", lambda _value: "LOCAL_TS")
+
+    exit_code = root_main(["runs", "list", "--dataset", "Gag"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "LOCAL_TS" in captured.out
+
+
 def test_runs_list_marks_old_running_heartbeats_as_stale(monkeypatch, tmp_path, capsys):
     datasets_root = tmp_path / "datasets"
     run_a = datasets_root / "Gag" / "models" / "HDN" / "run_a"

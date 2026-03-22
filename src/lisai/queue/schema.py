@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
@@ -11,6 +12,10 @@ from lisai.runs.schema import TrainingSignature, format_timestamp, parse_timesta
 QUEUE_SCHEMA_VERSION = 1
 JOB_STATUSES = ("queued", "running", "done", "failed")
 RESOURCE_CLASSES = ("light", "medium", "heavy")
+SELECTOR_PREFIX = "q"
+SELECTOR_MIN_WIDTH = 4
+
+_SELECTOR_RE = re.compile(r"^q(\d+)$", re.IGNORECASE)
 
 JobStatus = Literal["queued", "running", "done", "failed"]
 ResourceClass = Literal["light", "medium", "heavy"]
@@ -21,6 +26,7 @@ class QueueJob(BaseModel):
 
     schema_version: int = Field(default=QUEUE_SCHEMA_VERSION)
     job_id: str
+    selector: str | None = None
     config: str
     status: JobStatus
     device: str
@@ -55,6 +61,24 @@ class QueueJob(BaseModel):
         if not text:
             raise ValueError("Value must not be empty.")
         return text
+
+    @field_validator("selector", mode="before")
+    @classmethod
+    def _normalize_selector(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise TypeError("selector must be a string.")
+        text = value.strip().lower()
+        if not text:
+            return None
+        match = _SELECTOR_RE.fullmatch(text)
+        if match is None:
+            raise ValueError("selector must match q<digits>, e.g. q0001.")
+        number = int(match.group(1))
+        if number <= 0:
+            raise ValueError("selector index must be >= 1.")
+        return format_queue_selector(number)
 
     @field_validator("dataset", "model_subfolder", "run_name", "log_path", "error")
     @classmethod
@@ -136,4 +160,31 @@ __all__ = [
     "QueueJob",
     "RESOURCE_CLASSES",
     "ResourceClass",
+    "SELECTOR_MIN_WIDTH",
+    "SELECTOR_PREFIX",
+    "format_queue_selector",
+    "is_queue_selector",
+    "parse_queue_selector",
 ]
+
+
+def format_queue_selector(index: int, *, width: int = SELECTOR_MIN_WIDTH) -> str:
+    if index <= 0:
+        raise ValueError("Selector index must be >= 1.")
+    if width <= 0:
+        raise ValueError("Selector width must be >= 1.")
+    return f"{SELECTOR_PREFIX}{index:0{width}d}"
+
+
+def parse_queue_selector(value: str) -> int | None:
+    if not isinstance(value, str):
+        return None
+    match = _SELECTOR_RE.fullmatch(value.strip())
+    if match is None:
+        return None
+    number = int(match.group(1))
+    return number if number > 0 else None
+
+
+def is_queue_selector(value: str) -> bool:
+    return parse_queue_selector(value) is not None

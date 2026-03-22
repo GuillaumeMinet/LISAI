@@ -40,6 +40,10 @@ def format_timestamp(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def format_timestamp_local(value: datetime) -> str:
+    return value.astimezone().isoformat(timespec="seconds")
+
+
 def normalize_posix_path(value: str) -> str:
     text = value.replace("\\", "/").strip()
     if not text:
@@ -248,6 +252,7 @@ __all__ = [
     "RunMetadata",
     "RunStatus",
     "format_timestamp",
+    "format_timestamp_local",
     "normalize_posix_path",
     "parse_timestamp",
     "utc_now",

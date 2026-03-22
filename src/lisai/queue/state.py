@@ -6,6 +6,7 @@ from pathlib import Path
 from lisai.runs.identifiers import generate_run_id
 from lisai.runs.schema import TrainingSignature, utc_now
 
+from .selectors import allocate_selector
 from .schema import QueueJob, ResourceClass
 from .storage import DiscoveredJob, job_filename, queue_state_dir, transition_job, write_job_atomic
 
@@ -25,8 +26,10 @@ def create_queued_job(
 ) -> DiscoveredJob:
     submitted = utc_now() if now is None else now
     job_id = f"job_{generate_run_id()}"
+    selector = allocate_selector(queue_root=queue_root)
     job = QueueJob(
         job_id=job_id,
+        selector=selector,
         config=str(Path(config_path).resolve()),
         status="queued",
         device=device,
@@ -39,7 +42,10 @@ def create_queued_job(
         run_name=run_name,
         training_signature=training_signature,
     )
-    path = queue_state_dir("queued", queue_root=queue_root) / job_filename(job.job_id)
+    path = queue_state_dir("queued", queue_root=queue_root) / job_filename(
+        job.job_id,
+        selector=job.selector,
+    )
     write_job_atomic(path, job)
     return DiscoveredJob(job=job, path=path, status="queued")
 

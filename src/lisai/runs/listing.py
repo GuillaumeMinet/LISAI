@@ -7,7 +7,7 @@ import sys
 from lisai.config import settings
 
 from .scanner import DiscoveredRun, InvalidRunMetadata
-from .schema import format_timestamp, utc_now
+from .schema import format_timestamp_local, utc_now
 
 
 def active_heartbeat_timeout() -> timedelta:
@@ -96,7 +96,7 @@ def render_runs_table(runs: Sequence[DiscoveredRun], *, now: datetime | None = N
             str(run.path_consistent).lower(),
             str(run.metadata.closed_cleanly).lower(),
             _format_epoch(run),
-            format_timestamp(run.last_seen),
+            format_timestamp_local(run.last_seen),
         ]
         for run in runs
     ]

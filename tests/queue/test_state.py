@@ -24,6 +24,8 @@ def test_queue_job_creation_and_state_transitions(tmp_path: Path):
         training_signature=signature,
         now=now,
     )
+    assert queued.job.selector == "q0001"
+    assert queued.path.name.startswith(f"job_{queued.job.selector}_{queued.job.job_id}")
 
     queued_jobs, _ = discover_jobs(status="queued", queue_root=tmp_path / ".lisai" / "queue")
     assert len(queued_jobs) == 1
@@ -49,3 +51,33 @@ def test_queue_job_creation_and_state_transitions(tmp_path: Path):
     done_jobs, _ = discover_jobs(status="done", queue_root=tmp_path / ".lisai" / "queue")
     assert len(done_jobs) == 1
     assert done_jobs[0].job.exit_code == 0
+
+
+def test_queue_selector_is_monotonic_and_not_reused_after_file_removal(tmp_path: Path):
+    queue_root = tmp_path / ".lisai" / "queue"
+    first = create_queued_job(
+        config_path=tmp_path / "a.yml",
+        resource_class="medium",
+        device="cuda:0",
+        queue_root=queue_root,
+    )
+    second = create_queued_job(
+        config_path=tmp_path / "b.yml",
+        resource_class="medium",
+        device="cuda:0",
+        queue_root=queue_root,
+    )
+
+    # Simulate manual cleanup/removal of an old job file.
+    first.path.unlink(missing_ok=True)
+
+    third = create_queued_job(
+        config_path=tmp_path / "c.yml",
+        resource_class="medium",
+        device="cuda:0",
+        queue_root=queue_root,
+    )
+
+    assert first.job.selector == "q0001"
+    assert second.job.selector == "q0002"
+    assert third.job.selector == "q0003"

@@ -23,6 +23,7 @@ from .storage import (
     discover_jobs,
     ensure_queue_dirs,
     find_job,
+    job_log_filename,
     queue_logs_dir,
 )
 
@@ -153,7 +154,10 @@ class QueueWorker:
 
     def _launch_job(self, record: DiscoveredJob) -> bool:
         job = record.job
-        log_path = queue_logs_dir(queue_root=self.queue_root) / f"{job.job_id}.log"
+        log_path = queue_logs_dir(queue_root=self.queue_root) / job_log_filename(
+            job.job_id,
+            selector=job.selector,
+        )
         log_handle: IO[bytes] | None = None
         try:
             log_handle = log_path.open("ab")
@@ -218,6 +222,9 @@ class QueueWorker:
             running.log_handle.close()
             latest_record = find_job(job_id, queue_root=self.queue_root)
             if latest_record is not None:
+                if latest_record.status != "running":
+                    finished.append(job_id)
+                    continue
                 if exit_code == 0:
                     mark_job_done(
                         latest_record,
