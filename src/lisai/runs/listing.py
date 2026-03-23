@@ -1,18 +1,104 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from math import floor
+from statistics import median
 import sys
+from typing import Literal
 
 from lisai.config import settings
 
 from .scanner import DiscoveredRun, InvalidRunMetadata
 from .schema import format_timestamp_local, utc_now
 
+_STALE_TIMEOUT_MULTIPLIER = 1.05
+_STALE_TIMEOUT_FLOOR_SECONDS = 60.0
+_STALE_CRASH_RATIO = 5.0
+
+
+@dataclass(frozen=True)
+class _RunHeartbeatClassification:
+    kind: Literal["not_running", "active", "stale", "crash"]
+    stale_multiplier: int | None = None
+    heartbeat_delay_s: float | None = None
+    threshold_s: float | None = None
+
 
 def active_heartbeat_timeout() -> timedelta:
     minutes = settings.project.run_tracking.active_heartbeat_timeout_minutes
     return timedelta(minutes=minutes)
+
+
+def _normalized_reference_time(now: datetime | None) -> datetime:
+    reference = utc_now() if now is None else now
+    if reference.tzinfo is None or reference.utcoffset() is None:
+        raise ValueError("Reference time must be timezone-aware.")
+    return reference.astimezone(timezone.utc)
+
+
+def _dynamic_heartbeat_timeout_seconds(run: DiscoveredRun) -> float | None:
+    stats = run.metadata.live_runtime_stats
+    if stats is None:
+        return None
+
+    recent = [float(value) for value in stats.recent_epoch_durations_s]
+    if not recent and stats.last_epoch_duration_s is not None:
+        recent = [float(stats.last_epoch_duration_s)]
+    if not recent:
+        return None
+
+    return max(_STALE_TIMEOUT_FLOOR_SECONDS, float(median(recent)) * _STALE_TIMEOUT_MULTIPLIER)
+
+
+def _heartbeat_timeout_seconds(run: DiscoveredRun) -> float:
+    dynamic_seconds = _dynamic_heartbeat_timeout_seconds(run)
+    if dynamic_seconds is not None:
+        return dynamic_seconds
+    return active_heartbeat_timeout().total_seconds()
+
+
+def _classify_running_heartbeat(
+    run: DiscoveredRun,
+    *,
+    now: datetime | None = None,
+) -> _RunHeartbeatClassification:
+    if run.metadata.status != "running" or run.metadata.closed_cleanly:
+        return _RunHeartbeatClassification(kind="not_running")
+
+    reference = _normalized_reference_time(now)
+    threshold_s = _heartbeat_timeout_seconds(run)
+    if run.metadata.last_heartbeat_at >= reference:
+        return _RunHeartbeatClassification(
+            kind="active",
+            stale_multiplier=None,
+            heartbeat_delay_s=0.0,
+            threshold_s=threshold_s,
+        )
+
+    heartbeat_delay_s = (reference - run.metadata.last_heartbeat_at).total_seconds()
+    ratio = heartbeat_delay_s / threshold_s
+    if ratio < 1.0:
+        return _RunHeartbeatClassification(
+            kind="active",
+            stale_multiplier=None,
+            heartbeat_delay_s=heartbeat_delay_s,
+            threshold_s=threshold_s,
+        )
+    if ratio > _STALE_CRASH_RATIO:
+        return _RunHeartbeatClassification(
+            kind="crash",
+            stale_multiplier=None,
+            heartbeat_delay_s=heartbeat_delay_s,
+            threshold_s=threshold_s,
+        )
+    return _RunHeartbeatClassification(
+        kind="stale",
+        stale_multiplier=max(1, int(floor(ratio))),
+        heartbeat_delay_s=heartbeat_delay_s,
+        threshold_s=threshold_s,
+    )
 
 
 def filter_runs(
@@ -38,38 +124,35 @@ def filter_runs(
 
 
 def is_run_heartbeat_fresh(run: DiscoveredRun, *, now: datetime | None = None) -> bool:
-    reference = utc_now() if now is None else now
-    if reference.tzinfo is None or reference.utcoffset() is None:
-        raise ValueError("Reference time must be timezone-aware.")
-    reference = reference.astimezone(timezone.utc)
+    reference = _normalized_reference_time(now)
     if run.metadata.last_heartbeat_at >= reference:
         return True
-    return (reference - run.metadata.last_heartbeat_at) <= active_heartbeat_timeout()
+    return (reference - run.metadata.last_heartbeat_at).total_seconds() < _heartbeat_timeout_seconds(run)
 
 
 def is_run_likely_active(run: DiscoveredRun, *, now: datetime | None = None) -> bool:
-    return (
-        run.metadata.status == "running"
-        and not run.metadata.closed_cleanly
-        and is_run_heartbeat_fresh(run, now=now)
-    )
+    return _classify_running_heartbeat(run, now=now).kind == "active"
 
 
 def is_run_likely_stale(run: DiscoveredRun, *, now: datetime | None = None) -> bool:
-    return (
-        run.metadata.status == "running"
-        and not run.metadata.closed_cleanly
-        and not is_run_heartbeat_fresh(run, now=now)
-    )
+    return _classify_running_heartbeat(run, now=now).kind in {"stale", "crash"}
 
 
 def display_run_status(run: DiscoveredRun, *, now: datetime | None = None) -> str:
-    if is_run_likely_stale(run, now=now):
-        return "stale?"
+    classification = _classify_running_heartbeat(run, now=now)
+    if classification.kind == "stale":
+        return f"stale (x{classification.stale_multiplier})"
+    if classification.kind == "crash":
+        return "crash"
     return run.metadata.status
 
 
-def render_runs_table(runs: Sequence[DiscoveredRun], *, now: datetime | None = None) -> str:
+def render_runs_table(
+    runs: Sequence[DiscoveredRun],
+    *,
+    now: datetime | None = None,
+    full: bool = False,
+) -> str:
     if not runs:
         return ""
 
@@ -80,26 +163,30 @@ def render_runs_table(runs: Sequence[DiscoveredRun], *, now: datetime | None = N
         "run_name",
         "idx",
         "status",
-        "path_consistent",
-        "closed_cleanly",
         "epoch",
-        "last_seen",
     ]
+    if full:
+        headers.extend(["path_consistent", "closed_cleanly", "last_seen"])
     idx_width = int(getattr(settings.project.naming, "run_dir_index_width", 2))
-    rows = [
-        [
+    rows: list[list[str]] = []
+    for run in runs:
+        row = [
             run.dataset,
             run.model_subfolder,
             run.metadata.run_name,
             f"{run.metadata.run_index:0{idx_width}d}",
             display_run_status(run, now=reference),
-            str(run.path_consistent).lower(),
-            str(run.metadata.closed_cleanly).lower(),
             _format_epoch(run),
-            format_timestamp_local(run.last_seen),
         ]
-        for run in runs
-    ]
+        if full:
+            row.extend(
+                [
+                    str(run.path_consistent).lower(),
+                    str(run.metadata.closed_cleanly).lower(),
+                    format_timestamp_local(run.last_seen),
+                ]
+            )
+        rows.append(row)
 
     widths = [
         max(len(header), *(len(row[idx]) for row in rows))

@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -261,6 +262,7 @@ class BaseTrainer(ABC):
 
         for epoch in iter_epoch:
             try:
+                epoch_start_perf = time.perf_counter()
                 train_loss = None
                 val_loss = None
                 save_val_imgs = bool(self.saving_prm.get("validation_images", False)) and (
@@ -320,7 +322,8 @@ class BaseTrainer(ABC):
                     self.ckpt.update_loss_file(epoch, train_metrics, val_metrics)
 
                 # callbacks at epoch end
-                logs = {"train_loss": train_loss, "val_loss": val_loss}
+                epoch_duration_s = max(time.perf_counter() - epoch_start_perf, 0.0)
+                logs = {"train_loss": train_loss, "val_loss": val_loss, "epoch_duration_s": epoch_duration_s}
                 for cb in self.callbacks:
                     cb.on_epoch_end(self, epoch, logs)
                 last_completed_epoch = epoch

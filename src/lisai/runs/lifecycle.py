@@ -13,6 +13,7 @@ from .identifiers import generate_run_id
 from .io import read_run_metadata, write_run_metadata_atomic
 from .schema import (
     SCHEMA_VERSION,
+    LiveRuntimeStats,
     RunMetadata,
     RuntimeStats,
     TrainingSignature,
@@ -135,14 +136,27 @@ def update_run_progress(
     last_epoch: int | None = None,
     max_epoch: int | None = None,
     val_loss: float | None = None,
+    epoch_duration_s: float | None = None,
 ) -> RunMetadata:
     metadata = read_run_metadata(run_dir)
     now = utc_now()
     best_val_loss = metadata.best_val_loss
+    live_runtime_stats = metadata.live_runtime_stats
     if val_loss is not None:
         val_loss = float(val_loss)
         if best_val_loss is None or val_loss < best_val_loss:
             best_val_loss = val_loss
+    if epoch_duration_s is not None:
+        duration = float(epoch_duration_s)
+        if duration < 0:
+            raise ValueError("epoch_duration_s must be >= 0.")
+        recent = [] if live_runtime_stats is None else list(live_runtime_stats.recent_epoch_durations_s)
+        recent.append(duration)
+        recent = recent[-3:]
+        live_runtime_stats = LiveRuntimeStats(
+            last_epoch_duration_s=duration,
+            recent_epoch_durations_s=recent,
+        )
 
     updated = metadata.model_copy(
         update={
@@ -154,6 +168,7 @@ def update_run_progress(
             "last_epoch": metadata.last_epoch if last_epoch is None else last_epoch,
             "max_epoch": metadata.max_epoch if max_epoch is None else max_epoch,
             "best_val_loss": best_val_loss,
+            "live_runtime_stats": live_runtime_stats,
         }
     )
     write_run_metadata_atomic(run_dir, updated)

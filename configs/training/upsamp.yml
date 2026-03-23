@@ -13,7 +13,7 @@ experiment:
 # ========================================================
 routing:
   data_subfolder: "preprocess/recon"
-  models_subfolder: "Upsamp"
+  models_subfolder: "Testing"
   tensorboard_subfolder: "Upsamp"
   # used only for non-canonical loads => full path is used directly
   dataset_full_path: ""

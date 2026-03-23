@@ -68,7 +68,9 @@ def test_runs_list_uses_filters_and_warns_on_invalid_files(monkeypatch, tmp_path
 
     assert exit_code == 0
     assert "dataset" in captured.out
-    assert "path_consistent" in captured.out
+    assert "path_consistent" not in captured.out
+    assert "closed_cleanly" not in captured.out
+    assert "last_seen" not in captured.out
     assert "run_a" in captured.out
     assert "4/10" in captured.out
     assert "run_b" not in captured.out
@@ -155,7 +157,7 @@ def test_runs_list_uses_local_timestamp_formatter(monkeypatch, tmp_path, capsys)
     monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(runs_listing, "format_timestamp_local", lambda _value: "LOCAL_TS")
 
-    exit_code = root_main(["runs", "list", "--dataset", "Gag"])
+    exit_code = root_main(["runs", "list", "--dataset", "Gag", "--full"])
     captured = capsys.readouterr()
 
     assert exit_code == 0
@@ -184,7 +186,7 @@ def test_runs_list_marks_old_running_heartbeats_as_stale(monkeypatch, tmp_path, 
 
     assert exit_code == 0
     assert "run_a" in captured.out
-    assert "stale?" in captured.out
+    assert "stale (x4)" in captured.out
 
 
 def test_runs_list_footer_notes_path_inconsistency_without_stderr_warning(monkeypatch, tmp_path, capsys):
@@ -206,7 +208,31 @@ def test_runs_list_footer_notes_path_inconsistency_without_stderr_warning(monkey
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert "path_consistent" in captured.out
-    assert "false" in captured.out
+    assert "path_consistent" not in captured.out
     assert "inconsistent path metadata" in captured.out
     assert "path_mismatch" not in captured.err
+
+
+def test_runs_list_full_appends_extended_columns(monkeypatch, tmp_path, capsys):
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "HDN" / "run_a_00"
+
+    _write_metadata(
+        run_dir,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/not_the_real_folder",
+        status="completed",
+    )
+
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+
+    exit_code = root_main(["runs", "list", "--dataset", "Gag", "--full"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    header = captured.out.splitlines()[0]
+    assert header.startswith("dataset  model_subfolder  run_name  idx  status  epoch")
+    assert header.endswith("path_consistent  closed_cleanly  last_seen")
+    assert "false" in captured.out

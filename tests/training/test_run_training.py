@@ -64,7 +64,7 @@ class CallbackTrainer:
         for callback in self.callbacks:
             callback.on_validation_images_end(self, 3, [("x", "y", "prediction")])
         for callback in self.callbacks:
-            callback.on_epoch_end(self, 3, {"train_loss": 1.2, "val_loss": 0.4})
+            callback.on_epoch_end(self, 3, {"train_loss": 1.2, "val_loss": 0.4, "epoch_duration_s": 90.0})
         return self.outcome
 
 
@@ -300,6 +300,10 @@ def test_run_training_writes_and_finalizes_run_metadata_on_completion(monkeypatc
     assert metadata.runtime_stats.training_time_per_epoch_sec == pytest.approx(
         metadata.runtime_stats.total_training_time_sec / 4,
     )
+    assert metadata.live_runtime_stats is not None
+    assert metadata.live_runtime_stats.last_epoch_duration_s == pytest.approx(90.0)
+    assert metadata.live_runtime_stats.recent_epoch_durations_s == pytest.approx([90.0])
+    assert metadata.live_runtime_stats.median_epoch_duration_s == pytest.approx(90.0)
     assert metadata.ended_at is not None
 
 

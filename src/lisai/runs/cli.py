@@ -22,6 +22,7 @@ def list_runs(
     dataset: str | None = None,
     model_subfolder: str | None = None,
     status: str | None = None,
+    full: bool = False,
     stdout=None,
     stderr=None,
 ) -> int:
@@ -40,7 +41,7 @@ def list_runs(
     )
 
     if filtered_runs:
-        print(render_runs_table(filtered_runs), file=out)
+        print(render_runs_table(filtered_runs, full=full), file=out)
         if has_path_inconsistencies(filtered_runs):
             print(
                 "Some listed runs have inconsistent path metadata (likely moved/renamed folders).",
@@ -61,6 +62,7 @@ def run_list_from_args(args: argparse.Namespace) -> int:
         dataset=args.dataset,
         model_subfolder=args.model_subfolder,
         status=args.status,
+        full=args.full,
     )
 
 
@@ -102,6 +104,11 @@ def add_runs_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         description="List locally tracked training runs.",
     )
     add_run_filter_arguments(list_parser, include_status=True)
+    list_parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Include extra metadata columns (path_consistent, closed_cleanly, last_seen).",
+    )
     list_parser.set_defaults(handler=run_list_from_args)
     return parser
 
@@ -117,6 +124,11 @@ def build_parser(*, prog: str = "lisai runs") -> argparse.ArgumentParser:
         description="List locally tracked training runs.",
     )
     add_run_filter_arguments(list_parser, include_status=True)
+    list_parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Include extra metadata columns (path_consistent, closed_cleanly, last_seen).",
+    )
     list_parser.set_defaults(handler=run_list_from_args)
     return parser
 

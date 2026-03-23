@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
+from statistics import median
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
@@ -143,6 +144,48 @@ class RuntimeStats(BaseModel):
     training_time_per_epoch_sec: float | None = Field(default=None, ge=0.0)
 
 
+class LiveRuntimeStats(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    last_epoch_duration_s: float | None = Field(default=None, ge=0.0)
+    recent_epoch_durations_s: list[float] = Field(default_factory=list)
+    median_epoch_duration_s: float | None = Field(default=None, ge=0.0)
+
+    @field_validator("recent_epoch_durations_s", mode="before")
+    @classmethod
+    def _normalize_recent_epoch_durations(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, tuple):
+            return list(value)
+        return value
+
+    @field_validator("recent_epoch_durations_s")
+    @classmethod
+    def _validate_recent_epoch_durations(cls, value: list[float]) -> list[float]:
+        normalized: list[float] = []
+        for item in value:
+            duration = float(item)
+            if duration < 0:
+                raise ValueError("recent_epoch_durations_s values must be >= 0.")
+            normalized.append(duration)
+        if len(normalized) > 3:
+            normalized = normalized[-3:]
+        return normalized
+
+    @model_validator(mode="after")
+    def _recompute_median(self):
+        if self.recent_epoch_durations_s:
+            self.median_epoch_duration_s = float(median(self.recent_epoch_durations_s))
+            self.last_epoch_duration_s = float(self.recent_epoch_durations_s[-1])
+            return self
+        if self.last_epoch_duration_s is not None:
+            self.median_epoch_duration_s = float(self.last_epoch_duration_s)
+        else:
+            self.median_epoch_duration_s = None
+        return self
+
+
 class RunMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -166,6 +209,7 @@ class RunMetadata(BaseModel):
     group_path: str | None = None
     training_signature: TrainingSignature | None = None
     runtime_stats: RuntimeStats | None = None
+    live_runtime_stats: LiveRuntimeStats | None = None
 
 
 
@@ -287,6 +331,7 @@ __all__ = [
     "RUN_METADATA_FILENAME",
     "RUN_STATUSES",
     "SCHEMA_VERSION",
+    "LiveRuntimeStats",
     "RuntimeStats",
     "TrainingSignature",
     "RunMetadata",

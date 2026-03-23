@@ -20,6 +20,7 @@ class RunMetadataCallback(Callback):
                 last_epoch=epoch,
                 max_epoch=self.max_epoch,
                 val_loss=logs.get("val_loss"),
+                epoch_duration_s=logs.get("epoch_duration_s"),
             )
         except Exception as exc:
             _log_warning(

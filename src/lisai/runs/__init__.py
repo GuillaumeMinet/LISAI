@@ -25,6 +25,7 @@ from .scanner import scan_runs
 from .schema import (
     RUN_METADATA_FILENAME,
     RUN_STATUSES,
+    LiveRuntimeStats,
     RunMetadata,
     RunStatus,
     RuntimeStats,
@@ -35,6 +36,7 @@ from .signature import build_training_signature_from_resolved_config, count_trai
 __all__ = [
     "RUN_METADATA_FILENAME",
     "RUN_STATUSES",
+    "LiveRuntimeStats",
     "RunMetadata",
     "RunMetadataCallback",
     "RunStatus",

@@ -6,6 +6,7 @@ from pathlib import Path
 import lisai.queue.worker as worker_mod
 import lisai.runs.listing as runs_listing
 from lisai.config import settings
+from lisai.queue.schema import QueueJob
 from lisai.runs.scanner import DiscoveredRun, ScanResults
 from lisai.runs.schema import RunMetadata, TrainingSignature
 
@@ -22,7 +23,10 @@ def _run(
     last_heartbeat_at: str,
     signature: TrainingSignature | None,
     peak_gpu_mem_mb: int | None,
+    live_runtime_stats: dict | None = None,
+    created_at: str = "2026-03-20T10:00:00Z",
 ) -> DiscoveredRun:
+    updated_at = last_heartbeat_at
     metadata = RunMetadata.model_validate(
         {
             "schema_version": 2,
@@ -33,8 +37,8 @@ def _run(
             "model_subfolder": "HDN",
             "status": status,
             "closed_cleanly": closed_cleanly,
-            "created_at": "2026-03-20T10:00:00Z",
-            "updated_at": "2026-03-20T11:00:00Z",
+            "created_at": created_at,
+            "updated_at": updated_at,
             "ended_at": None if status == "running" else "2026-03-20T11:00:00Z",
             "last_heartbeat_at": last_heartbeat_at,
             "last_epoch": 10,
@@ -44,6 +48,7 @@ def _run(
             "group_path": None,
             "training_signature": None if signature is None else signature.model_dump(mode="json"),
             "runtime_stats": None if peak_gpu_mem_mb is None else {"peak_gpu_mem_mb": peak_gpu_mem_mb},
+            "live_runtime_stats": live_runtime_stats,
         }
     )
     run_dir = Path("/tmp/Gag/demo_00")
@@ -159,6 +164,56 @@ def test_worker_treats_old_running_heartbeat_as_stale_not_active(monkeypatch, tm
     worker.run_once()
 
     assert captured_active_counts == [0]
+
+
+def test_worker_infer_run_id_prefers_single_dynamic_active_candidate(monkeypatch, tmp_path):
+    now = datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc)
+    stale_candidate = _run(
+        run_id="01ARZ3NDEKTSV4RRFFQ69G5FAD",
+        status="running",
+        closed_cleanly=False,
+        last_heartbeat_at="2026-03-20T11:58:00Z",
+        signature=None,
+        peak_gpu_mem_mb=None,
+        live_runtime_stats={
+            "last_epoch_duration_s": 30.0,
+            "recent_epoch_durations_s": [30.0],
+        },
+        created_at="2026-03-20T11:55:00Z",
+    )
+    active_candidate = _run(
+        run_id="01ARZ3NDEKTSV4RRFFQ69G5FAE",
+        status="running",
+        closed_cleanly=False,
+        last_heartbeat_at="2026-03-20T11:59:30Z",
+        signature=None,
+        peak_gpu_mem_mb=None,
+        live_runtime_stats={
+            "last_epoch_duration_s": 150.0,
+            "recent_epoch_durations_s": [120.0, 150.0, 180.0],
+        },
+        created_at="2026-03-20T11:55:30Z",
+    )
+    job = QueueJob(
+        job_id="job_demo",
+        config=str(tmp_path / "cfg.yml"),
+        status="running",
+        device="cuda:0",
+        submitted_at=now - timedelta(minutes=2),
+        updated_at=now,
+        resource_class="medium",
+        run_id=None,
+        dataset="Gag",
+        model_subfolder="HDN",
+        run_name="demo",
+        launched_at=now,
+    )
+
+    monkeypatch.setattr(runs_listing, "utc_now", lambda: now)
+    worker = QueueWorker(queue_root=tmp_path / ".lisai" / "queue", safety_margin_mb=1000)
+
+    inferred = worker._infer_run_id_for_job(job, (stale_candidate, active_candidate))
+    assert inferred == "01ARZ3NDEKTSV4RRFFQ69G5FAE"
 
 
 def test_worker_launch_sets_env_flag_to_disable_tqdm(monkeypatch, tmp_path):

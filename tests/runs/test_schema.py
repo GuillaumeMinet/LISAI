@@ -51,6 +51,10 @@ def test_run_metadata_accepts_optional_training_signature_and_runtime_stats():
             runtime_stats={
                 "peak_gpu_mem_mb": 4096,
             },
+            live_runtime_stats={
+                "last_epoch_duration_s": 62.5,
+                "recent_epoch_durations_s": [58.0, 60.0, 62.5],
+            },
         )
     )
 
@@ -60,6 +64,21 @@ def test_run_metadata_accepts_optional_training_signature_and_runtime_stats():
     assert metadata.training_signature.patch_size == 128
     assert metadata.runtime_stats is not None
     assert metadata.runtime_stats.peak_gpu_mem_mb == 4096
+    assert metadata.live_runtime_stats is not None
+    assert metadata.live_runtime_stats.last_epoch_duration_s == pytest.approx(62.5)
+    assert metadata.live_runtime_stats.recent_epoch_durations_s == pytest.approx([58.0, 60.0, 62.5])
+    assert metadata.live_runtime_stats.median_epoch_duration_s == pytest.approx(60.0)
+
+
+def test_run_metadata_rejects_negative_live_epoch_duration():
+    with pytest.raises(ValidationError):
+        RunMetadata.model_validate(
+            _payload(
+                live_runtime_stats={
+                    "last_epoch_duration_s": -1.0,
+                }
+            )
+        )
 
 
 
