@@ -36,7 +36,11 @@ evaluate:
   save_folder: null
   overwrite: false
   eval_gt: null
-  data_prm_update: null
+  data_prm_update:
+    timelapse_prm:
+      timelapse_max_frames: null
+      shuffle: false
+      
   ch_out: null
   split: test
   limit_n_imgs: null

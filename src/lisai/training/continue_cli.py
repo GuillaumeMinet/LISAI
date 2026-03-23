@@ -15,6 +15,7 @@ from lisai.runs.listing import (
     write_invalid_run_warnings,
 )
 from lisai.runs.scanner import DiscoveredRun, scan_runs
+from lisai.runs.selection import resolve_ambiguous_run_matches
 
 from .run_training import run_training_from_config_dict
 
@@ -68,14 +69,17 @@ def continue_run(
         write_invalid_run_warnings(scan_result.invalid, stderr=err)
         return 1
 
-    if len(matches) > 1:
-        print("Multiple matching runs found:", file=out)
-        print(render_runs_table(matches), file=out)
-        print("Rerun with --dataset/--subfolder or with --run-id to disambiguate.", file=err)
+    selected_run = resolve_ambiguous_run_matches(
+        matches,
+        stdin=in_stream,
+        stdout=out,
+        stderr=err,
+        rerun_hint="Rerun with --dataset/--subfolder or with --run-id to disambiguate.",
+    )
+    if selected_run is None:
         write_invalid_run_warnings(scan_result.invalid, stderr=err)
         return 1
 
-    selected_run = matches[0]
     print("Selected run:", file=out)
     print(render_runs_table([selected_run]), file=out)
     write_invalid_run_warnings(scan_result.invalid, stderr=err)

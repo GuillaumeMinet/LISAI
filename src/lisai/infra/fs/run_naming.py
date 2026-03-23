@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from lisai.config import settings
+from lisai.config.settings import settings
 
 
 def run_dir_index_width() -> int:

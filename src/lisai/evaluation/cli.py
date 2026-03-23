@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Sequence
 
 import yaml
+
+from lisai.runs.cli import add_run_filter_arguments
+from lisai.runs.listing import filter_runs, render_runs_table, write_invalid_run_warnings
+from lisai.runs.scanner import scan_runs
+from lisai.runs.selection import resolve_ambiguous_run_matches
 
 from .defaults import UNSET
 from .run_apply_model import run_apply_model
@@ -122,7 +128,17 @@ def add_apply_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPar
 
 
 def add_evaluate_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    parser.add_argument("run", help="Run reference: dataset[/subfolder]/exp_name.")
+    parser.add_argument(
+        "run",
+        nargs="?",
+        help=(
+            "Run selector: dataset[/subfolder]/run_name, or run_name when paired with run_index. "
+            "Use --run-id as an alternative selector."
+        ),
+    )
+    parser.add_argument("run_index", nargs="?", type=int, help="Run index used with a run_name selector.")
+    parser.add_argument("--run-id", help="Stable run identifier to evaluate.")
+    add_run_filter_arguments(parser, include_identity=False, include_status=False)
     parser.add_argument(
         "-c",
         "--config",
@@ -188,11 +204,10 @@ def run_apply_from_args(args: argparse.Namespace, parser: argparse.ArgumentParse
 
 
 def run_evaluate_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    try:
-        dataset_name, model_subfolder, model_name = _parse_run_ref(args.run)
-    except ValueError as exc:
-        parser.error(str(exc))
-        raise AssertionError("argparse.error should raise SystemExit")
+    resolved = _resolve_evaluate_run_selector(args, parser=parser)
+    if resolved is None:
+        return 1
+    dataset_name, model_subfolder, model_name = resolved
 
     run_evaluate(
         dataset_name=dataset_name,
@@ -214,6 +229,101 @@ def run_evaluate_from_args(args: argparse.Namespace, parser: argparse.ArgumentPa
         limit_n_imgs=_maybe_unset(args.limit_n_imgs),
     )
     return 0
+
+
+def _resolve_evaluate_run_selector(
+    args: argparse.Namespace,
+    *,
+    parser: argparse.ArgumentParser,
+) -> tuple[str, str, str] | None:
+    out = sys.stdout
+    err = sys.stderr
+
+    run = args.run
+    run_index = args.run_index
+    run_id = args.run_id
+    dataset = args.dataset
+    model_subfolder = args.model_subfolder
+
+    if run_id is not None and (run is not None or run_index is not None):
+        print("Use either <run_name> <run_index> or --run-id, not both.", file=err)
+        return None
+
+    if run_id is None:
+        if run is None:
+            print(
+                "Missing run selector. Use dataset[/subfolder]/run_name, <run_name> <run_index>, or --run-id <run_id>.",
+                file=err,
+            )
+            return None
+
+        normalized = run.replace("\\", "/")
+        has_run_ref_separator = "/" in normalized
+        if run_index is None and has_run_ref_separator:
+            if dataset is not None or model_subfolder is not None:
+                print(
+                    "--dataset/--subfolder can only be used with <run_name> <run_index> or --run-id selectors.",
+                    file=err,
+                )
+                return None
+            try:
+                return _parse_run_ref(run)
+            except ValueError as exc:
+                parser.error(str(exc))
+                raise AssertionError("argparse.error should raise SystemExit")
+
+        if run_index is None:
+            print(
+                "Missing run_index for run_name selector. Use <run_name> <run_index>, "
+                "or pass dataset[/subfolder]/run_name.",
+                file=err,
+            )
+            return None
+        if run_index < 0:
+            print("run_index must be >= 0.", file=err)
+            return None
+        if has_run_ref_separator:
+            print(
+                "run_index cannot be combined with dataset[/subfolder]/run_name selectors.",
+                file=err,
+            )
+            return None
+
+    scan_result = scan_runs()
+    matches = filter_runs(
+        scan_result.runs,
+        run_id=run_id,
+        run_name=run if run_id is None else None,
+        run_index=run_index if run_id is None else None,
+        dataset=dataset,
+        model_subfolder=model_subfolder,
+    )
+
+    if not matches:
+        if run_id is not None:
+            selector_desc = f"run_id={run_id!r}"
+        else:
+            selector_desc = f"run_name={run!r}, run_index={run_index}"
+        print(f"No matching run found for {selector_desc}.", file=err)
+        print("Use 'lisai runs list' to inspect available runs.", file=err)
+        write_invalid_run_warnings(scan_result.invalid, stderr=err)
+        return None
+
+    selected = resolve_ambiguous_run_matches(
+        matches,
+        stdin=sys.stdin,
+        stdout=out,
+        stderr=err,
+        rerun_hint="Rerun with --dataset/--subfolder or with --run-id to disambiguate.",
+    )
+    if selected is None:
+        write_invalid_run_warnings(scan_result.invalid, stderr=err)
+        return None
+
+    print("Selected run:", file=out)
+    print(render_runs_table([selected]), file=out)
+    write_invalid_run_warnings(scan_result.invalid, stderr=err)
+    return selected.dataset, selected.model_subfolder, selected.run_dir.name
 
 
 def add_apply_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]):

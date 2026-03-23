@@ -42,7 +42,7 @@ def format_timestamp(value: datetime) -> str:
 
 
 def format_timestamp_local(value: datetime) -> str:
-    return value.astimezone().isoformat(timespec="seconds")
+    return value.astimezone().strftime("%Y-%m-%d - %H:%M")
 
 
 def normalize_posix_path(value: str) -> str:

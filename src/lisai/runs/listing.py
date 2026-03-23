@@ -152,6 +152,7 @@ def render_runs_table(
     *,
     now: datetime | None = None,
     full: bool = False,
+    include_selection_index: bool = False,
 ) -> str:
     if not runs:
         return ""
@@ -167,10 +168,11 @@ def render_runs_table(
         "eta_left",
     ]
     if full:
-        headers.extend(["path_consistent", "closed_cleanly", "last_seen"])
+        headers.extend(["path_consistent", "closed_cleanly", "start_time", "last_seen", "run_id"])
+    selection_width = max(2, len(str(len(runs))))
     idx_width = int(getattr(settings.project.naming, "run_dir_index_width", 2))
     rows: list[list[str]] = []
-    for run in runs:
+    for selection_idx, run in enumerate(runs, start=1):
         row = [
             run.dataset,
             run.model_subfolder,
@@ -185,10 +187,17 @@ def render_runs_table(
                 [
                     str(run.path_consistent).lower(),
                     str(run.metadata.closed_cleanly).lower(),
+                    format_timestamp_local(run.metadata.created_at),
                     format_timestamp_local(run.last_seen),
+                    run.metadata.run_id,
                 ]
             )
+        if include_selection_index:
+            row = [f"{selection_idx:0{selection_width}d}"] + row
         rows.append(row)
+
+    if include_selection_index:
+        headers = ["#"] + headers
 
     widths = [
         max(len(header), *(len(row[idx]) for row in rows))

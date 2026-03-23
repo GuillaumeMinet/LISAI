@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+import re
+
 import pytest
 from pydantic import ValidationError
 
-from lisai.runs.schema import RunMetadata
+from lisai.runs.schema import RunMetadata, format_timestamp_local
 
 
 def _payload(**overrides):
@@ -109,3 +112,10 @@ def test_run_metadata_rejects_missing_required_field():
 
     with pytest.raises(ValidationError):
         RunMetadata.model_validate(payload)
+
+
+def test_format_timestamp_local_uses_cli_friendly_layout():
+    formatted = format_timestamp_local(datetime(2026, 3, 20, 10, 14, 37, tzinfo=timezone.utc))
+
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2} - \d{2}:\d{2}", formatted) is not None
+    assert "T" not in formatted

@@ -140,6 +140,50 @@ def test_continue_reports_multiple_matches_and_requests_disambiguation(monkeypat
     assert "Rerun with --dataset/--subfolder or with --run-id to disambiguate." in stderr.getvalue()
 
 
+def test_continue_ambiguous_matches_allow_interactive_line_selection(monkeypatch, tmp_path):
+    datasets_root = tmp_path / "datasets"
+    run_name = "duplicate"
+    run_index = 0
+    now = utc_now()
+    _write_metadata(
+        datasets_root / "Actin" / "models" / "HDN" / "duplicate_00",
+        run_id="01ARZ3NDEKTSV4RRFFQ69G7AAF",
+        dataset="Actin",
+        model_subfolder="HDN",
+        status="completed",
+        last_heartbeat_at=now,
+    )
+    selected_dir = datasets_root / "Gag" / "models" / "Upsamp" / "duplicate_00"
+    _write_metadata(
+        selected_dir,
+        run_id="01ARZ3NDEKTSV4RRFFQ69G7AAG",
+        dataset="Gag",
+        model_subfolder="Upsamp",
+        status="completed",
+        last_heartbeat_at=now - timedelta(minutes=1),
+    )
+
+    captured = {}
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"cfg": cfg}))
+
+    exit_code = continue_cli.continue_run(
+        run_name=run_name,
+        run_index=run_index,
+        assume_yes=True,
+        stdin=InteractiveInput("02\n"),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    assert exit_code == 0
+    assert captured["cfg"]["load_model"]["model_full_path"] == str(selected_dir.resolve())
+    assert "Multiple matching runs found:" in stdout.getvalue()
+    assert "Select run number from '#'" in stdout.getvalue()
+
+
 def test_continue_allows_run_id_override(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
     run_dir = datasets_root / "Gag" / "models" / "HDN" / "resume_me_00"

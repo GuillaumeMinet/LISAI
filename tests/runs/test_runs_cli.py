@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import StringIO
+import re
 
 from lisai.infra.fs.run_naming import parse_run_dir_name
 import lisai.runs.cli as runs_cli
@@ -44,6 +45,11 @@ def _table_header(output: str) -> str:
     raise AssertionError("Could not find table header line in output.")
 
 
+def _header_columns(output: str) -> list[str]:
+    header = _table_header(output)
+    return [part for part in re.split(r"\s{2,}", header.strip()) if part]
+
+
 def test_runs_list_uses_filters_and_warns_on_invalid_files(monkeypatch, tmp_path, capsys):
     datasets_root = tmp_path / "datasets"
     run_a = datasets_root / "Gag" / "models" / "HDN" / "run_a"
@@ -80,7 +86,9 @@ def test_runs_list_uses_filters_and_warns_on_invalid_files(monkeypatch, tmp_path
     assert "eta_left" in captured.out
     assert "path_consistent" not in captured.out
     assert "closed_cleanly" not in captured.out
+    assert "start_time" not in captured.out
     assert "last_seen" not in captured.out
+    assert "run_id" not in captured.out
     assert "run_a" in captured.out
     assert "4/10" in captured.out
     assert "run_b" not in captured.out
@@ -243,10 +251,11 @@ def test_runs_list_full_appends_extended_columns(monkeypatch, tmp_path, capsys):
 
     assert exit_code == 0
     assert "LISAI runs listing (Gag)" in captured.out
-    header = _table_header(captured.out)
-    assert header.startswith("dataset  model_subfolder  run_name  idx  status  epoch  eta_left")
-    assert header.endswith("path_consistent  closed_cleanly  last_seen")
+    columns = _header_columns(captured.out)
+    assert columns[:7] == ["dataset", "model_subfolder", "run_name", "idx", "status", "epoch", "eta_left"]
+    assert columns[-5:] == ["path_consistent", "closed_cleanly", "start_time", "last_seen", "run_id"]
     assert "false" in captured.out
+    assert "01ARZ3NDEKTSV4RRFFQ69G5FAV" in captured.out
 
 
 def test_runs_list_live_renders_in_place_when_interactive(monkeypatch, tmp_path):
@@ -284,7 +293,7 @@ def test_runs_list_live_renders_in_place_when_interactive(monkeypatch, tmp_path)
     assert "\x1b[H\x1b[J" in out.getvalue()
     assert "warning: --interval 0.1s is below the minimum 1s; using 1s." in out.getvalue()
     assert "LISAI runs listing (Gag) LIVE MODE (1s refresh) - Ctrl+C to stop live" in out.getvalue()
-    assert "run_a_00" in out.getvalue()
+    assert re.search(r"\brun_a\s+00\b", out.getvalue()) is not None
     assert err.getvalue() == ""
 
 
@@ -309,7 +318,7 @@ def test_runs_list_live_falls_back_to_single_snapshot_without_tty(monkeypatch, t
     assert exit_code == 0
     assert captured.out.splitlines()[0] == "warning: --interval 0.25s is below the minimum 1s; using 1s."
     assert captured.out.splitlines()[1] == "LISAI runs listing (Gag)"
-    assert "run_a_00" in captured.out
+    assert re.search(r"\brun_a\s+00\b", captured.out) is not None
     assert "--live requires interactive terminal output" in captured.err
 
 

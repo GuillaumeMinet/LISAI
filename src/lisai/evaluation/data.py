@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from lisai.config import load_yaml, settings
+from lisai.config.io import deep_merge
 from lisai.config.models.training import DataSection
 from lisai.data.data_prep import make_test_loader
 from lisai.infra.paths import Paths
@@ -84,7 +85,7 @@ def build_eval_loader(
         data_cfg["initial_crop"] = crop_size
 
     if data_prm_update is not None:
-        data_cfg.update(dict(data_prm_update))
+        data_cfg = deep_merge(data_cfg, dict(data_prm_update))
 
     data_dir = resolve_eval_data_dir(saved_run, data_cfg)
     if data_dir is None:
