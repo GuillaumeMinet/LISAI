@@ -68,6 +68,7 @@ def test_runs_list_uses_filters_and_warns_on_invalid_files(monkeypatch, tmp_path
 
     assert exit_code == 0
     assert "dataset" in captured.out
+    assert "eta_left" in captured.out
     assert "path_consistent" not in captured.out
     assert "closed_cleanly" not in captured.out
     assert "last_seen" not in captured.out
@@ -233,6 +234,6 @@ def test_runs_list_full_appends_extended_columns(monkeypatch, tmp_path, capsys):
 
     assert exit_code == 0
     header = captured.out.splitlines()[0]
-    assert header.startswith("dataset  model_subfolder  run_name  idx  status  epoch")
+    assert header.startswith("dataset  model_subfolder  run_name  idx  status  epoch  eta_left")
     assert header.endswith("path_consistent  closed_cleanly  last_seen")
     assert "false" in captured.out

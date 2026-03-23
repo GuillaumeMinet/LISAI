@@ -42,6 +42,7 @@ def list_runs(
 
     if filtered_runs:
         print(render_runs_table(filtered_runs, full=full), file=out)
+        print(file=out)
         if has_path_inconsistencies(filtered_runs):
             print(
                 "Some listed runs have inconsistent path metadata (likely moved/renamed folders).",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from math import floor
+from math import ceil, floor
 from statistics import median
 import sys
 from typing import Literal
@@ -164,6 +164,7 @@ def render_runs_table(
         "idx",
         "status",
         "epoch",
+        "eta_left",
     ]
     if full:
         headers.extend(["path_consistent", "closed_cleanly", "last_seen"])
@@ -177,6 +178,7 @@ def render_runs_table(
             f"{run.metadata.run_index:0{idx_width}d}",
             display_run_status(run, now=reference),
             _format_epoch(run),
+            _format_eta_left(run),
         ]
         if full:
             row.extend(
@@ -230,6 +232,52 @@ def _format_epoch(run: DiscoveredRun) -> str:
     last_epoch = "-" if run.metadata.last_epoch is None else str(run.metadata.last_epoch + 1)
     max_epoch = "-" if run.metadata.max_epoch is None else str(run.metadata.max_epoch)
     return f"{last_epoch}/{max_epoch}"
+
+
+def _format_eta_left(run: DiscoveredRun) -> str:
+    seconds_left = _estimate_seconds_left(run)
+    if seconds_left is None:
+        return "-"
+
+    total_minutes = max(1, int(ceil(seconds_left / 60.0)))
+    days, rem_minutes = divmod(total_minutes, 24 * 60)
+    hours, minutes = divmod(rem_minutes, 60)
+    return f"{days}d{hours}h{minutes}m"
+
+
+def _estimate_seconds_left(run: DiscoveredRun) -> float | None:
+    metadata = run.metadata
+    if metadata.status != "running" or metadata.closed_cleanly:
+        return None
+    if metadata.max_epoch is None:
+        return None
+
+    completed_epochs = 0 if metadata.last_epoch is None else metadata.last_epoch + 1
+    remaining_epochs = metadata.max_epoch - completed_epochs
+    if remaining_epochs <= 0:
+        return None
+
+    mean_epoch_duration_s = _mean_epoch_duration_seconds(run)
+    if mean_epoch_duration_s is None or mean_epoch_duration_s <= 0:
+        return None
+    return float(remaining_epochs) * mean_epoch_duration_s
+
+
+def _mean_epoch_duration_seconds(run: DiscoveredRun) -> float | None:
+    live_stats = run.metadata.live_runtime_stats
+    if live_stats is not None:
+        recent = [float(value) for value in live_stats.recent_epoch_durations_s]
+        if recent:
+            return float(sum(recent) / len(recent))
+        if live_stats.last_epoch_duration_s is not None:
+            return float(live_stats.last_epoch_duration_s)
+        if live_stats.median_epoch_duration_s is not None:
+            return float(live_stats.median_epoch_duration_s)
+
+    runtime_stats = run.metadata.runtime_stats
+    if runtime_stats is not None and runtime_stats.training_time_per_epoch_sec is not None:
+        return float(runtime_stats.training_time_per_epoch_sec)
+    return None
 
 
 __all__ = [
