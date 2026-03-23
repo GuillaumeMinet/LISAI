@@ -341,6 +341,21 @@ def test_mismatched_downsampling_and_model_upsampling_is_error_for_unpaired_data
         )
 
 
+def test_timelapse_sampling_seed_must_be_non_negative():
+    with pytest.raises(ValidationError, match="sampling_seed"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "timelapse_prm": {
+                        "timelapse_max_frames": 5,
+                        "shuffle": True,
+                        "sampling_seed": -1,
+                    }
+                }
+            }
+        )
+
+
 
 def test_lvae_rejects_multiple_downsampling_with_multi_channel_output():
     with pytest.raises(ValidationError, match=r"does not support multi-channel generated inputs"):
@@ -379,4 +394,3 @@ def test_deterministic_multiple_downsampling_requires_supported_channel_count():
                 },
             }
         )
-

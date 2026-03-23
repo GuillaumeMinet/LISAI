@@ -1061,6 +1061,12 @@
           "description": "Whether timelapse frames should be shuffled before sampling.",
           "title": "Shuffle",
           "type": "boolean"
+        },
+        "sampling_seed": {
+          "default": 0,
+          "description": "Base seed used to deterministically sample timelapse frames when shuffling is enabled. The effective per-file seed is derived from this base seed and a stable timelapse identifier.",
+          "title": "Sampling Seed",
+          "type": "integer"
         }
       },
       "title": "TimelapseParams",

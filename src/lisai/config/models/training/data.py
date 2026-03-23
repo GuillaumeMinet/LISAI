@@ -40,6 +40,13 @@ class TimelapseParams(BaseModel):
         default=False,
         description="Whether timelapse frames should be shuffled before sampling.",
     )
+    sampling_seed: int = Field(
+        default=0,
+        description=(
+            "Base seed used to deterministically sample timelapse frames when shuffling is enabled. "
+            "The effective per-file seed is derived from this base seed and a stable timelapse identifier."
+        ),
+    )
 
     @field_validator("context_length", mode="before")
     @classmethod
@@ -64,6 +71,13 @@ class TimelapseParams(BaseModel):
             raise ValueError("`context_length` must be > 0.")
         if value % 2 == 0:
             raise ValueError("`context_length` must be odd.")
+        return value
+
+    @field_validator("sampling_seed")
+    @classmethod
+    def _validate_sampling_seed(cls, value: int):
+        if value < 0:
+            raise ValueError("`sampling_seed` must be >= 0.")
         return value
 
 

@@ -1,4 +1,5 @@
 import glob
+import hashlib
 import logging
 import warnings
 from pathlib import Path
@@ -18,6 +19,34 @@ from lisai.config.models.training import DataSection
 from lisai.lib.upsamp.artificial_movement import apply_movement
 
 logger = logging.getLogger("lisai.data_prep")
+
+
+def _stable_uint32_hash(text: str) -> int:
+    digest = hashlib.sha1(text.encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], byteorder="big", signed=False)
+
+
+def _timelapse_identifier(inp_file: Path, *, config: DataSection) -> str:
+    dataset_name = str(getattr(config, "dataset_name", "unknown_dataset"))
+    data_dir = getattr(config, "data_dir", None)
+
+    if data_dir is not None:
+        data_dir_path = Path(data_dir)
+        try:
+            rel_path = inp_file.relative_to(data_dir_path)
+        except ValueError:
+            try:
+                rel_path = inp_file.resolve().relative_to(data_dir_path.resolve())
+            except (ValueError, OSError):
+                rel_path = Path(inp_file.name)
+    else:
+        rel_path = Path(inp_file.name)
+
+    return f"{dataset_name}/{rel_path.as_posix()}"
+
+
+def _timelapse_sampling_seed(*, base_seed: int, identifier: str) -> int:
+    return (int(base_seed) + _stable_uint32_hash(identifier)) % (2**32)
 
 
 def load_full_datasets(
@@ -331,8 +360,11 @@ def load_image(
     """
     paired = True if gt_file is not None else False
 
-    inp_img = imread(inp_file)
-    gt_img = imread(gt_file) if paired else None
+    inp_path = Path(inp_file)
+    gt_path = Path(gt_file) if gt_file is not None else None
+
+    inp_img = imread(inp_path)
+    gt_img = imread(gt_path) if paired else None
 
     if data_format == "single":
         return inp_img, gt_img
@@ -348,10 +380,13 @@ def load_image(
             nFrames = prm.timelapse_max_frames
             if inp_img.shape[0] > nFrames:
                 if prm.shuffle:
-                    idx = np.arange(inp_img.shape[0])
-                    np.random.shuffle(idx)
+                    identifier = _timelapse_identifier(inp_path, config=config)
+                    seed = _timelapse_sampling_seed(base_seed=prm.sampling_seed, identifier=identifier)
+                    rng = np.random.default_rng(seed)
+                    idx = rng.choice(inp_img.shape[0], size=nFrames, replace=False)
                     inp_img = inp_img[idx]
-                inp_img = inp_img[:nFrames]
+                else:
+                    inp_img = inp_img[:nFrames]
 
         if prm.context_length is None:
             inp_img = np.expand_dims(inp_img, axis=1)  # [time,1,h,w] => considered as [snr,1,h,w]
