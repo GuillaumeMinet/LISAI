@@ -182,13 +182,13 @@ def _format_listing_title(
 ) -> str:
     filter_parts: list[str] = []
     if dataset:
-        filter_parts.append(dataset)
-    if status:
-        filter_parts.append(status)
+        filter_parts.append(f"Dataset: '{dataset}'")
     if model_subfolder:
-        filter_parts.append(f"subfolder={model_subfolder}")
+        filter_parts.append(f"Subfolder: '{model_subfolder}'")
+    if status:
+        filter_parts.append(f"Status: '{status}'")
     if run_name:
-        filter_parts.append(f"run_name={run_name}")
+        filter_parts.append(f"run_name='{run_name}'")
     if run_index is not None:
         filter_parts.append(f"run_index={run_index}")
     if run_id:
@@ -196,9 +196,9 @@ def _format_listing_title(
 
     title = "LISAI runs listing"
     if filter_parts:
-        title = f"{title} ({' - '.join(filter_parts)})"
+        title = f"{title} - {' | '.join(filter_parts)}\n"
     if live:
-        title = f"{title} LIVE MODE ({refresh_interval_seconds:g}s refresh) - Ctrl+C to stop live"
+        title = f"{title}LIVE MODE ({refresh_interval_seconds:g}s refresh) - Ctrl+C to stop live\n"
     return title
 
 
