@@ -15,9 +15,9 @@ experiment:
 # ========================================================
 load_model:
   canonical_load: true
-  dataset_name: Gag_timelapses
-  subfolder: Upsamp
-  exp_name: CL1_Upsamp2_Mltpl05_lightweight_01
+  dataset_name: Gag_noisy_timelapses
+  subfolder: HDN
+  exp_name: HDN_betaKL07_LR1e-06_00
   load_method: state_dict
   best_or_last: last
 
@@ -26,8 +26,8 @@ load_model:
 # Only include values you want to change for the resumed run.
 # ========================================================
 training:
-  n_epochs: 20
-  # learning_rate: 0.00005
+  n_epochs: 50
+  # learning_rate: 0.0000001
   # early_stop: false
 
 # ========================================================

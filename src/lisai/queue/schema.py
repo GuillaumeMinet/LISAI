@@ -10,14 +10,16 @@ from lisai.runs.identifiers import is_valid_run_id
 from lisai.runs.schema import TrainingSignature, format_timestamp, parse_timestamp
 
 QUEUE_SCHEMA_VERSION = 1
-JOB_STATUSES = ("queued", "running", "done", "failed")
+JOB_STATUSES = ("queued", "running", "blocked", "done", "failed")
+JOB_PRIORITIES = ("high", "normal", "low")
 RESOURCE_CLASSES = ("light", "medium", "heavy")
 SELECTOR_PREFIX = "q"
 SELECTOR_MIN_WIDTH = 4
 
 _SELECTOR_RE = re.compile(r"^q(\d+)$", re.IGNORECASE)
 
-JobStatus = Literal["queued", "running", "done", "failed"]
+JobStatus = Literal["queued", "running", "blocked", "done", "failed"]
+JobPriority = Literal["high", "normal", "low"]
 ResourceClass = Literal["light", "medium", "heavy"]
 
 
@@ -29,6 +31,7 @@ class QueueJob(BaseModel):
     selector: str | None = None
     config: str
     status: JobStatus
+    priority: JobPriority = "normal"
     device: str
     submitted_at: datetime
     updated_at: datetime
@@ -135,7 +138,10 @@ class QueueJob(BaseModel):
                 raise ValueError("running jobs must have launched_at.")
             if self.finished_at is not None:
                 raise ValueError("running jobs cannot have finished_at.")
-        if self.status in {"done", "failed"}:
+        if self.status == "blocked":
+            if self.launched_at is not None:
+                raise ValueError("blocked jobs cannot have launched_at.")
+        if self.status in {"blocked", "done", "failed"}:
             if self.finished_at is None:
                 raise ValueError("terminal jobs must have finished_at.")
         return self
@@ -155,6 +161,8 @@ class QueueJob(BaseModel):
 
 __all__ = [
     "JOB_STATUSES",
+    "JOB_PRIORITIES",
+    "JobPriority",
     "JobStatus",
     "QUEUE_SCHEMA_VERSION",
     "QueueJob",

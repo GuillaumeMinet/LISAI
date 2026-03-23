@@ -4,15 +4,21 @@ from .cli import (
     clean_jobs,
     list_jobs,
     logs_job,
+    pause_queue,
+    resume_queue,
+    set_queue_concurrency,
     show_job,
+    show_queue_control,
     start_worker,
     submit_job,
+    submit_sweep,
 )
 from .history import estimate_expected_vram_mb, load_scheduling_context
-from .schema import JOB_STATUSES, QueueJob, RESOURCE_CLASSES
+from .schema import JOB_PRIORITIES, JOB_STATUSES, QueueJob, RESOURCE_CLASSES
 from .worker import QueueWorker
 
 __all__ = [
+    "JOB_PRIORITIES",
     "JOB_STATUSES",
     "QueueJob",
     "QueueWorker",
@@ -24,7 +30,12 @@ __all__ = [
     "list_jobs",
     "load_scheduling_context",
     "logs_job",
+    "pause_queue",
+    "resume_queue",
+    "set_queue_concurrency",
     "show_job",
+    "show_queue_control",
     "start_worker",
     "submit_job",
+    "submit_sweep",
 ]

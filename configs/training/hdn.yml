@@ -4,7 +4,7 @@
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: HDN_Gag_KL06
+  exp_name: HDN_Gag_KL07
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
 
@@ -35,11 +35,10 @@ data:
   target: null # for paired datasets
   input: ""
   timelapse_prm:
-    context_length: null
     timelapse_max_frames: 10
     shuffle: true
 
-  patch_size: 64
+  patch_size: 128
   val_patch_size: 256
   batch_size: 64
 
@@ -76,9 +75,9 @@ model:
 # Training configuration
 # ========================================================
 training:
-  n_epochs: 100
-  batch_size: 8
-  learning_rate: 0.0005
+  n_epochs: 10
+  batch_size: 16
+  learning_rate: 0.00001
   betaKL: 0.6
   val_loss_patience: 30
   optimizer: Adam

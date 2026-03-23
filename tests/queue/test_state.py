@@ -5,7 +5,7 @@ from pathlib import Path
 
 from lisai.runs.schema import TrainingSignature
 
-from lisai.queue.state import create_queued_job, mark_job_done, mark_job_running
+from lisai.queue.state import create_queued_job, mark_job_blocked, mark_job_done, mark_job_running
 from lisai.queue.storage import discover_jobs
 
 
@@ -81,3 +81,28 @@ def test_queue_selector_is_monotonic_and_not_reused_after_file_removal(tmp_path:
     assert first.job.selector == "q0001"
     assert second.job.selector == "q0002"
     assert third.job.selector == "q0003"
+
+
+def test_queue_job_can_transition_to_blocked(tmp_path: Path):
+    now = datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc)
+    queued = create_queued_job(
+        config_path=tmp_path / "cfg.yml",
+        resource_class="medium",
+        device="cuda:invalid",
+        queue_root=tmp_path / ".lisai" / "queue",
+        now=now,
+    )
+
+    blocked = mark_job_blocked(
+        queued,
+        error="invalid_device_spec",
+        queue_root=tmp_path / ".lisai" / "queue",
+        now=now,
+    )
+    assert blocked.status == "blocked"
+    assert blocked.job.finished_at == now
+    assert blocked.job.error == "invalid_device_spec"
+
+    blocked_jobs, _ = discover_jobs(status="blocked", queue_root=tmp_path / ".lisai" / "queue")
+    assert len(blocked_jobs) == 1
+    assert blocked_jobs[0].job.job_id == queued.job.job_id

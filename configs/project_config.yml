@@ -57,3 +57,5 @@ queue:
   fixed_margin_pct: 0.20
   safety_margin_mb: 2000
   poll_seconds: 5
+  paused: false
+  max_concurrent_runs_per_gpu: 1

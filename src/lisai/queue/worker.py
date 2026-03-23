@@ -1,24 +1,22 @@
 from __future__ import annotations
 
-import math
 import os
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import IO
 
 from lisai.config import settings
 from lisai.runs.listing import is_run_likely_active, write_invalid_run_warnings
 from lisai.runs.scanner import DiscoveredRun, scan_runs
-from lisai.runs.schema import utc_now
 
-from .gpu import parse_cuda_device_index, query_free_vram_mb
-from .history import estimate_expected_vram_mb, resource_class_defaults_mb
-from .schema import QueueJob
-from .state import mark_job_done, mark_job_failed, mark_job_running, set_job_run_id
+from .control import QueueControl, default_queue_control, read_queue_control
+from .gpu import parse_cuda_device_index
+from .schema import QueueJob, parse_queue_selector
+from .state import mark_job_blocked, mark_job_done, mark_job_failed, mark_job_running, set_job_run_id
 from .storage import (
     DiscoveredJob,
     discover_jobs,
@@ -28,15 +26,31 @@ from .storage import (
     queue_logs_dir,
 )
 
+PRIORITY_RANK = {
+    "high": 0,
+    "normal": 1,
+    "low": 2,
+}
+
 
 @dataclass(frozen=True)
 class LaunchDecision:
     should_launch: bool
-    expected_vram_mb: int
-    required_vram_mb: int
-    free_vram_mb: int | None
-    source: str
     reason: str
+    blocked_error: str | None = None
+
+
+@dataclass(frozen=True)
+class WorkerCycleResult:
+    status_key: str
+    status_message: str
+    launched: bool = False
+
+
+@dataclass(frozen=True)
+class ProcessRefreshResult:
+    finished_jobs: int
+    failed_jobs: int
 
 
 @dataclass
@@ -54,6 +68,7 @@ class QueueWorker:
         poll_seconds: int | None = None,
         safety_margin_mb: int | None = None,
         fixed_margin_pct: float | None = None,
+        heartbeat_seconds: int = 120,
         stdout=None,
         stderr=None,
     ):
@@ -61,108 +76,201 @@ class QueueWorker:
         self.poll_seconds = int(
             settings.project.queue.poll_seconds if poll_seconds is None else poll_seconds
         )
+        # Kept for compatibility with previous worker constructor.
         self.safety_margin_mb = int(
             settings.project.queue.safety_margin_mb if safety_margin_mb is None else safety_margin_mb
         )
         self.fixed_margin_pct = float(
             settings.project.queue.fixed_margin_pct if fixed_margin_pct is None else fixed_margin_pct
         )
+        self.heartbeat_seconds = int(heartbeat_seconds)
         self.stdout = sys.stdout if stdout is None else stdout
         self.stderr = sys.stderr if stderr is None else stderr
         self._running_processes: dict[str, RunningProcess] = {}
+        self._started = False
+        self._last_cycle_result: WorkerCycleResult | None = None
+        self._last_cycle_report_monotonic: float | None = None
+        self._last_control: QueueControl | None = None
 
     def run_forever(self) -> int:
+        self._ensure_started()
         while True:
-            self.run_once()
+            result = self.run_once()
+            self._report_cycle_status(result)
             time.sleep(self.poll_seconds)
 
-    def run_once(self) -> None:
+    def run_once(self) -> WorkerCycleResult:
+        self._ensure_started()
+
         scan_result = scan_runs()
         write_invalid_run_warnings(scan_result.invalid, stderr=self.stderr)
 
-        self._refresh_finished_processes()
+        refresh = self._refresh_finished_processes()
         self._reconcile_running_jobs(scan_result.runs)
 
         queued_records, invalid_jobs = discover_jobs(status="queued", queue_root=self.queue_root)
         for invalid in invalid_jobs:
-            print(
+            self._emit(
                 f"warning: skipped invalid queue job {invalid.path} ({invalid.kind}: {invalid.message})",
-                file=self.stderr,
+                stream=self.stderr,
             )
 
-        active_runs = [run for run in scan_result.runs if is_run_likely_active(run)]
+        control = self._load_control()
+        self._report_control_change(control)
+
+        if control.paused:
+            return WorkerCycleResult(
+                status_key="paused",
+                status_message="paused",
+            )
+
+        queued_records = self._sorted_queued_records(queued_records)
+        if not queued_records:
+            if refresh.failed_jobs:
+                return WorkerCycleResult(
+                    status_key="failed",
+                    status_message=f"failed {refresh.failed_jobs} job(s)",
+                )
+            if refresh.finished_jobs:
+                return WorkerCycleResult(
+                    status_key="finished",
+                    status_message=f"finished {refresh.finished_jobs} job(s)",
+                )
+            return WorkerCycleResult(
+                status_key="idle",
+                status_message="idle: no queued jobs",
+            )
+
+        running_cuda_by_gpu = self._running_cuda_counts()
+        waiting_due_to_capacity = False
+        blocked_this_cycle = 0
 
         for record in queued_records:
-            decision = self._launch_decision(record.job, scan_result.runs, active_runs=active_runs)
-            if not decision.should_launch:
+            decision = self._launch_decision(
+                record.job,
+                running_cuda_by_gpu=running_cuda_by_gpu,
+                max_concurrent_runs_per_gpu=control.max_concurrent_runs_per_gpu,
+            )
+            if decision.blocked_error:
+                mark_job_blocked(
+                    record,
+                    error=decision.blocked_error,
+                    queue_root=self.queue_root,
+                )
+                blocked_this_cycle += 1
+                self._emit(
+                    f"blocked job {record.job.job_id}: {decision.blocked_error}",
+                    stream=self.stderr,
+                )
                 continue
+
+            if not decision.should_launch:
+                if decision.reason == "device_busy":
+                    waiting_due_to_capacity = True
+                continue
+
             launched = self._launch_job(record)
             if launched:
-                # v1 policy: launch at most one job per loop, then re-evaluate next cycle.
-                break
+                return WorkerCycleResult(
+                    status_key="launched",
+                    status_message=f"launched: {record.job.selector or record.job.job_id}",
+                    launched=True,
+                )
+            return WorkerCycleResult(
+                status_key="failed",
+                status_message=f"failed: {record.job.selector or record.job.job_id}",
+            )
+
+        if blocked_this_cycle:
+            queued_after, _invalid = discover_jobs(status="queued", queue_root=self.queue_root)
+            if not queued_after:
+                return WorkerCycleResult(
+                    status_key="idle",
+                    status_message="idle: no queued jobs",
+                )
+
+        if waiting_due_to_capacity:
+            return WorkerCycleResult(
+                status_key="waiting/device_busy",
+                status_message="waiting: device busy / concurrency limit reached",
+            )
+
+        return WorkerCycleResult(
+            status_key="waiting/no_eligible",
+            status_message="waiting: no eligible job",
+        )
 
     def _launch_decision(
         self,
         job: QueueJob,
-        runs: tuple[DiscoveredRun, ...],
         *,
-        active_runs: list[DiscoveredRun],
+        running_cuda_by_gpu: dict[int, int],
+        max_concurrent_runs_per_gpu: int,
     ) -> LaunchDecision:
-        expected_vram_mb, source = estimate_expected_vram_mb(
-            signature=job.training_signature,
-            resource_class=job.resource_class,
-            runs=runs,
-            resource_defaults_mb=resource_class_defaults_mb(),
-        )
-        required_vram_mb = int(
-            math.ceil(
-                max(
-                    expected_vram_mb * (1.0 + self.fixed_margin_pct),
-                    expected_vram_mb + self.safety_margin_mb,
-                )
+        blocked_error = self._prelaunch_block_reason(job)
+        if blocked_error is not None:
+            return LaunchDecision(
+                should_launch=False,
+                reason="blocked",
+                blocked_error=blocked_error,
             )
-        )
 
+        device_index = parse_cuda_device_index(job.device)
+        if device_index is None:
+            return LaunchDecision(should_launch=True, reason="non_cuda")
+
+        running_on_device = running_cuda_by_gpu.get(device_index, 0)
+        if running_on_device >= max_concurrent_runs_per_gpu:
+            return LaunchDecision(
+                should_launch=False,
+                reason="device_busy",
+            )
+        return LaunchDecision(should_launch=True, reason="eligible")
+
+    def _prelaunch_block_reason(self, job: QueueJob) -> str | None:
         try:
-            free_vram_mb = query_free_vram_mb(job.device)
+            parse_cuda_device_index(job.device)
         except Exception as exc:
-            return LaunchDecision(
-                should_launch=False,
-                expected_vram_mb=expected_vram_mb,
-                required_vram_mb=required_vram_mb,
-                free_vram_mb=None,
-                source=source,
-                reason=f"gpu_query_failed:{type(exc).__name__}",
-            )
+            return f"invalid_device_spec:{type(exc).__name__}: {exc}"
 
-        if free_vram_mb is None:
-            return LaunchDecision(
-                should_launch=True,
-                expected_vram_mb=expected_vram_mb,
-                required_vram_mb=required_vram_mb,
-                free_vram_mb=None,
-                source=source,
-                reason=f"non_cuda_device(active_runs={len(active_runs)})",
-            )
+        config_path = Path(job.config).expanduser().resolve()
+        if not config_path.exists():
+            return f"prelaunch_validation_failed: config not found ({config_path})"
+        if not config_path.is_file():
+            return f"prelaunch_validation_failed: config is not a file ({config_path})"
+        return None
 
-        if free_vram_mb < required_vram_mb:
-            return LaunchDecision(
-                should_launch=False,
-                expected_vram_mb=expected_vram_mb,
-                required_vram_mb=required_vram_mb,
-                free_vram_mb=free_vram_mb,
-                source=source,
-                reason=f"insufficient_free_vram(active_runs={len(active_runs)})",
-            )
+    def _running_cuda_counts(self) -> dict[int, int]:
+        counts: dict[int, int] = {}
+        running_records, _invalid = discover_jobs(status="running", queue_root=self.queue_root)
+        for record in running_records:
+            try:
+                device_index = parse_cuda_device_index(record.job.device)
+            except Exception:
+                continue
+            if device_index is None:
+                continue
+            counts[device_index] = counts.get(device_index, 0) + 1
+        return counts
 
-        return LaunchDecision(
-            should_launch=True,
-            expected_vram_mb=expected_vram_mb,
-            required_vram_mb=required_vram_mb,
-            free_vram_mb=free_vram_mb,
-            source=source,
-            reason=f"safe_to_launch(active_runs={len(active_runs)})",
+    def _sorted_queued_records(self, records: tuple[DiscoveredJob, ...]) -> tuple[DiscoveredJob, ...]:
+        return tuple(
+            sorted(
+                records,
+                key=lambda record: (
+                    PRIORITY_RANK.get(record.job.priority, PRIORITY_RANK["normal"]),
+                    record.job.submitted_at,
+                    self._selector_index(record.job.selector),
+                    record.job.job_id,
+                ),
+            )
         )
+
+    def _selector_index(self, selector: str | None) -> int:
+        if selector is None:
+            return sys.maxsize
+        parsed = parse_queue_selector(selector)
+        return sys.maxsize if parsed is None else parsed
 
     def _launch_job(self, record: DiscoveredJob) -> bool:
         job = record.job
@@ -175,10 +283,7 @@ class QueueWorker:
             log_handle = log_path.open("ab")
 
             env = os.environ.copy()
-            try:
-                device_index = parse_cuda_device_index(job.device)
-            except Exception:
-                device_index = None
+            device_index = parse_cuda_device_index(job.device)
             if device_index is not None:
                 env["CUDA_VISIBLE_DEVICES"] = str(device_index)
             # Queue worker logs are non-interactive files; disable tqdm redraw spam.
@@ -204,9 +309,9 @@ class QueueWorker:
                 process=process,
                 log_handle=log_handle,
             )
-            print(
-                f"launched {job.job_id} config={job.config} pid={process.pid} device={job.device}",
-                file=self.stdout,
+            self._emit(
+                f"launched job {job.job_id} ({job.selector or '-'}) config={job.config} "
+                f"pid={process.pid} device={job.device}",
             )
             return True
         except Exception as exc:
@@ -218,14 +323,16 @@ class QueueWorker:
                 error=f"{type(exc).__name__}: {exc}",
                 queue_root=self.queue_root,
             )
-            print(
-                f"warning: failed to launch {job.job_id}: {type(exc).__name__}: {exc}",
-                file=self.stderr,
+            self._emit(
+                f"failed job {job.job_id}: launch error {type(exc).__name__}: {exc}",
+                stream=self.stderr,
             )
             return False
 
-    def _refresh_finished_processes(self) -> None:
+    def _refresh_finished_processes(self) -> ProcessRefreshResult:
         finished: list[str] = []
+        finished_jobs = 0
+        failed_jobs = 0
         for job_id, running in self._running_processes.items():
             exit_code = running.process.poll()
             if exit_code is None:
@@ -243,16 +350,27 @@ class QueueWorker:
                         exit_code=exit_code,
                         queue_root=self.queue_root,
                     )
+                    finished_jobs += 1
+                    self._emit(
+                        f"finished job {job_id} exit_code={exit_code}",
+                    )
                 else:
                     mark_job_failed(
                         latest_record,
                         exit_code=exit_code,
                         queue_root=self.queue_root,
                     )
+                    failed_jobs += 1
+                    self._emit(
+                        f"failed job {job_id} exit_code={exit_code}",
+                        stream=self.stderr,
+                    )
             finished.append(job_id)
 
         for job_id in finished:
             self._running_processes.pop(job_id, None)
+
+        return ProcessRefreshResult(finished_jobs=finished_jobs, failed_jobs=failed_jobs)
 
     def _reconcile_running_jobs(self, runs: tuple[DiscoveredRun, ...]) -> None:
         running_records, _invalid = discover_jobs(status="running", queue_root=self.queue_root)
@@ -283,8 +401,13 @@ class QueueWorker:
 
             if run.metadata.status in {"completed", "stopped"} and run.metadata.closed_cleanly:
                 mark_job_done(linked, exit_code=0, queue_root=self.queue_root)
+                self._emit(f"finished job {linked.job.job_id} (reconciled from run metadata)")
             elif run.metadata.status == "failed" and run.metadata.closed_cleanly:
                 mark_job_failed(linked, exit_code=1, queue_root=self.queue_root)
+                self._emit(
+                    f"failed job {linked.job.job_id} (reconciled from run metadata)",
+                    stream=self.stderr,
+                )
 
     def _infer_run_id_for_job(
         self,
@@ -320,5 +443,93 @@ class QueueWorker:
             return candidates[0].metadata.run_id
         return None
 
+    def _ensure_started(self) -> None:
+        if self._started:
+            return
+        self._started = True
+        self._emit("worker started")
+        self._report_startup_snapshot()
 
-__all__ = ["LaunchDecision", "QueueWorker", "RunningProcess"]
+    def _report_startup_snapshot(self) -> None:
+        queued_count = len(discover_jobs(status="queued", queue_root=self.queue_root)[0])
+        running_count = len(discover_jobs(status="running", queue_root=self.queue_root)[0])
+        blocked_count = len(discover_jobs(status="blocked", queue_root=self.queue_root)[0])
+        control = self._load_control()
+        self._last_control = control
+        self._emit(
+            "worker snapshot: "
+            f"queued={queued_count} "
+            f"running={running_count} "
+            f"blocked={blocked_count} "
+            f"paused={control.paused} "
+            f"max_concurrent_runs_per_gpu={control.max_concurrent_runs_per_gpu}"
+        )
+
+    def _load_control(self) -> QueueControl:
+        try:
+            return read_queue_control(queue_root=self.queue_root)
+        except Exception as exc:
+            self._emit(
+                f"warning: failed to read queue control file ({type(exc).__name__}: {exc}); "
+                "using defaults.",
+                stream=self.stderr,
+            )
+            return default_queue_control()
+
+    def _report_control_change(self, control: QueueControl) -> None:
+        previous = self._last_control
+        if previous is None:
+            self._last_control = control
+            return
+        if previous == control:
+            return
+
+        self._emit(
+            "control change: "
+            f"paused={control.paused} "
+            f"max_concurrent_runs_per_gpu={control.max_concurrent_runs_per_gpu}"
+        )
+        if previous.paused != control.paused:
+            if control.paused:
+                self._emit("paused")
+            else:
+                self._emit("resumed")
+        self._last_control = control
+
+    def _report_cycle_status(self, result: WorkerCycleResult, *, force: bool = False) -> None:
+        now = time.monotonic()
+        changed = (
+            force
+            or self._last_cycle_result is None
+            or self._last_cycle_result.status_key != result.status_key
+            or self._last_cycle_result.status_message != result.status_message
+        )
+
+        if changed:
+            self._emit(result.status_message)
+            self._last_cycle_result = result
+            self._last_cycle_report_monotonic = now
+            return
+
+        if self._last_cycle_report_monotonic is None:
+            self._emit(result.status_message)
+            self._last_cycle_report_monotonic = now
+            return
+
+        if (now - self._last_cycle_report_monotonic) >= self.heartbeat_seconds:
+            self._emit(f"heartbeat: {result.status_message}")
+            self._last_cycle_report_monotonic = now
+
+    def _emit(self, message: str, *, stream=None) -> None:
+        target = self.stdout if stream is None else stream
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{timestamp}] {message}", file=target, flush=True)
+
+
+__all__ = [
+    "LaunchDecision",
+    "ProcessRefreshResult",
+    "QueueWorker",
+    "RunningProcess",
+    "WorkerCycleResult",
+]

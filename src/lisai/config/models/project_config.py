@@ -50,6 +50,8 @@ class QueueConfig(BaseModel):
     fixed_margin_pct: float = Field(default=0.20, ge=0.0)
     safety_margin_mb: int = Field(default=3000, ge=0)
     poll_seconds: int = Field(default=5, ge=1)
+    paused: bool = False
+    max_concurrent_runs_per_gpu: int = Field(default=1, ge=1)
 
 
 class ProjectConfig(BaseModel):

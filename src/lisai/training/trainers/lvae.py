@@ -59,7 +59,8 @@ class LVAETrainer(BaseTrainer):
                 self._update_console_new_batch(epoch,batch_id,len(iter_loader))
 
             virtual_batches = self._split_batch(batch, warn_once=(batch_id == 0))
-
+            num_micro_batches = len(virtual_batches[0])
+            
             for (x, y, *samp_pos) in zip(*virtual_batches):
                 # LVAE ignores samp_pos in forward passes
                 x, y, _ = self._prepare_batch(x, y, None)
@@ -67,11 +68,12 @@ class LVAETrainer(BaseTrainer):
                 outputs = self._lvae_forward_pass(x, y, self.device, self.model, gaussian_noise_std=None)
                 recons_loss = outputs["recons_loss"]
                 kl_loss = outputs["kl_loss"]
-                loss = recons_loss + self.betaKL * kl_loss
-
+                raw_loss = recons_loss + self.betaKL * kl_loss
+                
+                loss = raw_loss / num_micro_batches
                 loss.backward()
 
-                losses.append(loss.item())
+                losses.append(raw_loss.item())
                 kl_losses.append(kl_loss.item())
                 recons_losses.append(recons_loss.item())
 

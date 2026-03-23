@@ -7,7 +7,7 @@ from lisai.runs.identifiers import generate_run_id
 from lisai.runs.schema import TrainingSignature, utc_now
 
 from .selectors import allocate_selector
-from .schema import QueueJob, ResourceClass
+from .schema import JobPriority, QueueJob, ResourceClass
 from .storage import DiscoveredJob, job_filename, queue_state_dir, transition_job, write_job_atomic
 
 
@@ -16,6 +16,7 @@ def create_queued_job(
     config_path: str | Path,
     resource_class: ResourceClass,
     device: str,
+    priority: JobPriority = "normal",
     queue_root: str | Path | None = None,
     run_id: str | None = None,
     dataset: str | None = None,
@@ -32,6 +33,7 @@ def create_queued_job(
         selector=selector,
         config=str(Path(config_path).resolve()),
         status="queued",
+        priority=priority,
         device=device,
         submitted_at=submitted,
         updated_at=submitted,
@@ -94,6 +96,27 @@ def mark_job_done(
     )
 
 
+def mark_job_blocked(
+    record: DiscoveredJob,
+    *,
+    error: str,
+    now: datetime | None = None,
+    queue_root: str | Path | None = None,
+) -> DiscoveredJob:
+    timestamp = utc_now() if now is None else now
+    return transition_job(
+        record,
+        to_status="blocked",
+        queue_root=queue_root,
+        updates={
+            "updated_at": timestamp,
+            "finished_at": timestamp,
+            "exit_code": None,
+            "error": error,
+        },
+    )
+
+
 def mark_job_failed(
     record: DiscoveredJob,
     *,
@@ -137,6 +160,7 @@ def set_job_run_id(
 
 __all__ = [
     "create_queued_job",
+    "mark_job_blocked",
     "mark_job_done",
     "mark_job_failed",
     "mark_job_running",

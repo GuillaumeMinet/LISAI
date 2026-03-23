@@ -65,3 +65,5 @@ def test_project_queue_resource_classes_are_configured(settings_obj: Settings):
     assert defaults.medium == 4000
     assert defaults.heavy == 6000
     assert settings_obj.project.queue.fixed_margin_pct == 0.20
+    assert settings_obj.project.queue.paused is False
+    assert settings_obj.project.queue.max_concurrent_runs_per_gpu == 1

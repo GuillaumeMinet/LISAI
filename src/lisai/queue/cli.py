@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 import json
 import os
 import re
@@ -12,19 +13,29 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Sequence
 
-from lisai.config import resolve_config
+from lisai.config import load_yaml, resolve_config, save_yaml
 from lisai.evaluation import run_evaluate
 from lisai.runs.schema import format_timestamp_local, utc_now
 from lisai.runs.scanner import DiscoveredRun, scan_runs
 from lisai.training.cli import resolve_config_path
 
+from .control import read_queue_control, update_queue_control
 from .history import load_scheduling_context
-from .schema import JOB_STATUSES, RESOURCE_CLASSES, QueueJob, ResourceClass, is_queue_selector
+from .schema import (
+    JOB_PRIORITIES,
+    JOB_STATUSES,
+    RESOURCE_CLASSES,
+    JobPriority,
+    QueueJob,
+    ResourceClass,
+    is_queue_selector,
+)
 from .selectors import reset_selector_index
 from .state import create_queued_job, mark_job_failed
 from .storage import (
     DiscoveredJob,
     discover_jobs,
+    ensure_queue_dirs,
     find_job,
     job_log_filename,
     queue_logs_dir,
@@ -51,6 +62,7 @@ def submit_job(
     config: str,
     resource_class: ResourceClass,
     device: str,
+    priority: JobPriority = "normal",
     stdout=None,
 ) -> int:
     out = sys.stdout if stdout is None else stdout
@@ -61,6 +73,7 @@ def submit_job(
         config_path=resolved_config,
         resource_class=resource_class,
         device=device,
+        priority=priority,
         dataset=context.dataset,
         model_subfolder=context.model_subfolder,
         run_name=context.run_name,
@@ -71,7 +84,104 @@ def submit_job(
     print(f"  label: {_job_display_label(record.job)}", file=out)
     print(f"  config: {record.job.config}", file=out)
     print(f"  resource_class: {record.job.resource_class}", file=out)
+    print(f"  priority: {record.job.priority}", file=out)
     print(f"  device: {record.job.device}", file=out)
+    return 0
+
+
+def submit_sweep(
+    *,
+    file: str,
+    resource_class: ResourceClass,
+    device: str,
+    priority: JobPriority = "normal",
+    stdout=None,
+    stderr=None,
+) -> int:
+    out = sys.stdout if stdout is None else stdout
+    err = sys.stderr if stderr is None else stderr
+
+    try:
+        sweep_path = resolve_config_path(file)
+        payload = load_yaml(sweep_path)
+    except Exception as exc:
+        print(
+            f"Failed to read sweep file {file!r} (resolved via configs/training search): "
+            f"{type(exc).__name__}: {exc}",
+            file=err,
+        )
+        return 1
+
+    base_config = payload.get("base_config")
+    runs = payload.get("runs")
+    if not isinstance(base_config, str) or not base_config.strip():
+        print("Sweep file must define a non-empty 'base_config'.", file=err)
+        return 1
+    if not isinstance(runs, list) or not runs:
+        print("Sweep file must define a non-empty list under 'runs'.", file=err)
+        return 1
+
+    try:
+        resolved_base_config = _resolve_sweep_base_config(base_config, sweep_path=sweep_path)
+        base_cfg = load_yaml(resolved_base_config)
+    except Exception as exc:
+        print(f"Failed to resolve base_config {base_config!r}: {type(exc).__name__}: {exc}", file=err)
+        return 1
+
+    queue_root = ensure_queue_dirs()
+    generated_root = queue_root / "generated_configs"
+    generated_root.mkdir(parents=True, exist_ok=True)
+
+    submitted = 0
+    for index, run_entry in enumerate(runs, start=1):
+        if not isinstance(run_entry, dict):
+            print(f"Sweep run #{index} must be an object.", file=err)
+            return 1
+
+        run_name = run_entry.get("run_name")
+        overrides = run_entry.get("overrides", {})
+        if not isinstance(run_name, str) or not run_name.strip():
+            print(f"Sweep run #{index} is missing a non-empty 'run_name'.", file=err)
+            return 1
+        if not isinstance(overrides, dict):
+            print(f"Sweep run #{index} has non-dictionary overrides.", file=err)
+            return 1
+
+        run_cfg = deepcopy(base_cfg)
+        for key, value in overrides.items():
+            if not isinstance(key, str) or not key.strip():
+                print(f"Sweep run #{index} has an invalid override key {key!r}.", file=err)
+                return 1
+            _set_dotted_value(run_cfg, key.strip(), value)
+
+        # Sweep run_name is authoritative for each generated run config.
+        _set_dotted_value(run_cfg, "experiment.exp_name", run_name.strip())
+
+        generated_config = _next_sweep_config_path(
+            generated_root=generated_root,
+            run_name=run_name,
+            index=index,
+        )
+        save_yaml(run_cfg, generated_config)
+        context = load_scheduling_context(generated_config)
+        record = create_queued_job(
+            config_path=generated_config,
+            resource_class=resource_class,
+            device=device,
+            priority=priority,
+            dataset=context.dataset,
+            model_subfolder=context.model_subfolder,
+            run_name=context.run_name,
+            training_signature=context.training_signature,
+        )
+        submitted += 1
+        print(
+            f"Submitted job {record.job.selector or '-'} ({record.job.job_id}) "
+            f"from sweep run {run_name}.",
+            file=out,
+        )
+
+    print(f"Sweep submission complete: submitted={submitted} file={sweep_path}", file=out)
     return 0
 
 
@@ -133,6 +243,7 @@ def show_job(
     print(f"selector      : {job.selector or '-'}", file=out)
     print(f"label         : {_job_display_label(job)}", file=out)
     print(f"status        : {job.status}", file=out)
+    print(f"priority      : {job.priority}", file=out)
     print(f"job_id        : {job.job_id}", file=out)
     print(f"dataset       : {job.dataset or '-'}", file=out)
     print(f"subfolder     : {job.model_subfolder or '-'}", file=out)
@@ -291,7 +402,7 @@ def cancel_jobs(
     if record is None:
         return 1
 
-    if record.job.status in {"done", "failed"}:
+    if record.job.status in {"blocked", "done", "failed"}:
         print(f"Job {_job_selector_text(record.job)} is already {record.job.status}. Nothing to cancel.", file=out)
         return 0
 
@@ -335,9 +446,71 @@ def start_worker(
         stderr=stderr,
     )
     if once:
-        worker.run_once()
+        result = worker.run_once()
+        worker._report_cycle_status(result, force=True)
         return 0
     return worker.run_forever()
+
+
+def pause_queue(*, stdout=None, stderr=None) -> int:
+    out = sys.stdout if stdout is None else stdout
+    err = sys.stderr if stderr is None else stderr
+    try:
+        control = update_queue_control(paused=True)
+    except Exception as exc:
+        print(f"Failed to pause queue: {type(exc).__name__}: {exc}", file=err)
+        return 1
+    print(
+        "Queue paused "
+        f"(max_concurrent_runs_per_gpu={control.max_concurrent_runs_per_gpu}).",
+        file=out,
+    )
+    return 0
+
+
+def resume_queue(*, stdout=None, stderr=None) -> int:
+    out = sys.stdout if stdout is None else stdout
+    err = sys.stderr if stderr is None else stderr
+    try:
+        control = update_queue_control(paused=False)
+    except Exception as exc:
+        print(f"Failed to resume queue: {type(exc).__name__}: {exc}", file=err)
+        return 1
+    print(
+        "Queue resumed "
+        f"(max_concurrent_runs_per_gpu={control.max_concurrent_runs_per_gpu}).",
+        file=out,
+    )
+    return 0
+
+
+def show_queue_control(*, stdout=None, stderr=None) -> int:
+    out = sys.stdout if stdout is None else stdout
+    err = sys.stderr if stderr is None else stderr
+    try:
+        control = read_queue_control()
+    except Exception as exc:
+        print(f"Failed to read queue control: {type(exc).__name__}: {exc}", file=err)
+        return 1
+    print(f"paused: {control.paused}", file=out)
+    print(f"max_concurrent_runs_per_gpu: {control.max_concurrent_runs_per_gpu}", file=out)
+    return 0
+
+
+def set_queue_concurrency(*, max_runs_per_gpu: int, stdout=None, stderr=None) -> int:
+    out = sys.stdout if stdout is None else stdout
+    err = sys.stderr if stderr is None else stderr
+    try:
+        control = update_queue_control(max_concurrent_runs_per_gpu=max_runs_per_gpu)
+    except Exception as exc:
+        print(f"Failed to update queue concurrency: {type(exc).__name__}: {exc}", file=err)
+        return 1
+    print(
+        "Queue concurrency updated "
+        f"(paused={control.paused}, max_concurrent_runs_per_gpu={control.max_concurrent_runs_per_gpu}).",
+        file=out,
+    )
+    return 0
 
 
 def clean_jobs(
@@ -368,11 +541,11 @@ def clean_jobs(
         threshold = utc_now() - age_delta
 
     if clean_all:
-        target_statuses = ("queued", "done", "failed")
+        target_statuses = ("queued", "blocked", "done", "failed")
     elif status is not None:
         target_statuses = (status,)
     else:
-        target_statuses = ("done", "failed")
+        target_statuses = ("blocked", "done", "failed")
 
     removed_jobs = 0
     removed_logs = 0
@@ -448,6 +621,7 @@ def render_jobs_table(jobs: list[QueueJob], *, full: bool = False) -> str:
             "id",
             "name",
             "status",
+            "priority",
             "dataset",
             "subfolder",
             "job_id",
@@ -464,6 +638,7 @@ def render_jobs_table(jobs: list[QueueJob], *, full: bool = False) -> str:
                 _job_selector_text(job),
                 _job_display_label(job),
                 job.status,
+                job.priority,
                 "-" if job.dataset is None else job.dataset,
                 "-" if job.model_subfolder is None else job.model_subfolder,
                 job.job_id,
@@ -482,6 +657,7 @@ def render_jobs_table(jobs: list[QueueJob], *, full: bool = False) -> str:
             "id",
             "name",
             "status",
+            "priority",
             "device",
             "submitted_at",
             "pid",
@@ -492,6 +668,7 @@ def render_jobs_table(jobs: list[QueueJob], *, full: bool = False) -> str:
                 _job_selector_text(job),
                 _job_display_label(job),
                 job.status,
+                job.priority,
                 job.device,
                 format_timestamp_local(job.submitted_at),
                 "-" if job.pid is None else str(job.pid),
@@ -529,11 +706,74 @@ def parse_age_duration(value: str) -> timedelta:
     return timedelta(days=amount)
 
 
+def _resolve_sweep_base_config(base_config: str, *, sweep_path: Path) -> Path:
+    candidate = Path(base_config).expanduser()
+    if not candidate.is_absolute():
+        candidate_from_sweep = (sweep_path.parent / candidate).resolve()
+        if candidate_from_sweep.exists():
+            return resolve_config_path(str(candidate_from_sweep))
+    return resolve_config_path(base_config)
+
+
+def _next_sweep_config_path(*, generated_root: Path, run_name: str, index: int) -> Path:
+    generated_root.mkdir(parents=True, exist_ok=True)
+    safe_name = _sanitize_filename_component(run_name)
+    base_name = f"sweep_{index:04d}_{safe_name}"
+    candidate = generated_root / f"{base_name}.yml"
+    if not candidate.exists():
+        return candidate
+
+    suffix = 2
+    while True:
+        candidate = generated_root / f"{base_name}_{suffix}.yml"
+        if not candidate.exists():
+            return candidate
+        suffix += 1
+
+
+def _sanitize_filename_component(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
+    cleaned = cleaned.strip("._-")
+    return cleaned or "run"
+
+
+def _set_dotted_value(target: dict, dotted_key: str, value: object) -> None:
+    keys = [part for part in dotted_key.split(".") if part]
+    if not keys:
+        raise ValueError("Override path must not be empty.")
+
+    cursor = target
+    for part in keys[:-1]:
+        existing = cursor.get(part)
+        if existing is None:
+            next_node: dict[str, object] = {}
+            cursor[part] = next_node
+            cursor = next_node
+            continue
+        if not isinstance(existing, dict):
+            raise ValueError(
+                f"Cannot set nested override {dotted_key!r}: "
+                f"component {part!r} is not an object."
+            )
+        cursor = existing
+    cursor[keys[-1]] = value
+
+
 def run_submit_from_args(args: argparse.Namespace) -> int:
     return submit_job(
         config=args.config,
         resource_class=args.resource_class,
         device=args.device,
+        priority=args.priority,
+    )
+
+
+def run_submit_sweep_from_args(args: argparse.Namespace) -> int:
+    return submit_sweep(
+        file=args.file,
+        resource_class=args.resource_class,
+        device=args.device,
+        priority=args.priority,
     )
 
 
@@ -612,6 +852,22 @@ def run_clean_from_args(args: argparse.Namespace) -> int:
     )
 
 
+def run_pause_from_args(_args: argparse.Namespace) -> int:
+    return pause_queue()
+
+
+def run_resume_from_args(_args: argparse.Namespace) -> int:
+    return resume_queue()
+
+
+def run_control_from_args(_args: argparse.Namespace) -> int:
+    return show_queue_control()
+
+
+def run_concurrency_from_args(args: argparse.Namespace) -> int:
+    return set_queue_concurrency(max_runs_per_gpu=args.max_runs_per_gpu)
+
+
 def _add_queue_commands(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     submit_parser = subparsers.add_parser(
         "submit",
@@ -626,7 +882,41 @@ def _add_queue_commands(subparsers: argparse._SubParsersAction[argparse.Argument
         help="Resource class used when no historical VRAM data is available.",
     )
     submit_parser.add_argument("--device", default="cuda:0", help="Target device (default: cuda:0).")
+    submit_parser.add_argument(
+        "--priority",
+        choices=JOB_PRIORITIES,
+        default="normal",
+        help="Queue priority (default: normal).",
+    )
     submit_parser.set_defaults(handler=run_submit_from_args)
+
+    submit_sweep_parser = subparsers.add_parser(
+        "submit-sweep",
+        help="Submit multiple runs from an explicit sweep file.",
+        description="Submit multiple runs from an explicit sweep file.",
+    )
+    submit_sweep_parser.add_argument(
+        "--file",
+        required=True,
+        help=(
+            "Sweep YAML path or short name. "
+            "When a short name is used, lisai searches configs/training."
+        ),
+    )
+    submit_sweep_parser.add_argument(
+        "--resource-class",
+        choices=RESOURCE_CLASSES,
+        default="medium",
+        help="Resource class used when no historical VRAM data is available.",
+    )
+    submit_sweep_parser.add_argument("--device", default="cuda:0", help="Target device (default: cuda:0).")
+    submit_sweep_parser.add_argument(
+        "--priority",
+        choices=JOB_PRIORITIES,
+        default="normal",
+        help="Queue priority for all generated sweep jobs (default: normal).",
+    )
+    submit_sweep_parser.set_defaults(handler=run_submit_sweep_from_args)
 
     list_parser = subparsers.add_parser(
         "list",
@@ -758,7 +1048,7 @@ def _add_queue_commands(subparsers: argparse._SubParsersAction[argparse.Argument
     mode_group.add_argument(
         "--all",
         action="store_true",
-        help="Clean all non-running jobs (queued/done/failed).",
+        help="Clean all non-running jobs (queued/blocked/done/failed).",
     )
     clean_parser.add_argument(
         "-y",
@@ -772,6 +1062,40 @@ def _add_queue_commands(subparsers: argparse._SubParsersAction[argparse.Argument
         help="Reset selector index to q0001 if the queue becomes empty after cleaning.",
     )
     clean_parser.set_defaults(handler=run_clean_from_args)
+
+    pause_parser = subparsers.add_parser(
+        "pause",
+        help="Pause queue launches.",
+        description="Pause queue launches.",
+    )
+    pause_parser.set_defaults(handler=run_pause_from_args)
+
+    resume_parser = subparsers.add_parser(
+        "resume",
+        help="Resume queue launches.",
+        description="Resume queue launches.",
+    )
+    resume_parser.set_defaults(handler=run_resume_from_args)
+
+    control_parser = subparsers.add_parser(
+        "control",
+        help="Show persistent queue control values.",
+        description="Show persistent queue control values.",
+    )
+    control_parser.set_defaults(handler=run_control_from_args)
+
+    concurrency_parser = subparsers.add_parser(
+        "concurrency",
+        help="Set max concurrent runs per GPU.",
+        description="Set max concurrent runs per GPU.",
+    )
+    concurrency_parser.add_argument(
+        "--max-runs-per-gpu",
+        type=int,
+        required=True,
+        help="Maximum concurrent CUDA jobs per GPU.",
+    )
+    concurrency_parser.set_defaults(handler=run_concurrency_from_args)
 
 
 def _add_job_selector_arguments(parser: argparse.ArgumentParser) -> None:
@@ -1292,8 +1616,13 @@ __all__ = [
     "logs_job",
     "main",
     "parse_age_duration",
+    "pause_queue",
     "render_jobs_table",
+    "resume_queue",
+    "set_queue_concurrency",
     "show_job",
+    "show_queue_control",
     "start_worker",
     "submit_job",
+    "submit_sweep",
 ]

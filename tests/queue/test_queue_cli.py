@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import lisai.queue.cli as queue_cli
 from lisai.cli import main as root_main
+from lisai.config import load_yaml
 from lisai.queue.history import SchedulingContext
 from lisai.queue.schema import QueueJob
 from lisai.queue.storage import DiscoveredJob, discover_jobs, queue_logs_dir, queue_state_dir, write_job_atomic
@@ -36,6 +37,7 @@ def test_queue_submit_and_list_via_root_cli(monkeypatch, tmp_path, capsys):
     submit_captured = capsys.readouterr()
     assert submit_exit == 0
     assert "Submitted job" in submit_captured.out
+    assert "priority: normal" in submit_captured.out
 
     list_exit = root_main(["queue", "list"])
     listed = capsys.readouterr()
@@ -314,3 +316,193 @@ def test_cancel_running_process_not_found_triggers_eval_hook(monkeypatch, tmp_pa
     )
     assert ok is True
     assert called == [("job_cancel_running_eval", True)]
+
+
+def test_queue_control_commands_pause_resume_and_concurrency(monkeypatch, tmp_path, capsys):
+    queue_root = tmp_path / ".lisai" / "queue"
+    monkeypatch.setenv("LISAI_QUEUE_ROOT", str(queue_root))
+
+    exit_code = root_main(["queue", "control"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "paused: False" in captured.out
+    assert "max_concurrent_runs_per_gpu: 1" in captured.out
+
+    exit_code = root_main(["queue", "pause"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Queue paused" in captured.out
+
+    exit_code = root_main(["queue", "control"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "paused: True" in captured.out
+
+    exit_code = root_main(["queue", "concurrency", "--max-runs-per-gpu", "3"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "max_concurrent_runs_per_gpu=3" in captured.out
+
+    exit_code = root_main(["queue", "resume"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Queue resumed" in captured.out
+
+    exit_code = root_main(["queue", "control"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "paused: False" in captured.out
+    assert "max_concurrent_runs_per_gpu: 3" in captured.out
+
+
+def test_queue_submit_sweep_creates_multiple_jobs_with_overrides(monkeypatch, tmp_path):
+    queue_root = tmp_path / ".lisai" / "queue"
+    monkeypatch.setenv("LISAI_QUEUE_ROOT", str(queue_root))
+
+    base_config = tmp_path / "HDN_base.yaml"
+    base_config.write_text(
+        "\n".join(
+            [
+                "experiment:",
+                "  exp_name: HDN_BASE",
+                "routing:",
+                "  models_subfolder: HDN",
+                "data:",
+                "  dataset_name: Gag",
+                "training_prm:",
+                "  betaKL: 0.1",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    sweep_file = tmp_path / "hdn_betaKL.yaml"
+    sweep_file.write_text(
+        "\n".join(
+            [
+                f"base_config: {base_config}",
+                "runs:",
+                "  - run_name: HDN_Gag_KL03",
+                "    overrides:",
+                "      training_prm.betaKL: 0.3",
+                "  - run_name: HDN_Gag_KL05",
+                "    overrides:",
+                "      training_prm.betaKL: 0.5",
+                "  - run_name: HDN_Gag_KL07",
+                "    overrides:",
+                "      training_prm.betaKL: 0.7",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(queue_cli, "resolve_config_path", lambda arg: Path(arg).resolve())
+
+    def fake_context(path: Path) -> SchedulingContext:
+        cfg = load_yaml(path)
+        return SchedulingContext(
+            config_path=Path(path).resolve(),
+            dataset=str(cfg["data"]["dataset_name"]),
+            model_subfolder=str(cfg["routing"]["models_subfolder"]),
+            run_name=str(cfg["experiment"]["exp_name"]),
+            training_signature=TrainingSignature(architecture="unet", batch_size=8, patch_size=128),
+        )
+
+    monkeypatch.setattr(queue_cli, "load_scheduling_context", fake_context)
+
+    exit_code = queue_cli.submit_sweep(
+        file=str(sweep_file),
+        resource_class="light",
+        device="cuda:0",
+        priority="high",
+        stdout=io.StringIO(),
+        stderr=io.StringIO(),
+    )
+    assert exit_code == 0
+
+    queued_records, _invalid = discover_jobs(status="queued", queue_root=queue_root)
+    assert len(queued_records) == 3
+    assert [record.job.priority for record in queued_records] == ["high", "high", "high"]
+    assert [record.job.run_name for record in queued_records] == [
+        "HDN_Gag_KL03",
+        "HDN_Gag_KL05",
+        "HDN_Gag_KL07",
+    ]
+
+    generated_values: list[float] = []
+    for record in queued_records:
+        cfg = load_yaml(record.job.config)
+        generated_values.append(float(cfg["training_prm"]["betaKL"]))
+        assert cfg["experiment"]["exp_name"] in {"HDN_Gag_KL03", "HDN_Gag_KL05", "HDN_Gag_KL07"}
+
+    assert sorted(generated_values) == [0.3, 0.5, 0.7]
+
+
+def test_queue_submit_sweep_resolves_file_from_default_training_dir(monkeypatch, tmp_path):
+    queue_root = tmp_path / ".lisai" / "queue"
+    monkeypatch.setenv("LISAI_QUEUE_ROOT", str(queue_root))
+
+    training_dir = tmp_path / "configs" / "training"
+    training_dir.mkdir(parents=True, exist_ok=True)
+    base_config = training_dir / "hdn.yml"
+    base_config.write_text(
+        "\n".join(
+            [
+                "experiment:",
+                "  exp_name: HDN_BASE",
+                "routing:",
+                "  models_subfolder: HDN",
+                "data:",
+                "  dataset_name: Gag",
+                "training:",
+                "  learning_rate: 0.00001",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    sweep_file = training_dir / "hdn_learning_rate.yaml"
+    sweep_file.write_text(
+        "\n".join(
+            [
+                "base_config: hdn.yml",
+                "runs:",
+                "  - run_name: HDN_Gag_LR1e-05",
+                "    overrides:",
+                "      training.learning_rate: 0.00001",
+                "  - run_name: HDN_Gag_LR5e-05",
+                "    overrides:",
+                "      training.learning_rate: 0.00005",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    def fake_context(path: Path) -> SchedulingContext:
+        cfg = load_yaml(path)
+        return SchedulingContext(
+            config_path=Path(path).resolve(),
+            dataset=str(cfg["data"]["dataset_name"]),
+            model_subfolder=str(cfg["routing"]["models_subfolder"]),
+            run_name=str(cfg["experiment"]["exp_name"]),
+            training_signature=TrainingSignature(architecture="unet", batch_size=8, patch_size=128),
+        )
+
+    monkeypatch.setattr(queue_cli, "load_scheduling_context", fake_context)
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = queue_cli.submit_sweep(
+        file="hdn_learning_rate.yaml",
+        resource_class="light",
+        device="cuda:0",
+        priority="normal",
+        stdout=io.StringIO(),
+        stderr=io.StringIO(),
+    )
+    assert exit_code == 0
+
+    queued_records, _invalid = discover_jobs(status="queued", queue_root=queue_root)
+    assert len(queued_records) == 2
+    assert sorted(record.job.run_name for record in queued_records) == ["HDN_Gag_LR1e-05", "HDN_Gag_LR5e-05"]
