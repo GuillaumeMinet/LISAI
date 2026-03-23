@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from io import StringIO
 
 from lisai.infra.fs.run_naming import parse_run_dir_name
 import lisai.runs.cli as runs_cli
@@ -36,6 +37,13 @@ def _write_metadata(run_dir, *, dataset, model_subfolder, group_path, path, stat
     write_run_metadata_atomic(run_dir, RunMetadata.model_validate(payload))
 
 
+def _table_header(output: str) -> str:
+    for line in output.splitlines():
+        if line.startswith("dataset  "):
+            return line
+    raise AssertionError("Could not find table header line in output.")
+
+
 def test_runs_list_uses_filters_and_warns_on_invalid_files(monkeypatch, tmp_path, capsys):
     datasets_root = tmp_path / "datasets"
     run_a = datasets_root / "Gag" / "models" / "HDN" / "run_a"
@@ -67,6 +75,7 @@ def test_runs_list_uses_filters_and_warns_on_invalid_files(monkeypatch, tmp_path
     captured = capsys.readouterr()
 
     assert exit_code == 0
+    assert "LISAI runs listing (Gag - running)" in captured.out
     assert "dataset" in captured.out
     assert "eta_left" in captured.out
     assert "path_consistent" not in captured.out
@@ -233,7 +242,131 @@ def test_runs_list_full_appends_extended_columns(monkeypatch, tmp_path, capsys):
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    header = captured.out.splitlines()[0]
+    assert "LISAI runs listing (Gag)" in captured.out
+    header = _table_header(captured.out)
     assert header.startswith("dataset  model_subfolder  run_name  idx  status  epoch  eta_left")
     assert header.endswith("path_consistent  closed_cleanly  last_seen")
     assert "false" in captured.out
+
+
+def test_runs_list_live_renders_in_place_when_interactive(monkeypatch, tmp_path):
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "HDN" / "run_a_00"
+
+    _write_metadata(
+        run_dir,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/run_a_00",
+        status="running",
+    )
+
+    class _InteractiveBuffer(StringIO):
+        def isatty(self):
+            return True
+
+    out = _InteractiveBuffer()
+    err = StringIO()
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    sleep_values: list[float] = []
+
+    def _interrupt_sleep(seconds):
+        sleep_values.append(seconds)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runs_cli.time, "sleep", _interrupt_sleep)
+
+    exit_code = runs_cli.list_runs(dataset="Gag", live=True, interval_seconds=0.1, stdout=out, stderr=err)
+
+    assert exit_code == 0
+    assert sleep_values == [1.0]
+    assert "\x1b[H\x1b[J" in out.getvalue()
+    assert "warning: --interval 0.1s is below the minimum 1s; using 1s." in out.getvalue()
+    assert "LISAI runs listing (Gag) LIVE MODE (1s refresh) - Ctrl+C to stop live" in out.getvalue()
+    assert "run_a_00" in out.getvalue()
+    assert err.getvalue() == ""
+
+
+def test_runs_list_live_falls_back_to_single_snapshot_without_tty(monkeypatch, tmp_path, capsys):
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "HDN" / "run_a_00"
+
+    _write_metadata(
+        run_dir,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/run_a_00",
+        status="running",
+    )
+
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+
+    exit_code = root_main(["runs", "list", "--dataset", "Gag", "--live", "--interval", "0.25"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out.splitlines()[0] == "warning: --interval 0.25s is below the minimum 1s; using 1s."
+    assert captured.out.splitlines()[1] == "LISAI runs listing (Gag)"
+    assert "run_a_00" in captured.out
+    assert "--live requires interactive terminal output" in captured.err
+
+
+def test_runs_list_clamps_zero_interval_to_one_second(monkeypatch, tmp_path):
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "HDN" / "run_a_00"
+
+    _write_metadata(
+        run_dir,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/run_a_00",
+        status="running",
+    )
+
+    class _InteractiveBuffer(StringIO):
+        def isatty(self):
+            return True
+
+    out = _InteractiveBuffer()
+    err = StringIO()
+    sleep_values: list[float] = []
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+
+    def _interrupt_sleep(seconds):
+        sleep_values.append(seconds)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runs_cli.time, "sleep", _interrupt_sleep)
+
+    exit_code = runs_cli.list_runs(dataset="Gag", live=True, interval_seconds=0.0, stdout=out, stderr=err)
+
+    assert exit_code == 0
+    assert sleep_values == [1.0]
+    assert "warning: --interval 0s is below the minimum 1s; using 1s." in out.getvalue()
+    assert "LISAI runs listing (Gag) LIVE MODE (1s refresh) - Ctrl+C to stop live" in out.getvalue()
+    assert err.getvalue() == ""
+
+
+def test_runs_list_title_without_filters(monkeypatch, tmp_path, capsys):
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "HDN" / "run_a_00"
+
+    _write_metadata(
+        run_dir,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/run_a_00",
+        status="running",
+    )
+
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+
+    exit_code = root_main(["runs", "list"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out.splitlines()[0] == "LISAI runs listing"
