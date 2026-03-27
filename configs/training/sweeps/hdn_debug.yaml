@@ -1,0 +1,22 @@
+base_config: configs/training/hdn.yml
+
+runs:
+  - run_name: HDN_betaKL07_batch32_lr1e-5
+    overrides:
+      training.batch_size: 32
+      training.learning_rate: 0.00001
+
+  - run_name: HDN_betaKL07_batch32_lr1e-6
+    overrides:
+      training.batch_size: 32
+      training.learning_rate: 0.000001
+
+  - run_name: HDN_betaKL07_batch16_lr1e-5
+    overrides:
+      training.batch_size: 16
+      training.learning_rate: 0.00001
+  
+  - run_name: HDN_betaKL07_batch16_lr1e-6
+    overrides:
+      training.batch_size: 16
+      training.learning_rate: 0.000001
