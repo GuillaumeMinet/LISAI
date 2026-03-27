@@ -5,11 +5,12 @@ from .inference import (
     InferenceOverrides,
     ResolvedInferenceConfig,
 )
-from .project_config import ProjectConfig
+from .project_config import ProjectConfig, RecoveryConfig
 from .training import ContinueTrainingConfig, ExperimentConfig, ResolvedExperiment, RetrainConfig
 
 __all__ = [
     "ProjectConfig",
+    "RecoveryConfig",
     "DataConfig",
     "ExperimentConfig",
     "ContinueTrainingConfig",

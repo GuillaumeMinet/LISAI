@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ProjectMeta(BaseModel):
@@ -35,6 +35,30 @@ class RunTracking(BaseModel):
     active_heartbeat_timeout_minutes: int = Field(default=10, ge=1)
 
 
+class HDNSafeResumeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    auto_use_safe_checkpoint_on_continue: bool = True
+    drop_optimizer_scheduler_state_on_safe_resume: bool = False
+    rewind_steps: int = Field(default=1, ge=0)
+    lr_scale: float = Field(default=0.2, gt=0.0)
+    force_grad_clip_max_norm: float | None = Field(default=None, gt=0.0)
+
+    @field_validator("force_grad_clip_max_norm", mode="before")
+    @classmethod
+    def _normalize_force_grad_clip_max_norm(cls, value):
+        if isinstance(value, str) and value.strip().lower() in {"none", "null", ""}:
+            return None
+        return value
+
+
+class RecoveryConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hdn_safe_resume: HDNSafeResumeConfig = Field(default_factory=HDNSafeResumeConfig)
+
+
 class QueueResourceClassVRAM(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -61,4 +85,5 @@ class ProjectConfig(BaseModel):
     run_layout: RunLayout
     naming: Naming
     run_tracking: RunTracking = Field(default_factory=RunTracking)
+    recovery: RecoveryConfig = Field(default_factory=RecoveryConfig)
     queue: QueueConfig = Field(default_factory=QueueConfig)

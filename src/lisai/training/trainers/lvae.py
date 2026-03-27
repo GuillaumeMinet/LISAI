@@ -16,6 +16,7 @@ class LVAETrainer(BaseTrainer):
         return True
 
     def __init__(self, **kwargs):
+        print("LVAE TRAINER")
         super().__init__(**kwargs)
 
         self.betaKL = self.training_prm.get("betaKL", 1)
@@ -44,6 +45,9 @@ class LVAETrainer(BaseTrainer):
     def train_epoch(self, epoch: int) -> dict:
         self.model.train()
         self.model.to(self.device)
+
+        if self._last_safe_training_state is None:
+            self._capture_safe_training_state(epoch=max(epoch - 1, -1), batch_id=-1)
 
         losses = []
         kl_losses = []
@@ -79,6 +83,7 @@ class LVAETrainer(BaseTrainer):
                 recons_losses.append(recons_loss.item())
 
             self._optimizer_step()
+            self._capture_safe_training_state(epoch=epoch, batch_id=batch_id)
 
             if self.early_stop is not False and batch_id > 0:
                 break

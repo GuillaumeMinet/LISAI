@@ -88,3 +88,11 @@ class CheckpointManager:
 
             name_last = model_filename(load_method="full_model", best_or_last="last")
             torch.save(model, self.checkpoints_dir / name_last)
+    
+    def save_emergency_safe_state(self, *, state_dict: dict, model, tag: str = "safe_state"):
+        if not self.enabled:
+            return
+
+        name = f"{tag}.pth"
+        torch.save(state_dict, self.checkpoints_dir / name)
+        return name

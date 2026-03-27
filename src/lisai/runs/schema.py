@@ -211,6 +211,12 @@ class RunMetadata(BaseModel):
     runtime_stats: RuntimeStats | None = None
     live_runtime_stats: LiveRuntimeStats | None = None
 
+    failure_reason: str | None = None
+    recovery_checkpoint_filename: str | None = None
+    recovery_strategy: str | None = None
+    last_safe_epoch: int | None = None
+    last_safe_batch_id: int | None = None
+
 
 
     @field_validator("schema_version")

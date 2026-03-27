@@ -4,6 +4,7 @@ from typing import Any, Dict
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from ..project_config import RecoveryConfig
 from .data import DataSection
 from .loading import LoadModelSection
 from .loss import LossFunctionConfig
@@ -72,6 +73,10 @@ class ResolvedExperiment(BaseModel):
     load_model: LoadModelSection = Field(
         default_factory=LoadModelSection,
         description="Resolved source-run and checkpoint selection used when loading a prior model.",
+    )
+    recovery: RecoveryConfig = Field(
+        default_factory=RecoveryConfig,
+        description="Resolved recovery behavior for continue/restart flows.",
     )
 
     @model_validator(mode="after")

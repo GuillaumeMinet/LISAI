@@ -39,6 +39,18 @@ training:
 #   entire_model: true
 
 # ========================================================
+# Recovery parameters override
+# ========================================================
+# recovery:
+#   hdn_safe_resume:
+#     enabled: true
+#     auto_use_safe_checkpoint_on_continue: true
+#     drop_optimizer_scheduler_state_on_safe_resume: true
+#     rewind_steps: 1
+#     lr_scale: 0.9
+
+
+# ========================================================
 # Tensorboard configuration
 # ========================================================
 # tensorboard:

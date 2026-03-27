@@ -8,6 +8,8 @@ from .merge import deep_merge
 from ..models import ContinueTrainingConfig, ExperimentConfig, ResolvedExperiment, RetrainConfig
 from .yaml import load_yaml
 
+from lisai.runs.io import read_run_metadata
+
 if TYPE_CHECKING:
     from lisai.infra.paths import Paths
 
@@ -137,7 +139,7 @@ def _apply_mode_resolution(user_cfg: dict, mode: str, paths: Paths) -> dict:
     origin_cfg = _load_origin_cfg(origin_dir, paths)
 
     override_roots_by_mode = {
-        "continue_training": ["experiment", "training", "saving", "tensorboard", "load_model"],
+        "continue_training": ["experiment", "training", "saving", "tensorboard", "load_model", "recovery"],
         "retrain": [
             "experiment",
             "routing",
@@ -160,6 +162,60 @@ def _apply_mode_resolution(user_cfg: dict, mode: str, paths: Paths) -> dict:
     _dset(origin_cfg, "experiment.mode", mode)
     return origin_cfg
 
+
+def _apply_safe_resume_resolution(mode: str, cfg: dict, paths: Paths) -> None:
+    if mode != "continue_training":
+        return
+
+    recovery_cfg = (((cfg.get("recovery") or {}).get("hdn_safe_resume")) or {})
+    if not recovery_cfg.get("enabled", True):
+        return
+    if not recovery_cfg.get("auto_use_safe_checkpoint_on_continue", True):
+        return
+
+    load_model = cfg.get("load_model") or {}
+    if not load_model.get("enabled", False):
+        return
+
+    checkpoint = load_model.get("checkpoint") or {}
+
+    # Respect explicit user checkpoint choices.
+    explicit_filename = checkpoint.get("filename")
+    explicit_epoch = checkpoint.get("epoch")
+    explicit_selector = checkpoint.get("selector")
+    if explicit_filename is not None or explicit_epoch is not None:
+        return
+    if explicit_selector not in (None, "last"):
+        return
+
+    origin_run_dir = _dget(cfg, "experiment.origin_run_dir") or load_model.get("run_dir")
+    if not origin_run_dir:
+        return
+
+    origin_run_dir = Path(origin_run_dir).resolve()
+
+    try:
+        metadata = read_run_metadata(origin_run_dir)
+    except Exception:
+        return
+
+    recovery_checkpoint_filename = getattr(metadata, "recovery_checkpoint_filename", None)
+    if metadata.status != "failed" or not recovery_checkpoint_filename:
+        return
+
+    recovery_ckpt_path = paths.checkpoint_path(
+        run_dir=origin_run_dir,
+        model_name=recovery_checkpoint_filename,
+    )
+    if not recovery_ckpt_path.exists():
+        return
+
+    checkpoint["method"] = "state_dict"
+    checkpoint["filename"] = recovery_checkpoint_filename
+    checkpoint["selector"] = None
+    checkpoint["epoch"] = None
+    load_model["checkpoint"] = checkpoint
+    cfg["load_model"] = load_model
 
 def _resolve_loaded_config(
     exp_cfg: dict,
@@ -197,11 +253,14 @@ def _resolve_loaded_config(
     user_cfg = deepcopy(exp_cfg)
     _normalize_mode(user_cfg)
     user_cfg["load_model"] = load_model
+    if mode == "continue_training" and "recovery" in load_resolution_cfg:
+        user_cfg["recovery"] = deepcopy(load_resolution_cfg["recovery"])
     _dset(user_cfg, "experiment.origin_run_dir", load_model["run_dir"])
 
     cfg = _apply_mode_resolution(user_cfg, mode, paths)
     _normalize_mode(cfg)
     _normalize_load_model(mode, cfg, paths)
+    _apply_safe_resume_resolution(mode, cfg, paths)
     return ResolvedExperiment.model_validate(cfg)
 
 

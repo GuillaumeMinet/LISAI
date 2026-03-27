@@ -6,13 +6,38 @@ import pytest
 from pydantic import ValidationError
 
 import lisai.config.io.resolver as resolver_mod
-from lisai.config import save_yaml, settings
+from lisai.config import load_yaml, save_yaml, settings
 from lisai.config.io.resolver import prune_config_for_saving, resolve_config, resolve_config_dict
 from lisai.config.models import ResolvedExperiment
 from lisai.infra.paths import Paths
+from lisai.runs.io import write_run_metadata_atomic
+from lisai.runs.schema import RunMetadata
 
 PROJECT_CFG = Path("configs/project_config.yml")
 DATA_CFG = Path("configs/data_config.yml")
+
+
+def _failed_run_metadata_payload(run_dir: Path, *, checkpoint_name: str | None = None) -> dict:
+    return {
+        "schema_version": 2,
+        "run_id": "01ARZ3NDEKTSV4RRFFQ69G5FAA",
+        "run_name": "origin_run",
+        "run_index": 0,
+        "dataset": "origin_ds",
+        "model_subfolder": "HDN",
+        "status": "failed",
+        "closed_cleanly": True,
+        "created_at": "2026-03-20T10:14:00Z",
+        "updated_at": "2026-03-20T10:15:00Z",
+        "ended_at": "2026-03-20T10:15:00Z",
+        "last_heartbeat_at": "2026-03-20T10:15:00Z",
+        "last_epoch": 2,
+        "max_epoch": 10,
+        "best_val_loss": 0.5,
+        "path": f"datasets/origin_ds/models/HDN/{run_dir.name}",
+        "group_path": None,
+        "recovery_checkpoint_filename": checkpoint_name,
+    }
 
 
 def test_resolve_config_train_mode_forbids_load_model_section(tmp_path: Path):
@@ -275,3 +300,102 @@ def test_resolve_config_dict_matches_file_based_resolution(tmp_path: Path):
     )
 
     assert resolved_from_dict.model_dump() == resolved_from_file.model_dump()
+
+
+def test_resolve_config_continue_training_auto_selects_safe_checkpoint_and_forces_state_dict(tmp_path: Path):
+    origin_run_dir = tmp_path / "origin_run"
+    origin_run_dir.mkdir(parents=True, exist_ok=True)
+
+    paths = Paths(settings)
+    origin_cfg_path = paths.cfg_train_path(run_dir=origin_run_dir)
+    save_yaml(
+        {
+            "experiment": {"mode": "train", "exp_name": "origin_exp"},
+            "data": {"dataset_name": "origin_ds", "patch_size": 64},
+            "model": {"architecture": "unet", "parameters": {}},
+            "training": {"n_epochs": 50, "batch_size": 2},
+        },
+        origin_cfg_path,
+    )
+
+    checkpoint_name = "safe_on_divergence.pth"
+    checkpoint_path = paths.checkpoint_path(run_dir=origin_run_dir, model_name=checkpoint_name)
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint_path.write_bytes(b"safe")
+    write_run_metadata_atomic(
+        origin_run_dir,
+        RunMetadata.model_validate(
+            _failed_run_metadata_payload(origin_run_dir, checkpoint_name=checkpoint_name),
+        ),
+    )
+
+    exp_cfg = tmp_path / "continue_safe.yml"
+    save_yaml(
+        {
+            "experiment": {"mode": "continue_training"},
+            "load_model": {
+                "canonical_load": False,
+                "model_full_path": str(origin_run_dir),
+                "load_method": "full_model",
+                "best_or_last": "last",
+            },
+        },
+        exp_cfg,
+    )
+
+    cfg = resolve_config(
+        experiment_cfg_path=exp_cfg,
+        project_cfg_path=PROJECT_CFG,
+        data_cfg_path=DATA_CFG,
+    )
+
+    assert cfg.load_model.checkpoint.filename == checkpoint_name
+    assert cfg.load_model.checkpoint.method == "state_dict"
+    assert cfg.load_model.checkpoint.selector is None
+    assert cfg.load_model.checkpoint.epoch is None
+
+
+def test_resolve_config_continue_training_uses_project_recovery_defaults_when_origin_has_none(tmp_path: Path):
+    origin_run_dir = tmp_path / "origin_run"
+    origin_run_dir.mkdir(parents=True, exist_ok=True)
+
+    origin_cfg_path = Paths(settings).cfg_train_path(run_dir=origin_run_dir)
+    save_yaml(
+        {
+            "experiment": {"mode": "train", "exp_name": "origin_exp"},
+            "data": {"dataset_name": "origin_ds", "patch_size": 64},
+            "model": {"architecture": "unet", "parameters": {}},
+            "training": {"n_epochs": 50, "batch_size": 2},
+        },
+        origin_cfg_path,
+    )
+
+    project_cfg = load_yaml(PROJECT_CFG)
+    project_cfg["recovery"]["hdn_safe_resume"]["lr_scale"] = 0.37
+    project_cfg["recovery"]["hdn_safe_resume"]["force_grad_clip_max_norm"] = 1.5
+    custom_project_cfg = tmp_path / "project_config.yml"
+    save_yaml(project_cfg, custom_project_cfg)
+
+    exp_cfg = tmp_path / "continue_defaults.yml"
+    save_yaml(
+        {
+            "experiment": {"mode": "continue_training"},
+            "load_model": {
+                "canonical_load": False,
+                "model_full_path": str(origin_run_dir),
+                "load_method": "state_dict",
+                "best_or_last": "last",
+            },
+        },
+        exp_cfg,
+    )
+
+    cfg = resolve_config(
+        experiment_cfg_path=exp_cfg,
+        project_cfg_path=custom_project_cfg,
+        data_cfg_path=DATA_CFG,
+    )
+
+    safe_resume = cfg.recovery.hdn_safe_resume
+    assert safe_resume.lr_scale == pytest.approx(0.37)
+    assert safe_resume.force_grad_clip_max_norm == pytest.approx(1.5)

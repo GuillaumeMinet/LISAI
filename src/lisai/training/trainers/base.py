@@ -1,15 +1,20 @@
+import copy
 import logging
 import os
 import time
 from abc import ABC, abstractmethod
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 import torch
 
+from lisai.training.errors import HDNDivergenceError
 from lisai.config.models import ResolvedExperiment
 from lisai.training.checkpointing import CheckpointManager
+from lisai.runs.lifecycle import update_run_recovery_info
+from lisai.runs.io import read_run_metadata
 
 try:
     from tqdm import tqdm
@@ -90,6 +95,16 @@ class BaseTrainer(ABC):
 
         # state dict
         self.state_dict = state_dict if state_dict is not None else {"epoch": -1}
+        self._last_safe_training_state = None
+        self._safe_state_confirmation_lag = 1
+        self._safe_state_rewind_steps = self._resolve_safe_resume_rewind_steps()
+        self._pending_safe_training_states = deque()
+        self._confirmed_safe_training_states = deque(maxlen=max(self._safe_state_rewind_steps + 2, 2))
+
+        # logger (system sets handlers)
+        self.logger = logging.getLogger("lisai")
+
+        self._drop_optimizer_scheduler_state_on_safe_resume()
 
         # optimizer + scheduler
         self.optimizer, self.scheduler = self._make_optimizer_and_scheduler()
@@ -101,8 +116,7 @@ class BaseTrainer(ABC):
             is_lvae=self.is_lvae,
         )
 
-        # logger (system sets handlers)
-        self.logger = logging.getLogger("lisai")
+        self._apply_recovery_overrides()
 
     # PROPERTY SUBCLASSES MUST DEFINE #
     @property
@@ -236,6 +250,7 @@ class BaseTrainer(ABC):
     #    TRAINING LOOP    #
     # =================== #
     def train(self):
+        self._align_safe_resume_epoch_with_metadata()
         last_completed_epoch = int(self.state_dict.get("epoch", -1))
         start_epoch = max(last_completed_epoch + 1, 0)
         self._initialize_log_file()
@@ -339,6 +354,14 @@ class BaseTrainer(ABC):
                     reason="interrupted",
                     last_completed_epoch=last_completed_epoch if last_completed_epoch >= 0 else None,
                 )
+            
+            except HDNDivergenceError as e:
+                self.logger.error(
+                    f"HDN divergence detected during epoch {self._display_epoch(epoch)}: {e}"
+                )
+                self._save_last_safe_training_state(epoch=epoch, cause=str(e))
+                raise
+
             except Exception as e:
                 self.logger.error(
                     f"Training stopped during epoch {self._display_epoch(epoch)}, because of error:\n"
@@ -352,6 +375,9 @@ class BaseTrainer(ABC):
             last_completed_epoch=last_completed_epoch if last_completed_epoch >= 0 else None,
         )
 
+
+    # common training helpers
+
     def _backward_virtual_batch(self, raw_loss: torch.Tensor, num_virtual_batches: int) -> None:
         if num_virtual_batches <= 0:
             raise ValueError(f"num_virtual_batches must be >= 1, got {num_virtual_batches}")
@@ -360,7 +386,7 @@ class BaseTrainer(ABC):
     def _optimizer_step(self) -> float | None:
         grad_norm = None
 
-        max_grad_norm = self.training_prm.get("grad_clip_max_norm", None)
+        max_grad_norm = self.training_prm.get("max_grad_norm", None)
         if max_grad_norm is not None:
             grad_norm = torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(),
@@ -372,6 +398,244 @@ class BaseTrainer(ABC):
         self.optimizer.step()
         self.optimizer.zero_grad()
         return grad_norm
+    
+     
+    def _cpu_state_dict(self, state_dict: dict) -> dict:
+        cpu_state = {}
+        for key, value in state_dict.items():
+            if torch.is_tensor(value):
+                cpu_state[key] = value.detach().cpu().clone()
+            elif isinstance(value, dict):
+                cpu_state[key] = self._cpu_state_dict(value)
+            elif isinstance(value, list):
+                cpu_state[key] = [
+                    self._cpu_state_dict(v) if isinstance(v, dict)
+                    else (v.detach().cpu().clone() if torch.is_tensor(v) else copy.deepcopy(v))
+                    for v in value
+                ]
+            else:
+                cpu_state[key] = copy.deepcopy(value)
+        return cpu_state
+
+    def _capture_safe_training_state(self, *, epoch: int, batch_id: int) -> None:
+        snapshot = {
+            "epoch": int(epoch),
+            "batch_id": int(batch_id),
+            "model_state_dict": self._cpu_state_dict(self.model.state_dict()),
+            "optimizer_state_dict": self._cpu_state_dict(self.optimizer.state_dict()),
+            "scheduler_state_dict": self._cpu_state_dict(self.scheduler.state_dict()) if self.scheduler is not None else None,
+            "train_loss": self.state_dict.get("train_loss"),
+            "val_loss": self.state_dict.get("val_loss"),
+        }
+        self._last_safe_training_state = snapshot
+
+        pending = getattr(self, "_pending_safe_training_states", None)
+        if pending is None:
+            pending = deque()
+            self._pending_safe_training_states = pending
+
+        confirmed = getattr(self, "_confirmed_safe_training_states", None)
+        if confirmed is None:
+            rewind_steps = int(getattr(self, "_safe_state_rewind_steps", 1))
+            confirmed = deque(maxlen=max(rewind_steps + 2, 2))
+            self._confirmed_safe_training_states = confirmed
+
+        pending.append(snapshot)
+
+        confirmation_lag = max(int(getattr(self, "_safe_state_confirmation_lag", 1)), 0)
+        while len(pending) > confirmation_lag:
+            confirmed.append(pending.popleft())
+
+    def _select_safe_training_state_for_persistence(self) -> tuple[dict | None, str]:
+        confirmed = getattr(self, "_confirmed_safe_training_states", None)
+        if confirmed:
+            confirmed_list = list(confirmed)
+            rewind_steps = max(int(getattr(self, "_safe_state_rewind_steps", 1)), 0)
+            selected_idx = max(len(confirmed_list) - 1 - rewind_steps, 0)
+            return confirmed_list[selected_idx], "confirmed_buffer"
+
+        latest = getattr(self, "_last_safe_training_state", None)
+        if latest:
+            return latest, "latest_fallback"
+
+        return None, "none"
+
+    def _save_last_safe_training_state(self, *, epoch: int, cause: str) -> None:
+        selected_state, selected_source = self._select_safe_training_state_for_persistence()
+        if not selected_state:
+            self.logger.warning("No safe training state available to save.")
+            return
+        if not (self.saving_prm.get("enabled", True) and self.run_dir is not None):
+            self.logger.warning("Saving disabled; cannot persist safe training state.")
+            return
+
+        if selected_source == "latest_fallback":
+            self.logger.warning(
+                "No confirmed lagged safe state available; falling back to latest captured safe state."
+            )
+        else:
+            self.logger.warning(
+                "Using confirmed lagged safe state for divergence recovery "
+                f"(rewind_steps={self._safe_state_rewind_steps})."
+            )
+
+        safe_state = dict(selected_state)
+        last_completed_epoch = int(self.state_dict.get("epoch", -1))
+        safe_state_epoch = int(safe_state.get("epoch", last_completed_epoch))
+        # Trainer resume semantics are epoch-based: `state_dict["epoch"]` must be the
+        # last fully completed epoch to avoid skipping an in-progress failed epoch.
+        resume_epoch = min(safe_state_epoch, last_completed_epoch)
+        safe_state["safe_state_source"] = selected_source
+        safe_state["safe_epoch"] = safe_state_epoch
+        safe_state["epoch"] = resume_epoch
+        safe_state["failure_epoch"] = int(epoch)
+        safe_state["failure_cause"] = cause
+
+        checkpoint_name = self.ckpt.save_emergency_safe_state(
+            state_dict=safe_state,
+            model=self.model,
+            tag="safe_on_divergence",
+        )
+
+        if self.run_dir is not None:
+            update_run_recovery_info(
+                self.run_dir,
+                failure_reason=cause,
+                recovery_checkpoint_filename=checkpoint_name,
+                recovery_strategy="hdn_safe_resume_v1",
+                last_safe_epoch=resume_epoch,
+                last_safe_batch_id=int(selected_state.get("batch_id", -1)),
+            )
+
+
+    # safe resuming related
+    def _resolve_safe_resume_rewind_steps(self) -> int:
+        recovery_cfg = getattr(self.cfg, "recovery", None)
+        if recovery_cfg is None or not hasattr(recovery_cfg, "hdn_safe_resume"):
+            return 1
+
+        safe_cfg = recovery_cfg.hdn_safe_resume
+        raw_value = getattr(safe_cfg, "rewind_steps", 1)
+        try:
+            value = int(raw_value)
+        except Exception:
+            return 1
+        return max(value, 0)
+
+    def _drop_optimizer_scheduler_state_on_safe_resume(self) -> None:
+        if not isinstance(self.state_dict, dict):
+            return
+        if not self._is_hdn_safe_resume_active():
+            return
+
+        safe_cfg = self.cfg.recovery.hdn_safe_resume
+        if not safe_cfg.drop_optimizer_scheduler_state_on_safe_resume:
+            return
+
+        dropped = False
+        for key in ("optimizer_state_dict", "scheduler_state_dict", "scheduler"):
+            if key in self.state_dict:
+                self.state_dict.pop(key, None)
+                dropped = True
+
+        if dropped:
+            self.logger.warning(
+                "HDN safe resume active: dropped optimizer/scheduler state and kept model weights only."
+            )
+        else:
+            self.logger.warning(
+                "HDN safe resume active: optimizer/scheduler state drop requested, but none found in checkpoint."
+            )
+
+    def _align_safe_resume_epoch_with_metadata(self) -> None:
+        if not self._is_hdn_safe_resume_active():
+            return
+        if not isinstance(self.state_dict, dict):
+            return
+
+        origin_run_dir = getattr(self.cfg.experiment, "origin_run_dir", None)
+        if not origin_run_dir:
+            return
+
+        state_epoch = self.state_dict.get("epoch")
+        if state_epoch is None:
+            return
+
+        try:
+            metadata = read_run_metadata(origin_run_dir)
+        except Exception:
+            return
+
+        last_completed_epoch = getattr(metadata, "last_epoch", None)
+        if last_completed_epoch is None:
+            return
+
+        state_epoch = int(state_epoch)
+        last_completed_epoch = int(last_completed_epoch)
+        if state_epoch <= last_completed_epoch:
+            return
+
+        self.logger.warning(
+            "HDN safe resume active: "
+            f"checkpoint epoch={state_epoch} is ahead of last completed epoch={last_completed_epoch}; "
+            "clamping resume epoch to prevent skipping an unfinished epoch."
+        )
+        self.state_dict["epoch"] = last_completed_epoch
+
+    def _is_hdn_safe_resume_active(self) -> bool:
+        if self.mode != "continue_training":
+            return False
+
+        recovery_cfg = getattr(self.cfg, "recovery", None)
+        if recovery_cfg is None or not hasattr(recovery_cfg, "hdn_safe_resume"):
+            return False
+
+        safe_cfg = recovery_cfg.hdn_safe_resume
+        if not safe_cfg.enabled:
+            return False
+
+        origin_run_dir = getattr(self.cfg.experiment, "origin_run_dir", None)
+        checkpoint = getattr(self.cfg.load_model, "checkpoint", None)
+        checkpoint_filename = getattr(checkpoint, "filename", None) if checkpoint is not None else None
+
+        if not origin_run_dir or not checkpoint_filename:
+            return False
+
+        try:
+            metadata = read_run_metadata(origin_run_dir)
+        except Exception:
+            return False
+
+        recovery_checkpoint_filename = getattr(metadata, "recovery_checkpoint_filename", None)
+        return (
+            recovery_checkpoint_filename is not None
+            and checkpoint_filename == recovery_checkpoint_filename
+        )
+
+    def _apply_recovery_overrides(self) -> None:
+        if not self._is_hdn_safe_resume_active():
+            return
+
+        safe_cfg = self.cfg.recovery.hdn_safe_resume
+
+        if safe_cfg.lr_scale is not None:
+            lr_scale = float(safe_cfg.lr_scale)
+            new_lrs = []
+            for group in self.optimizer.param_groups:
+                if "lr" in group:
+                    group["lr"] = float(group["lr"]) * lr_scale
+                    new_lrs.append(float(group["lr"]))
+            self.logger.warning(
+                f"HDN safe resume active: applied lr_scale={lr_scale}, new_lr ={new_lrs}"
+            )
+
+        if safe_cfg.force_grad_clip_max_norm is not None:
+            self.training_prm["max_grad_norm"] = float(safe_cfg.force_grad_clip_max_norm)
+            self.logger.warning(
+                f"HDN safe resume active: forced max_grad_norm={self.training_prm['max_grad_norm']}"
+            )
+
+
 
     # update console helper
     def _update_console_new_batch(self,epoch,batch_id,total_batches):

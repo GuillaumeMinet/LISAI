@@ -4,6 +4,7 @@ from typing import Any, Dict, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from ..project_config import RecoveryConfig
 from .data import ExperimentDataSection
 from .loading import ExperimentLoadModelSection
 from .loss import LossFunctionConfig
@@ -146,6 +147,10 @@ class ContinueTrainingConfig(BaseModel):
     load_model: ExperimentLoadModelSection = Field(
         ...,
         description="Required source-run selector identifying which existing run should be resumed.",
+    )
+    recovery: RecoveryConfig = Field(
+        default_factory=RecoveryConfig,
+        description="Recovery behavior for safe resume on continue_training.",
     )
 
 

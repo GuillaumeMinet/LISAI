@@ -237,6 +237,31 @@ def update_run_runtime_details(
     write_run_metadata_atomic(run_dir, updated)
     return updated
 
+def update_run_recovery_info(
+        run_dir: str | Path,
+        *,
+        failure_reason: str | None = None,
+        recovery_checkpoint_filename: str | None = None,
+        recovery_strategy: str | None = None,
+        last_safe_epoch: int | None = None,
+        last_safe_batch_id: int | None = None,
+    ) -> RunMetadata:
+        metadata = read_run_metadata(run_dir)
+        now = utc_now()
+        updated = metadata.model_copy(
+            update={
+                "updated_at": now,
+                "failure_reason": failure_reason,
+                "recovery_checkpoint_filename": recovery_checkpoint_filename,
+                "recovery_strategy": recovery_strategy,
+                "last_safe_epoch": last_safe_epoch,
+                "last_safe_batch_id": last_safe_batch_id,
+            }
+        )
+        write_run_metadata_atomic(run_dir, updated)
+        return updated
+
+
 
 def finalize_run_completed(run_dir: str | Path) -> RunMetadata:
     return _finalize_run(run_dir, status="completed")
@@ -283,5 +308,6 @@ __all__ = [
     "stored_run_path",
     "update_run_heartbeat",
     "update_run_progress",
+    "update_run_recovery_info",
     "update_run_runtime_details",
 ]

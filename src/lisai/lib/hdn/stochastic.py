@@ -4,7 +4,18 @@ from torch.distributions import kl_divergence
 from torch.distributions.normal import Normal
 
 from .stable_dist_params import StableLogVar, StableMean
+from lisai.training.errors import HDNDivergenceError
 
+def _assert_finite_tensor(name: str, tensor: torch.Tensor) -> None:
+    if torch.isfinite(tensor).all():
+        return
+
+    finite_mask = torch.isfinite(tensor)
+    n_bad = int((~finite_mask).sum().item())
+    raise HDNDivergenceError(
+        f"Non-finite values detected in {name}: "
+        f"shape={tuple(tensor.shape)} bad_values={n_bad}"
+    )
 
 class NormalStochasticBlock2d(nn.Module):
     """
@@ -50,6 +61,11 @@ class NormalStochasticBlock2d(nn.Module):
         # p = Normal(p_mu, (p_lv / 2).exp())
         p_mu = StableMean(p_mu)
         p_lv = StableLogVar(p_lv)
+
+        # safety check to catch unstable distribution early
+        _assert_finite_tensor("p_mu", p_mu.get())
+        _assert_finite_tensor("p_std", p_lv.get_std())
+        
         p = Normal(p_mu.get(), p_lv.get_std())
 
         if q_params is not None:
@@ -59,6 +75,10 @@ class NormalStochasticBlock2d(nn.Module):
             # q = Normal(q_mu, (q_lv / 2).exp())
             q_mu = StableMean(q_mu)
             q_lv = StableLogVar(q_lv)
+
+            _assert_finite_tensor("q_mu", q_mu.get())
+            _assert_finite_tensor("q_std", q_lv.get_std())
+
             q = Normal(q_mu.get(), q_lv.get_std())
             # Sample from q(z)
             sampling_distrib = q
