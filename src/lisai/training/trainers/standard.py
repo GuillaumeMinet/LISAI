@@ -43,25 +43,27 @@ class StandardTrainer(BaseTrainer):
         if self.pbar:
             iter_loader = tqdm(iter_loader, leave=False, position=0)
             iter_loader.set_description(f"Training - Epoch {self._display_epoch(epoch)}")
-
+        
         for batch_id, batch in enumerate(iter_loader):
             if self.update_console:
                 self._update_console_new_batch(epoch, batch_id, len(iter_loader))
 
             virtual_batches = self._split_batch(batch, warn_once=(batch_id == 0))
+            num_virtual_batches = len(virtual_batches[0])
 
+            self.optimizer.zero_grad()
             for (x, y, *samp_pos) in zip(*virtual_batches):
                 samp_pos = samp_pos[0] if (self.pos_encod and len(samp_pos) == 1) else None
                 x, y, samp_pos = self._prepare_batch(x, y, samp_pos)
 
                 pred = self.model(x, samp_pos)
-                loss = self.loss_function(pred, y)
+                raw_loss = self.loss_function(pred, y)
+                
+                self._backward_virtual_batch(raw_loss, num_virtual_batches)
 
-                loss.backward()
-                losses.append(loss.item())
+                losses.append(raw_loss)
 
-            self.optimizer.step()
-            self.optimizer.zero_grad()
+            self._optimizer_step()
 
             if self.early_stop is not False and batch_id > 0:
                 break

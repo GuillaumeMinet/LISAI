@@ -2,6 +2,24 @@ import torch
 from torch import nn
 
 
+def _closest_divisor(value: int, target: int) -> int:
+    divisors = [d for d in range(1, value + 1) if value % d == 0]
+    return min(divisors, key=lambda d: abs(d - target))
+
+
+def _make_norm_layer(norm: str | None, *, channels: int, gr_norm: int):
+    if norm is None:
+        return None
+    if norm == "batch":
+        return nn.BatchNorm2d(channels)
+    if norm == "group":
+        if gr_norm <= 0:
+            raise ValueError("`gr_norm` must be > 0 when `norm='group'`.")
+        groups = gr_norm if channels % gr_norm == 0 else _closest_divisor(channels, gr_norm)
+        return nn.GroupNorm(num_groups=groups, num_channels=channels)
+    raise ValueError(f"unrecognized norm type '{norm}'")
+
+
 class ResidualBlock(nn.Module):
     """
     Residual block with 2 convolutional layers.
@@ -15,10 +33,10 @@ class ResidualBlock(nn.Module):
     has different structures depending on the argument block_type.
     block_type is a string specifying the structure of the block, where:
         a = activation
-        b = batch norm
+        b = normalization layer
         c = conv layer
         d = dropout.
-    For example, bacdbacd has 2x (batchnorm, activation, conv, dropout).
+    For example, bacdbacd has 2x (norm, activation, conv, dropout).
     """
 
     default_kernel_size = (3, 3)
@@ -28,7 +46,8 @@ class ResidualBlock(nn.Module):
                  nonlin,
                  kernel=None,
                  groups=1,
-                 batchnorm=True,
+                 norm="group",
+                 gr_norm=8,
                  block_type=None,
                  dropout=None,
                  gated=None):
@@ -56,15 +75,17 @@ class ResidualBlock(nn.Module):
                                  groups=groups)
                 modules.append(conv)
                 modules.append(nonlin())
-                if batchnorm:
-                    modules.append(nn.BatchNorm2d(channels))
+                norm_layer = _make_norm_layer(norm, channels=channels, gr_norm=gr_norm)
+                if norm_layer is not None:
+                    modules.append(norm_layer)
                 if dropout is not None:
                     modules.append(nn.Dropout2d(dropout))
 
         elif block_type == 'bacdbac':
             for i in range(2):
-                if batchnorm:
-                    modules.append(nn.BatchNorm2d(channels))
+                norm_layer = _make_norm_layer(norm, channels=channels, gr_norm=gr_norm)
+                if norm_layer is not None:
+                    modules.append(norm_layer)
                 modules.append(nonlin())
                 conv = nn.Conv2d(channels,
                                  channels,
@@ -77,8 +98,9 @@ class ResidualBlock(nn.Module):
 
         elif block_type == 'bacdbacd':
             for i in range(2):
-                if batchnorm:
-                    modules.append(nn.BatchNorm2d(channels))
+                norm_layer = _make_norm_layer(norm, channels=channels, gr_norm=gr_norm)
+                if norm_layer is not None:
+                    modules.append(norm_layer)
                 modules.append(nonlin())
                 conv = nn.Conv2d(channels,
                                  channels,

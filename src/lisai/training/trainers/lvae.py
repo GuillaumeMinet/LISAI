@@ -59,10 +59,8 @@ class LVAETrainer(BaseTrainer):
             if self.update_console:
                 self._update_console_new_batch(epoch,batch_id,len(iter_loader))
 
-                
-
             virtual_batches = self._split_batch(batch, warn_once=(batch_id == 0))
-            num_micro_batches = len(virtual_batches[0])
+            num_virtual_batches = len(virtual_batches[0])
             
             self.optimizer.zero_grad()
             for (x, y, *samp_pos) in zip(*virtual_batches):
@@ -73,18 +71,14 @@ class LVAETrainer(BaseTrainer):
                 recons_loss = outputs["recons_loss"]
                 kl_loss = outputs["kl_loss"]
                 raw_loss = recons_loss + self.betaKL * kl_loss
-
-                if self.max_grad_norm is not None:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.max_grad_norm)
                 
-                loss = raw_loss / num_micro_batches
-                loss.backward()
+                self._backward_virtual_batch(raw_loss, num_virtual_batches)
 
                 losses.append(raw_loss.item())
                 kl_losses.append(kl_loss.item())
                 recons_losses.append(recons_loss.item())
 
-            self.optimizer.step()
+            self._optimizer_step()
 
             if self.early_stop is not False and batch_id > 0:
                 break

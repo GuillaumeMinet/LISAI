@@ -4,7 +4,7 @@
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: HDN_Gag_KL07
+  exp_name: HDN_betaKL05_batch32_lr1e-5_groupNorm
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
 
@@ -38,7 +38,7 @@ data:
     timelapse_max_frames: 10
     shuffle: true
 
-  patch_size: 128
+  patch_size: 64
   val_patch_size: 256
   batch_size: 64
 
@@ -68,22 +68,24 @@ model:
     num_latents: 5
     z_dims: 32
     blocks_per_layer: 6
-    batchnorm: true
+    norm: group
+    gr_norm: 8
     free_bits: 1.0
 
 # ========================================================
 # Training configuration
 # ========================================================
 training:
-  n_epochs: 10
-  batch_size: 16
-  learning_rate: 0.00001
-  betaKL: 0.6
+  n_epochs: 30
+  batch_size: 32
+  learning_rate: 1e-5
+  betaKL: 0.5
   val_loss_patience: 30
   optimizer: Adam
   scheduler: ReduceLROnPlateau
   progress_bar: true
   early_stop: false
+  max_grad_norm: null
 
 # ========================================================
 # Saving configuration

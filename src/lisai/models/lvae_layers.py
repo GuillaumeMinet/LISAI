@@ -34,7 +34,8 @@ class TopDownLayer(nn.Module):
                  downsampling_steps=None,
                  nonlin=None,
                  merge_type=None,
-                 batchnorm=True,
+                 norm="group",
+                 gr_norm=8,
                  dropout=None,
                  stochastic_skip=False,
                  res_block_type=None,
@@ -74,7 +75,8 @@ class TopDownLayer(nn.Module):
                     n_filters,
                     nonlin,
                     upsample=do_resample,
-                    batchnorm=batchnorm,
+                    norm=norm,
+                    gr_norm=gr_norm,
                     dropout=dropout,
                     res_block_type=res_block_type,
                     gated=gated,
@@ -97,7 +99,8 @@ class TopDownLayer(nn.Module):
                 channels=n_filters,
                 merge_type=merge_type,
                 nonlin=nonlin,
-                batchnorm=batchnorm,
+                norm=norm,
+                gr_norm=gr_norm,
                 dropout=dropout,
                 res_block_type=res_block_type,
             )
@@ -107,7 +110,8 @@ class TopDownLayer(nn.Module):
                 self.skip_connection_merger = SkipConnectionMerger(
                     channels=n_filters,
                     nonlin=nonlin,
-                    batchnorm=batchnorm,
+                    norm=norm,
+                    gr_norm=gr_norm,
                     dropout=dropout,
                     res_block_type=res_block_type,
                 )
@@ -197,7 +201,8 @@ class BottomUpLayer(nn.Module):
                  n_filters,
                  downsampling_steps=0,
                  nonlin=None,
-                 batchnorm=True,
+                 norm="group",
+                 gr_norm=8,
                  dropout=None,
                  res_block_type=None,
                  gated=None):
@@ -215,7 +220,8 @@ class BottomUpLayer(nn.Module):
                     c_out=n_filters,
                     nonlin=nonlin,
                     downsample=do_resample,
-                    batchnorm=batchnorm,
+                    norm=norm,
+                    gr_norm=gr_norm,
                     dropout=dropout,
                     res_block_type=res_block_type,
                     gated=gated,
@@ -240,7 +246,7 @@ class ResBlockWithResampling(nn.Module):
     min_inner_channels overrides this behaviour.
 
     Other parameters: kernel size, nonlinearity, and groups of the internal
-    residual block; whether batch normalization and dropout are performed;
+    residual block; whether normalization and dropout are performed;
     whether the residual path has a gate layer at the end. There are a few
     residual block structures to choose from.
     """
@@ -253,7 +259,8 @@ class ResBlockWithResampling(nn.Module):
                  resample=False,
                  res_block_kernel=None,
                  groups=1,
-                 batchnorm=True,
+                 norm="group",
+                 gr_norm=8,
                  res_block_type=None,
                  dropout=None,
                  min_inner_channels=None,
@@ -292,7 +299,8 @@ class ResBlockWithResampling(nn.Module):
             nonlin=nonlin,
             kernel=res_block_kernel,
             groups=groups,
-            batchnorm=batchnorm,
+            norm=norm,
+            gr_norm=gr_norm,
             dropout=dropout,
             gated=gated,
             block_type=res_block_type,
@@ -337,7 +345,8 @@ class MergeLayer(nn.Module):
                  channels,
                  merge_type,
                  nonlin=nn.LeakyReLU,
-                 batchnorm=True,
+                 norm="group",
+                 gr_norm=8,
                  dropout=None,
                  res_block_type=None):
         super().__init__()
@@ -357,7 +366,8 @@ class MergeLayer(nn.Module):
                 nn.Conv2d(channels[0] + channels[1], channels[2], 1, padding=0),
                 ResidualGatedBlock(channels[2],
                                    nonlin,
-                                   batchnorm=batchnorm,
+                                   norm=norm,
+                                   gr_norm=gr_norm,
                                    dropout=dropout,
                                    block_type=res_block_type),
             )
@@ -374,10 +384,11 @@ class SkipConnectionMerger(MergeLayer):
 
     merge_type = 'residual'
 
-    def __init__(self, channels, nonlin, batchnorm, dropout, res_block_type):
+    def __init__(self, channels, nonlin, norm, gr_norm, dropout, res_block_type):
         super().__init__(channels,
                          self.merge_type,
                          nonlin,
-                         batchnorm,
+                         norm,
+                         gr_norm,
                          dropout=dropout,
                          res_block_type=res_block_type)

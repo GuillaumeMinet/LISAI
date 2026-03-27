@@ -1130,6 +1130,19 @@
           "description": "Whether positional encoding should be enabled for models that support it.",
           "title": "Pos Encod",
           "type": "boolean"
+        },
+        "max_grad_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "To clip grad norm value. Set to None to disable gradient clipping.",
+          "title": "Max Grad Norm"
         }
       },
       "title": "TrainingSection",

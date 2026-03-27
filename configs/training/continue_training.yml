@@ -17,7 +17,7 @@ load_model:
   canonical_load: true
   dataset_name: Gag_noisy_timelapses
   subfolder: HDN
-  exp_name: HDN_betaKL07_LR1e-06_00
+  exp_name: HDN_Gag_BetaKL07_NoClipGrad_batch8_lr1e-5_02
   load_method: state_dict
   best_or_last: last
 
@@ -26,8 +26,8 @@ load_model:
 # Only include values you want to change for the resumed run.
 # ========================================================
 training:
-  n_epochs: 50
-  # learning_rate: 0.0000001
+  n_epochs: 100
+  # learning_rate: 1e-8
   # early_stop: false
 
 # ========================================================

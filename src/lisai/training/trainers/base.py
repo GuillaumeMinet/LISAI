@@ -352,7 +352,27 @@ class BaseTrainer(ABC):
             last_completed_epoch=last_completed_epoch if last_completed_epoch >= 0 else None,
         )
 
-    
+    def _backward_virtual_batch(self, raw_loss: torch.Tensor, num_virtual_batches: int) -> None:
+        if num_virtual_batches <= 0:
+            raise ValueError(f"num_virtual_batches must be >= 1, got {num_virtual_batches}")
+        (raw_loss / num_virtual_batches).backward()
+
+    def _optimizer_step(self) -> float | None:
+        grad_norm = None
+
+        max_grad_norm = self.training_prm.get("grad_clip_max_norm", None)
+        if max_grad_norm is not None:
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(),
+                max_norm=max_grad_norm,
+                error_if_nonfinite=True,
+            )
+            grad_norm = float(grad_norm.item() if hasattr(grad_norm, "item") else grad_norm)
+
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        return grad_norm
+
     # update console helper
     def _update_console_new_batch(self,epoch,batch_id,total_batches):
         """ Update console with epoch and batch number, without logging into log file."""

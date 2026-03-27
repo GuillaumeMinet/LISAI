@@ -4,7 +4,7 @@
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: CL1_Upsamp2_Mltpl05_lightweight
+  exp_name: CL1_Upsamp2_lightweight_test12345_early
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
 
@@ -46,7 +46,7 @@ data:
     downsamp_factor: 2
     downsamp_method: "multiple"
     multiple_prm:
-      fill_factor: 0.5
+      fill_factor: 0.25
       random: True
 
   # options
@@ -66,8 +66,8 @@ model:
     UNet_prm:
       feat: 32
       depth: 3
-      in_channels: 2
-      out_channels: 2
+      in_channels: 1
+      out_channels: 1
       activation: swish
       norm: group
       gr_norm: 8
@@ -85,14 +85,14 @@ model:
 # Training configuration
 # ========================================================
 training:
-  n_epochs: 100
+  n_epochs: 50
   batch_size: 8
   learning_rate: 0.0001
   val_loss_patience: 30
   optimizer: Adam
   scheduler: ReduceLROnPlateau
   progress_bar: true
-  early_stop: false
+  early_stop: true
 
 loss_function:
   name: CharEdge_loss

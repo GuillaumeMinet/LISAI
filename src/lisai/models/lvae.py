@@ -32,6 +32,8 @@ class LadderVAE(nn.Module):
         self.n_layers = len(self.z_dims)
         self.stochastic_skip = params.stochastic_skip
         self.n_filters = params.n_filters
+        self.norm = params.norm
+        self.gr_norm = params.gr_norm
         self.dropout = params.dropout
         self.free_bits = params.free_bits
         self.learn_top_prior = params.learn_top_prior
@@ -80,7 +82,8 @@ class LadderVAE(nn.Module):
                 c_in=self.n_filters,
                 c_out=self.n_filters,
                 nonlin=nonlin,
-                batchnorm=params.batchnorm,
+                norm=self.norm,
+                gr_norm=self.gr_norm,
                 dropout=self.dropout,
                 res_block_type=self.res_block_type,
             ))
@@ -97,7 +100,8 @@ class LadderVAE(nn.Module):
                     n_filters=self.n_filters,
                     downsampling_steps=self.downsample[i],
                     nonlin=nonlin,
-                    batchnorm=params.batchnorm,
+                    norm=self.norm,
+                    gr_norm=self.gr_norm,
                     dropout=self.dropout,
                     res_block_type=self.res_block_type,
                     gated=self.gated,
@@ -112,7 +116,8 @@ class LadderVAE(nn.Module):
                     downsampling_steps=self.downsample[i],
                     nonlin=nonlin,
                     merge_type=params.merge_type,
-                    batchnorm=params.batchnorm,
+                    norm=self.norm,
+                    gr_norm=self.gr_norm,
                     dropout=self.dropout,
                     stochastic_skip=self.stochastic_skip,
                     learn_top_prior=self.learn_top_prior,
@@ -131,7 +136,8 @@ class LadderVAE(nn.Module):
                     c_in=self.n_filters,
                     c_out=self.n_filters,
                     nonlin=nonlin,
-                    batchnorm=params.batchnorm,
+                    norm=self.norm,
+                    gr_norm=self.gr_norm,
                     dropout=self.dropout,
                     res_block_type=self.res_block_type,
                     gated=self.gated,

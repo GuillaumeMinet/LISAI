@@ -4,7 +4,7 @@
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: CL1_Upsamp2_mltpl075
+  exp_name: CL5_Upsamp2_biggerNet
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
 
@@ -13,7 +13,7 @@ experiment:
 # ========================================================
 routing:
   data_subfolder: "preprocess/recon"
-  models_subfolder: "Testing"
+  models_subfolder: "Upsamp"
   tensorboard_subfolder: "Upsamp"
   # used only for non-canonical loads => full path is used directly
   dataset_full_path: ""
@@ -36,7 +36,7 @@ data:
   input: ""
   timelapse_prm:
       timelapse_max_frames: 20
-      context_length: null
+      context_length: 5
 
   patch_size: 96
   val_patch_size: 240
@@ -44,10 +44,7 @@ data:
 
   downsampling:
     downsamp_factor: 2
-    downsamp_method: "multiple"
-    multiple_prm:
-      fill_factor: 0.75
-      random: True
+    downsamp_method: "random"
 
   # options
   initial_crop: null
@@ -64,20 +61,20 @@ model:
     upsampling_net: rcan
     upsampling_factor: 2
     UNet_prm:
-      feat: 32
+      feat: 64
       depth: 3
-      in_channels: 3
-      out_channels: 3
+      in_channels: 5
+      out_channels: 5
       activation: swish
       norm: group
       gr_norm: 8
       dropout: 0.1
       cab_skip_con: false
     RCAN_prm:
-      num_features: 32
+      num_features: 64
       num_rg: 8
-      num_rcab: 8
-      reduction: 12
+      num_rcab: 12
+      reduction: 16
       dropout: 0.1
       upsamp_kernel_factor: 1
 
@@ -85,7 +82,7 @@ model:
 # Training configuration
 # ========================================================
 training:
-  n_epochs: 100
+  n_epochs: 60
   batch_size: 8
   learning_rate: 0.0001
   val_loss_patience: 30

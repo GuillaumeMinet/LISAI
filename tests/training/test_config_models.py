@@ -119,6 +119,41 @@ def test_lvae_model_requires_consistent_latent_layout():
 
 
 
+def test_lvae_accepts_unet_style_norm_parameters():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "model": {
+                "architecture": "lvae",
+                "parameters": {
+                    "norm": "group",
+                    "gr_norm": 4,
+                },
+            }
+        }
+    )
+
+    assert cfg.model is not None
+    assert cfg.model.parameters.norm == "group"
+    assert cfg.model.parameters.gr_norm == 4
+
+
+def test_lvae_legacy_batchnorm_maps_to_norm():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "model": {
+                "architecture": "lvae",
+                "parameters": {
+                    "batchnorm": False,
+                },
+            }
+        }
+    )
+
+    assert cfg.model is not None
+    assert cfg.model.parameters.norm is None
+    assert cfg.model.parameters.batchnorm is False
+
+
 def test_unet_remove_skip_connections_cannot_exceed_depth():
     with pytest.raises(ValidationError):
         ExperimentConfig.model_validate(

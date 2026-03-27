@@ -667,11 +667,41 @@
           "title": "Merge Type",
           "type": "string"
         },
+        "norm": {
+          "anyOf": [
+            {
+              "enum": [
+                "group",
+                "batch"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "group",
+          "description": "Normalization type used inside LadderVAE residual blocks.",
+          "title": "Norm"
+        },
+        "gr_norm": {
+          "default": 8,
+          "description": "Group count used when norm='group'.",
+          "title": "Gr Norm",
+          "type": "integer"
+        },
         "batchnorm": {
-          "default": true,
-          "description": "Whether batch normalization is enabled inside LadderVAE blocks.",
-          "title": "Batchnorm",
-          "type": "boolean"
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Deprecated legacy toggle. If provided without `norm`, true maps to `norm='group'` and false maps to `norm=None`.",
+          "title": "Batchnorm"
         },
         "stochastic_skip": {
           "default": true,
@@ -1329,6 +1359,19 @@
           "description": "Whether positional encoding should be enabled for models that support it.",
           "title": "Pos Encod",
           "type": "boolean"
+        },
+        "max_grad_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "To clip grad norm value. Set to None to disable gradient clipping.",
+          "title": "Max Grad Norm"
         }
       },
       "title": "TrainingSection",
