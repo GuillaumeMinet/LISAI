@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -11,6 +12,7 @@ from typing import IO
 
 from lisai.config import settings
 from lisai.runs.listing import is_run_likely_active, write_invalid_run_warnings
+from lisai.runs.schema import utc_now
 from lisai.runs.scanner import DiscoveredRun, scan_runs
 
 from .control import QueueControl, default_queue_control, read_queue_control
@@ -19,11 +21,14 @@ from .schema import QueueJob, parse_queue_selector
 from .state import mark_job_blocked, mark_job_done, mark_job_failed, mark_job_running, set_job_run_id
 from .storage import (
     DiscoveredJob,
+    InvalidQueueJob,
     discover_jobs,
     ensure_queue_dirs,
     find_job,
     job_log_filename,
     queue_logs_dir,
+    queue_state_dir,
+    write_job_atomic,
 )
 
 PRIORITY_RANK = {
@@ -110,8 +115,16 @@ class QueueWorker:
 
         queued_records, invalid_jobs = discover_jobs(status="queued", queue_root=self.queue_root)
         for invalid in invalid_jobs:
+            quarantined = self._quarantine_invalid_queued_job(invalid)
+            if quarantined is None:
+                self._emit(
+                    f"warning: skipped invalid queue job {invalid.path} ({invalid.kind}: {invalid.message})",
+                    stream=self.stderr,
+                )
+                continue
             self._emit(
-                f"warning: skipped invalid queue job {invalid.path} ({invalid.kind}: {invalid.message})",
+                f"quarantined invalid queued job {invalid.path} -> {quarantined.path} "
+                f"({invalid.kind}: {invalid.message})",
                 stream=self.stderr,
             )
 
@@ -524,6 +537,94 @@ class QueueWorker:
         target = self.stdout if stream is None else stream
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{timestamp}] {message}", file=target, flush=True)
+
+    def _quarantine_invalid_queued_job(self, invalid: InvalidQueueJob) -> DiscoveredJob | None:
+        queued_dir = queue_state_dir("queued", queue_root=self.queue_root).resolve()
+        invalid_path = invalid.path.resolve()
+        if invalid_path.parent != queued_dir:
+            return None
+        if not invalid_path.exists():
+            return None
+        if not invalid_path.is_file():
+            return None
+
+        payload = self._load_invalid_payload(invalid_path)
+        selector, job_id = self._job_identity_from_filename(invalid_path)
+        now = utc_now()
+
+        config_value = str(invalid_path)
+        source_config_value: str | None = None
+        if payload is not None:
+            raw_config = payload.get("config")
+            if isinstance(raw_config, str) and raw_config.strip():
+                config_value = raw_config.strip()
+            raw_source = payload.get("source_config")
+            if isinstance(raw_source, str) and raw_source.strip():
+                source_config_value = raw_source.strip()
+            raw_job_id = payload.get("job_id")
+            if isinstance(raw_job_id, str) and raw_job_id.strip():
+                job_id = raw_job_id.strip()
+            raw_selector = payload.get("selector")
+            if isinstance(raw_selector, str) and raw_selector.strip():
+                selector = raw_selector.strip()
+
+        quarantined = QueueJob(
+            job_id=job_id,
+            selector=selector,
+            config=config_value,
+            source_config=source_config_value,
+            status="failed",
+            device="unknown",
+            submitted_at=now,
+            updated_at=now,
+            resource_class="medium",
+            finished_at=now,
+            error=f"quarantined_invalid_queued_job:{invalid.kind}: {invalid.message}",
+        )
+
+        destination = self._failed_quarantine_path(invalid_path)
+        write_job_atomic(destination, quarantined)
+        invalid_path.unlink(missing_ok=True)
+        return DiscoveredJob(job=quarantined, path=destination, status="failed")
+
+    def _load_invalid_payload(self, path: Path) -> dict[str, object] | None:
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except Exception:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        return payload
+
+    def _job_identity_from_filename(self, path: Path) -> tuple[str | None, str]:
+        stem = path.stem
+        if not stem.startswith("job_"):
+            fallback = f"job_invalid_{int(utc_now().timestamp())}"
+            return None, fallback
+
+        body = stem[len("job_") :]
+        if body.startswith("q") and "_job_" in body:
+            maybe_selector, tail = body.split("_job_", 1)
+            if tail.strip():
+                return maybe_selector.strip(), f"job_{tail.strip()}"
+        if stem.strip():
+            return None, stem.strip()
+        fallback = f"job_invalid_{int(utc_now().timestamp())}"
+        return None, fallback
+
+    def _failed_quarantine_path(self, source_path: Path) -> Path:
+        failed_dir = queue_state_dir("failed", queue_root=self.queue_root)
+        candidate = failed_dir / source_path.name
+        if not candidate.exists():
+            return candidate
+
+        suffix = 2
+        while True:
+            candidate = failed_dir / f"{source_path.stem}_{suffix}{source_path.suffix}"
+            if not candidate.exists():
+                return candidate
+            suffix += 1
 
 
 __all__ = [

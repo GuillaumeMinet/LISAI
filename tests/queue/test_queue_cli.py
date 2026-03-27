@@ -48,6 +48,51 @@ def test_queue_submit_and_list_via_root_cli(monkeypatch, tmp_path, capsys):
     assert "queued" in listed.out
 
 
+def test_queue_submit_copies_source_config_to_managed_snapshot(monkeypatch, tmp_path):
+    queue_root = tmp_path / ".lisai" / "queue"
+    source_config = tmp_path / "cfg_source.yaml"
+    source_config.write_text("key: value\n# keep exact bytes\n", encoding="utf-8")
+    expected_bytes = source_config.read_bytes()
+
+    monkeypatch.setenv("LISAI_QUEUE_ROOT", str(queue_root))
+    monkeypatch.setattr(queue_cli, "resolve_config_path", lambda _: source_config)
+    monkeypatch.setattr(
+        queue_cli,
+        "load_scheduling_context",
+        lambda path: SchedulingContext(
+            config_path=Path(path).resolve(),
+            dataset="Gag",
+            model_subfolder="HDN",
+            run_name="demo",
+            training_signature=TrainingSignature(architecture="unet", batch_size=8, patch_size=128),
+        ),
+    )
+
+    exit_code = queue_cli.submit_job(
+        config="cfg_source.yaml",
+        resource_class="light",
+        device="cuda:0",
+        stdout=io.StringIO(),
+    )
+    assert exit_code == 0
+
+    queued_jobs, _invalid = discover_jobs(status="queued", queue_root=queue_root)
+    assert len(queued_jobs) == 1
+    job = queued_jobs[0].job
+
+    snapshot_path = Path(job.config)
+    assert snapshot_path.exists()
+    assert snapshot_path.is_file()
+    assert snapshot_path.suffix == ".yaml"
+    assert snapshot_path.parent == (queue_root / queue_cli.QUEUE_MANAGED_SNAPSHOTS_DIRNAME)
+    assert snapshot_path.read_bytes() == expected_bytes
+    assert job.source_config == str(source_config.resolve())
+    assert job.config != str(source_config.resolve())
+
+    source_config.write_text("key: changed_after_submit\n", encoding="utf-8")
+    assert snapshot_path.read_bytes() == expected_bytes
+
+
 def test_queue_clean_removes_old_done_and_failed_jobs(monkeypatch, tmp_path):
     queue_root = tmp_path / ".lisai" / "queue"
     monkeypatch.setenv("LISAI_QUEUE_ROOT", str(queue_root))
@@ -94,6 +139,65 @@ def test_queue_clean_removes_old_done_and_failed_jobs(monkeypatch, tmp_path):
     assert done_jobs == ()
     assert len(failed_jobs) == 1
     assert failed_jobs[0].job.job_id == "job_recent_failed"
+
+
+def test_queue_clean_only_removes_managed_snapshots(monkeypatch, tmp_path):
+    queue_root = tmp_path / ".lisai" / "queue"
+    monkeypatch.setenv("LISAI_QUEUE_ROOT", str(queue_root))
+
+    old_time = datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
+    source_config = tmp_path / "source.yml"
+    source_config.write_text("source: keep\n", encoding="utf-8")
+    second_source = tmp_path / "source2.yml"
+    second_source.write_text("source: also_keep\n", encoding="utf-8")
+
+    managed_dir = queue_root / queue_cli.QUEUE_MANAGED_SNAPSHOTS_DIRNAME
+    managed_dir.mkdir(parents=True, exist_ok=True)
+    managed_snapshot = managed_dir / "managed_snapshot.yml"
+    managed_snapshot.write_text("snapshot: managed\n", encoding="utf-8")
+    external_snapshot = tmp_path / "external_snapshot.yml"
+    external_snapshot.write_text("snapshot: external\n", encoding="utf-8")
+
+    managed_job = QueueJob(
+        job_id="job_managed_snapshot",
+        config=str(managed_snapshot),
+        source_config=str(source_config),
+        status="done",
+        device="cuda:0",
+        submitted_at=old_time - timedelta(hours=1),
+        updated_at=old_time,
+        resource_class="medium",
+        finished_at=old_time,
+        exit_code=0,
+    )
+    external_job = QueueJob(
+        job_id="job_external_snapshot",
+        config=str(external_snapshot),
+        source_config=str(second_source),
+        status="done",
+        device="cuda:0",
+        submitted_at=old_time - timedelta(hours=2),
+        updated_at=old_time,
+        resource_class="medium",
+        finished_at=old_time,
+        exit_code=0,
+    )
+    write_job_atomic(
+        queue_state_dir("done", queue_root=queue_root) / "job_managed_snapshot.json",
+        managed_job,
+    )
+    write_job_atomic(
+        queue_state_dir("done", queue_root=queue_root) / "job_external_snapshot.json",
+        external_job,
+    )
+
+    exit_code = queue_cli.clean_jobs(older_than=None, status="done", clean_all=False, assume_yes=True)
+    assert exit_code == 0
+
+    assert not managed_snapshot.exists()
+    assert external_snapshot.exists()
+    assert source_config.exists()
+    assert second_source.exists()
 
 
 def test_queue_list_status_filter(monkeypatch, tmp_path, capsys):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from lisai.config import settings
 from lisai.queue.control import update_queue_control
 from lisai.queue.schema import QueueJob
 from lisai.queue.state import create_queued_job, mark_job_running
-from lisai.queue.storage import discover_jobs
+from lisai.queue.storage import discover_jobs, queue_state_dir
 from lisai.queue.worker import QueueWorker, WorkerCycleResult
 from lisai.runs.scanner import DiscoveredRun, ScanResults
 from lisai.runs.schema import RunMetadata, TrainingSignature
@@ -345,3 +346,75 @@ def test_worker_launch_sets_env_flag_to_disable_tqdm(monkeypatch, tmp_path):
     assert popen_kwargs["env"]["LISAI_DISABLE_TQDM"] == "1"
     running = worker._running_processes.pop(record.job.job_id)
     running.log_handle.close()
+
+
+def test_worker_quarantines_invalid_queued_job_once(monkeypatch, tmp_path):
+    queue_root = tmp_path / ".lisai" / "queue"
+    queued_dir = queue_state_dir("queued", queue_root=queue_root)
+    invalid_path = queued_dir / "job_q0099_job_invalid_payload.json"
+    invalid_path.parent.mkdir(parents=True, exist_ok=True)
+    invalid_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "job_id": "job_invalid_payload",
+                "selector": "q0099",
+                "config": "/tmp/example.yml",
+                "status": "queued",
+                "device": "cuda:0",
+                "submitted_at": "2026-03-20T12:00:00Z",
+                "updated_at": "2026-03-20T12:00:00Z",
+                "resource_class": "medium",
+                "unexpected_field": "boom",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(worker_mod, "scan_runs", lambda: ScanResults(runs=(), invalid=()))
+    stderr = io.StringIO()
+    worker = QueueWorker(queue_root=queue_root, stdout=io.StringIO(), stderr=stderr)
+
+    first = worker.run_once()
+    second = worker.run_once()
+
+    assert first.status_key == "idle"
+    assert second.status_key == "idle"
+
+    queued_jobs, queued_invalid = discover_jobs(status="queued", queue_root=queue_root)
+    failed_jobs, failed_invalid = discover_jobs(status="failed", queue_root=queue_root)
+    assert queued_jobs == ()
+    assert queued_invalid == ()
+    assert failed_invalid == ()
+    assert len(failed_jobs) == 1
+    assert failed_jobs[0].job.job_id == "job_invalid_payload"
+    assert "quarantined_invalid_queued_job" in (failed_jobs[0].job.error or "")
+
+    err_text = stderr.getvalue()
+    assert err_text.count("quarantined invalid queued job") == 1
+    assert "skipped invalid queue job" not in err_text
+
+
+def test_worker_quarantine_does_not_block_valid_launch(monkeypatch, tmp_path):
+    queue_root = tmp_path / ".lisai" / "queue"
+    queued_dir = queue_state_dir("queued", queue_root=queue_root)
+    invalid_path = queued_dir / "job_q0100_job_invalid_and_valid.json"
+    invalid_path.parent.mkdir(parents=True, exist_ok=True)
+    invalid_path.write_text("{", encoding="utf-8")
+
+    valid = _queued_job(tmp_path)
+    monkeypatch.setattr(worker_mod, "scan_runs", lambda: ScanResults(runs=(), invalid=()))
+    launched: list[str] = []
+    monkeypatch.setattr(
+        QueueWorker,
+        "_launch_job",
+        lambda self, record: launched.append(record.job.job_id) or True,
+    )
+
+    worker = QueueWorker(queue_root=queue_root, stdout=io.StringIO(), stderr=io.StringIO())
+    result = worker.run_once()
+
+    assert result.status_key == "launched"
+    assert launched == [valid.job.job_id]
+    failed_jobs, _invalid = discover_jobs(status="failed", queue_root=queue_root)
+    assert any("quarantined_invalid_queued_job" in (record.job.error or "") for record in failed_jobs)

@@ -5,6 +5,7 @@ from copy import deepcopy
 import json
 import os
 import re
+import shutil
 import signal
 import sys
 import time
@@ -55,6 +56,7 @@ ERROR_LINE_HINTS = (
 )
 
 POST_TRAINING_INFERENCE_CONFIG = "post_training"
+QUEUE_MANAGED_SNAPSHOTS_DIRNAME = "submitted_configs"
 
 
 def submit_job(
@@ -67,10 +69,12 @@ def submit_job(
 ) -> int:
     out = sys.stdout if stdout is None else stdout
     resolved_config = resolve_config_path(config)
-    context = load_scheduling_context(resolved_config)
+    snapshot_config = _copy_config_snapshot(resolved_config)
+    context = load_scheduling_context(snapshot_config)
 
     record = create_queued_job(
-        config_path=resolved_config,
+        config_path=snapshot_config,
+        source_config=resolved_config,
         resource_class=resource_class,
         device=device,
         priority=priority,
@@ -83,6 +87,7 @@ def submit_job(
     print(f"Submitted job {selector} ({record.job.job_id})", file=out)
     print(f"  label: {_job_display_label(record.job)}", file=out)
     print(f"  config: {record.job.config}", file=out)
+    print(f"  source_config: {record.job.source_config or '-'}", file=out)
     print(f"  resource_class: {record.job.resource_class}", file=out)
     print(f"  priority: {record.job.priority}", file=out)
     print(f"  device: {record.job.device}", file=out)
@@ -163,9 +168,11 @@ def submit_sweep(
             index=index,
         )
         save_yaml(run_cfg, generated_config)
-        context = load_scheduling_context(generated_config)
+        snapshot_config = _copy_config_snapshot(generated_config, queue_root=queue_root)
+        context = load_scheduling_context(snapshot_config)
         record = create_queued_job(
-            config_path=generated_config,
+            config_path=snapshot_config,
+            source_config=generated_config,
             resource_class=resource_class,
             device=device,
             priority=priority,
@@ -261,6 +268,7 @@ def show_job(
         file=out,
     )
     print(f"config        : {job.config}", file=out)
+    print(f"source_config : {job.source_config or '-'}", file=out)
     print(f"log_path      : {_resolve_log_path(job)}", file=out)
     print(f"error         : {job.error or '-'}", file=out)
 
@@ -549,6 +557,7 @@ def clean_jobs(
 
     removed_jobs = 0
     removed_logs = 0
+    removed_snapshots = 0
     skipped_recent = 0
     skipped_running = len(discover_jobs(status="running")[0]) if clean_all else 0
     removed_by_status = {key: 0 for key in target_statuses}
@@ -578,10 +587,12 @@ def clean_jobs(
             removed_jobs += 1
             removed_by_status[state] += 1
             removed_logs += int(_remove_log_for_job(record.job))
+            removed_snapshots += int(_remove_managed_snapshot_for_job(record.job))
 
     summary = [
         f"removed_jobs={removed_jobs}",
         f"removed_logs={removed_logs}",
+        f"removed_snapshots={removed_snapshots}",
     ]
     if skipped_recent:
         summary.append(f"skipped_recent={skipped_recent}")
@@ -626,6 +637,7 @@ def render_jobs_table(jobs: list[QueueJob], *, full: bool = False) -> str:
             "subfolder",
             "job_id",
             "config",
+            "source_config",
             "device",
             "submitted_at",
             "run_id",
@@ -643,6 +655,7 @@ def render_jobs_table(jobs: list[QueueJob], *, full: bool = False) -> str:
                 "-" if job.model_subfolder is None else job.model_subfolder,
                 job.job_id,
                 job.config,
+                "-" if job.source_config is None else job.source_config,
                 job.device,
                 format_timestamp_local(job.submitted_at),
                 "-" if job.run_id is None else job.run_id,
@@ -672,7 +685,7 @@ def render_jobs_table(jobs: list[QueueJob], *, full: bool = False) -> str:
                 job.device,
                 format_timestamp_local(job.submitted_at),
                 "-" if job.pid is None else str(job.pid),
-                _config_name(job.config),
+                _config_name(job.source_config or job.config),
             ]
             for job in jobs
         ]
@@ -704,6 +717,53 @@ def parse_age_duration(value: str) -> timedelta:
     if unit == "h":
         return timedelta(hours=amount)
     return timedelta(days=amount)
+
+
+def _queue_managed_snapshots_dir(*, queue_root: str | Path | None = None) -> Path:
+    root = ensure_queue_dirs(queue_root=queue_root)
+    snapshots_dir = root / QUEUE_MANAGED_SNAPSHOTS_DIRNAME
+    snapshots_dir.mkdir(parents=True, exist_ok=True)
+    return snapshots_dir
+
+
+def _copy_config_snapshot(source_config: str | Path, *, queue_root: str | Path | None = None) -> Path:
+    source_path = Path(source_config).expanduser().resolve()
+    if not source_path.exists():
+        raise FileNotFoundError(f"Training config not found for snapshot copy: {source_path}")
+    if not source_path.is_file():
+        raise ValueError(f"Training config is not a file: {source_path}")
+
+    snapshots_dir = _queue_managed_snapshots_dir(queue_root=queue_root)
+    suffix = source_path.suffix if source_path.suffix.lower() in {".yaml", ".yml"} else ".yml"
+    safe_stem = _sanitize_filename_component(source_path.stem)
+    token = time.time_ns()
+    candidate = snapshots_dir / f"{safe_stem}_{token}{suffix}"
+    counter = 2
+    while candidate.exists():
+        candidate = snapshots_dir / f"{safe_stem}_{token}_{counter}{suffix}"
+        counter += 1
+
+    shutil.copyfile(source_path, candidate)
+    return candidate.resolve()
+
+
+def _remove_managed_snapshot_for_job(job: QueueJob, *, queue_root: str | Path | None = None) -> bool:
+    snapshots_root = _queue_managed_snapshots_dir(queue_root=queue_root).resolve()
+    config_path = Path(job.config).expanduser().resolve()
+    if not _is_path_within(config_path, snapshots_root):
+        return False
+    if not config_path.exists() or not config_path.is_file():
+        return False
+    config_path.unlink(missing_ok=True)
+    return True
+
+
+def _is_path_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
 
 
 def _resolve_sweep_base_config(base_config: str, *, sweep_path: Path) -> Path:
@@ -1586,7 +1646,7 @@ def _job_selector_text(job: QueueJob) -> str:
 
 
 def _job_display_label(job: QueueJob) -> str:
-    run_name = _single_line(job.run_name or _config_name(job.config))
+    run_name = _single_line(job.run_name or _config_name(job.source_config or job.config))
     if job.selector:
         return f"{job.selector}_{run_name}"
     return run_name
