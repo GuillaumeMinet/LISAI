@@ -105,6 +105,11 @@ class TrainingSection(BaseModel):
         default=False,
         description="Whether positional encoding should be enabled for models that support it.",
     )
+    max_grad_norm: float | None = Field(
+        default=None,
+        description="To clip grad norm value. Set to None to disable gradient clipping.",
+    )
+
 
 
 class SavingSection(BaseModel):

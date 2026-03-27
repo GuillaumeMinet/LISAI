@@ -19,6 +19,7 @@ class LVAETrainer(BaseTrainer):
         super().__init__(**kwargs)
 
         self.betaKL = self.training_prm.get("betaKL", 1)
+        self.max_grad_norm = self.training_prm.get("max_grad_norm", None)
 
         # tiling validation logic
         self.tiling_validation = False
@@ -58,9 +59,12 @@ class LVAETrainer(BaseTrainer):
             if self.update_console:
                 self._update_console_new_batch(epoch,batch_id,len(iter_loader))
 
+                
+
             virtual_batches = self._split_batch(batch, warn_once=(batch_id == 0))
             num_micro_batches = len(virtual_batches[0])
             
+            self.optimizer.zero_grad()
             for (x, y, *samp_pos) in zip(*virtual_batches):
                 # LVAE ignores samp_pos in forward passes
                 x, y, _ = self._prepare_batch(x, y, None)
@@ -69,6 +73,9 @@ class LVAETrainer(BaseTrainer):
                 recons_loss = outputs["recons_loss"]
                 kl_loss = outputs["kl_loss"]
                 raw_loss = recons_loss + self.betaKL * kl_loss
+
+                if self.max_grad_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.max_grad_norm)
                 
                 loss = raw_loss / num_micro_batches
                 loss.backward()
@@ -78,7 +85,6 @@ class LVAETrainer(BaseTrainer):
                 recons_losses.append(recons_loss.item())
 
             self.optimizer.step()
-            self.optimizer.zero_grad()
 
             if self.early_stop is not False and batch_id > 0:
                 break
