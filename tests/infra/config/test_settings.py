@@ -61,9 +61,19 @@ def test_project_run_tracking_timeout_is_configured(settings_obj: Settings):
 
 def test_project_queue_resource_classes_are_configured(settings_obj: Settings):
     defaults = settings_obj.project.queue.resource_class_vram_mb
-    assert defaults.light == 2000
-    assert defaults.medium == 4000
-    assert defaults.heavy == 6000
+    assert defaults.light == 3000
+    assert defaults.medium == 6000
+    assert defaults.heavy == 9000
     assert settings_obj.project.queue.fixed_margin_pct == 0.20
     assert settings_obj.project.queue.paused is False
     assert settings_obj.project.queue.max_concurrent_runs_per_gpu == 1
+
+
+def test_project_recovery_defaults_are_configured(settings_obj: Settings):
+    safe_resume = settings_obj.project.recovery.hdn_safe_resume
+    assert safe_resume.enabled is True
+    assert safe_resume.auto_use_safe_checkpoint_on_continue is True
+    assert safe_resume.drop_optimizer_scheduler_state_on_safe_resume is True
+    assert safe_resume.rewind_steps == 2
+    assert safe_resume.lr_scale == pytest.approx(0.1)
+    assert safe_resume.force_grad_clip_max_norm is None
