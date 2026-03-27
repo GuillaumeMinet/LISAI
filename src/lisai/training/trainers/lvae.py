@@ -16,7 +16,6 @@ class LVAETrainer(BaseTrainer):
         return True
 
     def __init__(self, **kwargs):
-        print("LVAE TRAINER")
         super().__init__(**kwargs)
 
         self.betaKL = self.training_prm.get("betaKL", 1)

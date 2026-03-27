@@ -49,11 +49,20 @@ naming:
 run_tracking:
   active_heartbeat_timeout_minutes: 10
 
+recovery:
+  hdn_safe_resume:
+    enabled: true
+    auto_use_safe_checkpoint_on_continue: true
+    drop_optimizer_scheduler_state_on_safe_resume: true
+    rewind_steps: 2
+    lr_scale: 0.1
+    force_grad_clip_max_norm: None
+
 queue:
   resource_class_vram_mb:
-    light: 2000
-    medium: 4000
-    heavy: 6000
+    light: 3000
+    medium: 6000
+    heavy: 9000
   fixed_margin_pct: 0.20
   safety_margin_mb: 2000
   poll_seconds: 5

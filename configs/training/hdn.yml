@@ -4,7 +4,7 @@
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: HDN_betaKL05_batch32_lr1e-5_groupNorm
+  exp_name: HDN_betaKL05_batch32_lr1e-4_groupNorm
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
 
@@ -68,8 +68,8 @@ model:
     num_latents: 5
     z_dims: 32
     blocks_per_layer: 6
-    norm: group
-    gr_norm: 8
+    norm: batch
+    # gr_norm: 8
     free_bits: 1.0
 
 # ========================================================
