@@ -36,7 +36,7 @@ def test_is_hdn_safe_resume_active_matches_recovery_checkpoint_even_when_status_
     assert base_mod.BaseTrainer._is_hdn_safe_resume_active(fake_self) is True
 
 
-def test_apply_recovery_overrides_updates_optimizer_lr_and_max_grad_norm():
+def test_apply_recovery_overrides_updates_optimizer_lr_from_compounded_fail_count_and_max_grad_norm():
     parameter = torch.nn.Parameter(torch.tensor(1.0))
     optimizer = torch.optim.SGD([parameter], lr=1.0)
     logger = SimpleNamespace(warning=lambda _: None)
@@ -44,20 +44,58 @@ def test_apply_recovery_overrides_updates_optimizer_lr_and_max_grad_norm():
     safe_cfg = SimpleNamespace(
         enabled=True,
         lr_scale=0.2,
+        min_lr=1.0e-8,
+        max_compound_steps=None,
         force_grad_clip_max_norm=1.5,
     )
     fake_self = SimpleNamespace(
-        cfg=SimpleNamespace(recovery=SimpleNamespace(hdn_safe_resume=safe_cfg)),
+        cfg=SimpleNamespace(
+            recovery=SimpleNamespace(hdn_safe_resume=safe_cfg),
+            experiment=SimpleNamespace(origin_run_dir="/tmp/origin_run"),
+        ),
         optimizer=optimizer,
+        _base_learning_rate_from_config=1.0e-4,
         training_prm={},
         logger=logger,
     )
     fake_self._is_hdn_safe_resume_active = lambda: True
+    fake_self._read_safe_resume_fail_count = lambda _: 2
 
     base_mod.BaseTrainer._apply_recovery_overrides(fake_self)
 
-    assert optimizer.param_groups[0]["lr"] == pytest.approx(0.2)
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(4.0e-6)
     assert fake_self.training_prm["max_grad_norm"] == pytest.approx(1.5)
+
+
+def test_apply_recovery_overrides_applies_compound_cap_and_min_lr_floor():
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = torch.optim.SGD([parameter], lr=1.0)
+    logger = SimpleNamespace(warning=lambda _: None)
+
+    safe_cfg = SimpleNamespace(
+        enabled=True,
+        lr_scale=0.1,
+        min_lr=1.0e-6,
+        max_compound_steps=2,
+        force_grad_clip_max_norm=None,
+    )
+    fake_self = SimpleNamespace(
+        cfg=SimpleNamespace(
+            recovery=SimpleNamespace(hdn_safe_resume=safe_cfg),
+            experiment=SimpleNamespace(origin_run_dir="/tmp/origin_run"),
+        ),
+        optimizer=optimizer,
+        _base_learning_rate_from_config=1.0e-5,
+        training_prm={},
+        logger=logger,
+    )
+    fake_self._is_hdn_safe_resume_active = lambda: True
+    fake_self._read_safe_resume_fail_count = lambda _: 9
+
+    base_mod.BaseTrainer._apply_recovery_overrides(fake_self)
+
+    # Capped compound steps -> 1e-5 * 0.1^2 = 1e-7, then floored to min_lr=1e-6
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(1.0e-6)
 
 
 def test_drop_optimizer_scheduler_state_on_safe_resume_removes_optimizer_and_scheduler_entries():
@@ -178,6 +216,7 @@ def test_save_last_safe_training_state_clamps_epoch_to_last_completed(monkeypatc
     fake_self._select_safe_training_state_for_persistence = (
         lambda: base_mod.BaseTrainer._select_safe_training_state_for_persistence(fake_self)
     )
+    fake_self._read_safe_resume_fail_count = lambda _: 0
 
     base_mod.BaseTrainer._save_last_safe_training_state(
         fake_self,
@@ -192,6 +231,7 @@ def test_save_last_safe_training_state_clamps_epoch_to_last_completed(monkeypatc
     assert state_dict["failure_cause"] == "diverged"
     assert state_dict["safe_state_source"] == "latest_fallback"
     assert recovery_update["last_safe_epoch"] == 1
+    assert recovery_update["safe_resume_fail_count"] == 1
 
 
 def test_align_safe_resume_epoch_with_metadata_clamps_ahead_checkpoint_epoch(
@@ -253,6 +293,7 @@ def test_save_last_safe_training_state_uses_confirmed_buffer_with_rewind(monkeyp
     fake_self._select_safe_training_state_for_persistence = (
         lambda: base_mod.BaseTrainer._select_safe_training_state_for_persistence(fake_self)
     )
+    fake_self._read_safe_resume_fail_count = lambda _: 2
 
     base_mod.BaseTrainer._save_last_safe_training_state(fake_self, epoch=3, cause="diverged")
 
@@ -262,3 +303,4 @@ def test_save_last_safe_training_state_uses_confirmed_buffer_with_rewind(monkeyp
     assert state_dict["epoch"] == 1
     assert recovery_update["last_safe_epoch"] == 1
     assert recovery_update["last_safe_batch_id"] == 10
+    assert recovery_update["safe_resume_fail_count"] == 3

@@ -76,4 +76,6 @@ def test_project_recovery_defaults_are_configured(settings_obj: Settings):
     assert safe_resume.drop_optimizer_scheduler_state_on_safe_resume is True
     assert safe_resume.rewind_steps == 2
     assert safe_resume.lr_scale == pytest.approx(0.1)
+    assert safe_resume.min_lr == pytest.approx(1.0e-8)
+    assert safe_resume.max_compound_steps is None
     assert safe_resume.force_grad_clip_max_norm is None

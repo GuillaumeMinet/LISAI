@@ -105,6 +105,7 @@ class BaseTrainer(ABC):
         self.logger = logging.getLogger("lisai")
 
         self._drop_optimizer_scheduler_state_on_safe_resume()
+        self._base_learning_rate_from_config = self._resolve_base_learning_rate_from_config()
 
         # optimizer + scheduler
         self.optimizer, self.scheduler = self._make_optimizer_and_scheduler()
@@ -185,12 +186,8 @@ class BaseTrainer(ABC):
         # resolve learning_rate, add it to opt_kwargs
         lr = opt_kwargs.get("lr", None)
         if lr is None:
-            lr = prm.get("learning_rate", None)
-        if lr is None:
-            lr = prm.get("lr", None)
-        if lr is None:
-            lr = 1e-4
-        opt_kwargs["lr"] = lr
+            lr = self._base_learning_rate_from_config
+        opt_kwargs["lr"] = float(lr)
 
         # init optimizer
         if not hasattr(torch.optim, opt_name):
@@ -243,6 +240,21 @@ class BaseTrainer(ABC):
                     self.logger.warning(f"Failed to load scheduler state: {type(e)} {e}")
 
         return optimizer, scheduler
+
+    def _resolve_base_learning_rate_from_config(self) -> float:
+        prm = self.training_prm or {}
+        opt_cfg = prm.get("optimizer", "Adam")
+
+        lr = None
+        if isinstance(opt_cfg, dict):
+            lr = opt_cfg.get("lr", None)
+        if lr is None:
+            lr = prm.get("learning_rate", None)
+        if lr is None:
+            lr = prm.get("lr", None)
+        if lr is None:
+            lr = 1e-4
+        return float(lr)
 
 
 
@@ -497,6 +509,8 @@ class BaseTrainer(ABC):
             tag="safe_on_divergence",
         )
 
+        safe_resume_fail_count = self._read_safe_resume_fail_count(self.run_dir) + 1
+
         if self.run_dir is not None:
             update_run_recovery_info(
                 self.run_dir,
@@ -505,6 +519,7 @@ class BaseTrainer(ABC):
                 recovery_strategy="hdn_safe_resume_v1",
                 last_safe_epoch=resume_epoch,
                 last_safe_batch_id=int(selected_state.get("batch_id", -1)),
+                safe_resume_fail_count=safe_resume_fail_count,
             )
 
 
@@ -620,13 +635,30 @@ class BaseTrainer(ABC):
 
         if safe_cfg.lr_scale is not None:
             lr_scale = float(safe_cfg.lr_scale)
+            base_lr = float(getattr(self, "_base_learning_rate_from_config", 1e-4))
+            safe_resume_fail_count = self._read_safe_resume_fail_count(
+                getattr(self.cfg.experiment, "origin_run_dir", None)
+            )
+            compound_steps = safe_resume_fail_count
+            max_compound_steps = getattr(safe_cfg, "max_compound_steps", None)
+            if max_compound_steps is not None:
+                compound_steps = min(compound_steps, int(max_compound_steps))
+
+            effective_scale = lr_scale ** compound_steps
+            scaled_lr = base_lr * effective_scale
+            min_lr = float(getattr(safe_cfg, "min_lr", 0.0))
+            target_lr = max(scaled_lr, min_lr)
+
             new_lrs = []
             for group in self.optimizer.param_groups:
                 if "lr" in group:
-                    group["lr"] = float(group["lr"]) * lr_scale
+                    group["lr"] = float(target_lr)
                     new_lrs.append(float(group["lr"]))
             self.logger.warning(
-                f"HDN safe resume active: applied lr_scale={lr_scale}, new_lr ={new_lrs}"
+                "HDN safe resume active: "
+                f"base_lr={base_lr}, lr_scale={lr_scale}, fail_count={safe_resume_fail_count}, "
+                f"compound_steps={compound_steps}, effective_scale={effective_scale}, "
+                f"min_lr={min_lr}, new_lr={new_lrs}"
             )
 
         if safe_cfg.force_grad_clip_max_norm is not None:
@@ -634,6 +666,21 @@ class BaseTrainer(ABC):
             self.logger.warning(
                 f"HDN safe resume active: forced max_grad_norm={self.training_prm['max_grad_norm']}"
             )
+
+    def _read_safe_resume_fail_count(self, run_dir: str | Path | None) -> int:
+        if not run_dir:
+            return 0
+        try:
+            metadata = read_run_metadata(run_dir)
+        except Exception:
+            return 0
+
+        value = getattr(metadata, "safe_resume_fail_count", 0)
+        try:
+            parsed = int(value)
+        except Exception:
+            return 0
+        return max(parsed, 0)
 
 
 

@@ -41,6 +41,7 @@ def test_run_metadata_accepts_running_payload():
     assert metadata.model_subfolder == "HDN"
     assert metadata.run_name == "HDN_Gag_KL07"
     assert metadata.run_index == 1
+    assert metadata.safe_resume_fail_count == 0
 
 
 def test_run_metadata_accepts_optional_training_signature_and_runtime_stats():

@@ -430,3 +430,65 @@ def test_continue_allows_stale_running_runs_after_confirmation(monkeypatch, tmp_
     assert exit_code == 0
     assert captured["cfg"]["load_model"]["model_full_path"] == str(run_dir.resolve())
     assert "appears stale" in stderr.getvalue()
+
+
+def test_continue_failed_run_prompts_retry_with_lower_lr_message(monkeypatch, tmp_path):
+    datasets_root = tmp_path / "datasets"
+    run_name = "failed_once"
+    run_index = 0
+    run_dir = datasets_root / "Gag" / "models" / "HDN" / "failed_once_00"
+    _write_metadata(
+        run_dir,
+        run_id="01ARZ3NDEKTSV4RRFFQ69G5FB4",
+        dataset="Gag",
+        model_subfolder="HDN",
+        status="failed",
+    )
+
+    captured = {}
+    stdout = io.StringIO()
+    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"cfg": cfg}))
+
+    exit_code = continue_cli.continue_run(
+        run_name=run_name,
+        run_index=run_index,
+        stdin=InteractiveInput("y\n"),
+        stdout=stdout,
+        stderr=io.StringIO(),
+    )
+
+    assert exit_code == 0
+    assert captured["cfg"]["load_model"]["model_full_path"] == str(run_dir.resolve())
+    assert "Failed again, retry with automatic lower lr?" in stdout.getvalue()
+
+
+def test_continue_failed_run_non_interactive_requires_yes(monkeypatch, tmp_path):
+    datasets_root = tmp_path / "datasets"
+    run_name = "failed_once"
+    run_index = 0
+    run_dir = datasets_root / "Gag" / "models" / "HDN" / "failed_once_00"
+    _write_metadata(
+        run_dir,
+        run_id="01ARZ3NDEKTSV4RRFFQ69G5FB5",
+        dataset="Gag",
+        model_subfolder="HDN",
+        status="failed",
+    )
+
+    captured = {"called": False}
+    stderr = io.StringIO()
+    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"called": True}))
+
+    exit_code = continue_cli.continue_run(
+        run_name=run_name,
+        run_index=run_index,
+        stdin=NonInteractiveInput(""),
+        stdout=io.StringIO(),
+        stderr=stderr,
+    )
+
+    assert exit_code == 1
+    assert captured["called"] is False
+    assert "Confirmation required. Rerun with --yes to continue non-interactively." in stderr.getvalue()

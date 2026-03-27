@@ -238,28 +238,34 @@ def update_run_runtime_details(
     return updated
 
 def update_run_recovery_info(
-        run_dir: str | Path,
-        *,
-        failure_reason: str | None = None,
-        recovery_checkpoint_filename: str | None = None,
-        recovery_strategy: str | None = None,
-        last_safe_epoch: int | None = None,
-        last_safe_batch_id: int | None = None,
-    ) -> RunMetadata:
-        metadata = read_run_metadata(run_dir)
-        now = utc_now()
-        updated = metadata.model_copy(
-            update={
-                "updated_at": now,
-                "failure_reason": failure_reason,
-                "recovery_checkpoint_filename": recovery_checkpoint_filename,
-                "recovery_strategy": recovery_strategy,
-                "last_safe_epoch": last_safe_epoch,
-                "last_safe_batch_id": last_safe_batch_id,
-            }
-        )
-        write_run_metadata_atomic(run_dir, updated)
-        return updated
+    run_dir: str | Path,
+    *,
+    failure_reason: str | None = None,
+    recovery_checkpoint_filename: str | None = None,
+    recovery_strategy: str | None = None,
+    last_safe_epoch: int | None = None,
+    last_safe_batch_id: int | None = None,
+    safe_resume_fail_count: int | None = None,
+) -> RunMetadata:
+    metadata = read_run_metadata(run_dir)
+    now = utc_now()
+    updated = metadata.model_copy(
+        update={
+            "updated_at": now,
+            "failure_reason": failure_reason,
+            "recovery_checkpoint_filename": recovery_checkpoint_filename,
+            "recovery_strategy": recovery_strategy,
+            "last_safe_epoch": last_safe_epoch,
+            "last_safe_batch_id": last_safe_batch_id,
+            "safe_resume_fail_count": (
+                metadata.safe_resume_fail_count
+                if safe_resume_fail_count is None
+                else max(int(safe_resume_fail_count), 0)
+            ),
+        }
+    )
+    write_run_metadata_atomic(run_dir, updated)
+    return updated
 
 
 

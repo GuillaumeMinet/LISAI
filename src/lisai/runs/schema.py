@@ -216,6 +216,7 @@ class RunMetadata(BaseModel):
     recovery_strategy: str | None = None
     last_safe_epoch: int | None = None
     last_safe_batch_id: int | None = None
+    safe_resume_fail_count: int = Field(default=0, ge=0)
 
 
 

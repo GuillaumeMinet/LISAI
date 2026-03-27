@@ -43,11 +43,13 @@ class HDNSafeResumeConfig(BaseModel):
     drop_optimizer_scheduler_state_on_safe_resume: bool = False
     rewind_steps: int = Field(default=1, ge=0)
     lr_scale: float = Field(default=0.2, gt=0.0)
+    min_lr: float = Field(default=1e-8, gt=0.0)
+    max_compound_steps: int | None = Field(default=None, ge=1)
     force_grad_clip_max_norm: float | None = Field(default=None, gt=0.0)
 
-    @field_validator("force_grad_clip_max_norm", mode="before")
+    @field_validator("max_compound_steps", "force_grad_clip_max_norm", mode="before")
     @classmethod
-    def _normalize_force_grad_clip_max_norm(cls, value):
+    def _normalize_optional_numbers(cls, value):
         if isinstance(value, str) and value.strip().lower() in {"none", "null", ""}:
             return None
         return value

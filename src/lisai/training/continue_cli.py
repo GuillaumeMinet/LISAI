@@ -144,18 +144,25 @@ def continue_run(
                 return 1
             already_confirmed = True
 
-    if not assume_yes and not already_confirmed:
-        confirmed = _prompt_yes_no(
-            "Continue training this run in place? [y/N]: ",
-            stdin=in_stream,
-            stdout=out,
-        )
-        if confirmed is None:
-            print("Confirmation required. Rerun with --yes to continue non-interactively.", file=err)
-            return 1
-        if not confirmed:
-            print("Continue cancelled.", file=err)
-            return 1
+    if not assume_yes:
+        prompt = None
+        if selected_run.metadata.status == "failed":
+            prompt = "Failed again, retry with automatic lower lr? [y/N]: "
+        elif not already_confirmed:
+            prompt = "Continue training this run in place? [y/N]: "
+
+        if prompt is not None:
+            confirmed = _prompt_yes_no(
+                prompt,
+                stdin=in_stream,
+                stdout=out,
+            )
+            if confirmed is None:
+                print("Confirmation required. Rerun with --yes to continue non-interactively.", file=err)
+                return 1
+            if not confirmed:
+                print("Continue cancelled.", file=err)
+                return 1
 
     run_training_from_config_dict(_build_continue_training_config(selected_run))
     return 0

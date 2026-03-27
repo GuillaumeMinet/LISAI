@@ -56,6 +56,8 @@ recovery:
     drop_optimizer_scheduler_state_on_safe_resume: true
     rewind_steps: 2
     lr_scale: 0.1
+    min_lr: 1.0e-8
+    max_compound_steps: None
     force_grad_clip_max_norm: None
 
 queue:
