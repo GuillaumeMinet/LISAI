@@ -99,3 +99,15 @@ def test_write_training_json_schemas_write_json_files(tmp_path: Path):
         assert written_path == output_path
         data = json.loads(output_path.read_text(encoding="utf-8"))
         assert data["title"] == expected_title
+
+
+def test_training_schema_exposes_new_controls_and_deprecates_val_loss_patience():
+    schema = experiment_json_schema()
+    training_ref = schema["properties"]["training"]["$ref"].split("/")[-1]
+    training_properties = schema["$defs"][training_ref]["properties"]
+
+    assert "warmup" in training_properties
+    assert "auto_stop" in training_properties
+    assert "debug_stop" in training_properties
+    assert "val_loss_patience" in training_properties
+    assert training_properties["val_loss_patience"].get("deprecated") is True

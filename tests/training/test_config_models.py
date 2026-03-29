@@ -266,6 +266,66 @@ def test_hybrid_network_requires_single_timelapse_null_context_to_use_one_input_
         )
 
 
+def test_training_scheduler_accepts_dict_with_kwargs():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "training": {
+                "scheduler": {
+                    "name": "ReduceLROnPlateau",
+                    "patience": 7,
+                    "factor": 0.5,
+                },
+            }
+        }
+    )
+
+    scheduler = cfg.training.scheduler
+    assert isinstance(scheduler, dict)
+    assert scheduler["name"] == "ReduceLROnPlateau"
+    assert scheduler["patience"] == 7
+    assert scheduler["factor"] == pytest.approx(0.5)
+
+
+def test_training_accepts_warmup_auto_stop_and_debug_stop_fields():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "training": {
+                "debug_stop": True,
+                "warmup": {
+                    "enabled": True,
+                    "steps": 123,
+                    "start_factor": 0.2,
+                },
+                "auto_stop": {
+                    "enabled": True,
+                    "metrics": "loss",
+                    "patience": 9,
+                },
+            }
+        }
+    )
+
+    assert cfg.training.debug_stop is True
+    assert cfg.training.warmup.enabled is True
+    assert cfg.training.warmup.steps == 123
+    assert cfg.training.warmup.start_factor == pytest.approx(0.2)
+    assert cfg.training.auto_stop.enabled is True
+    assert cfg.training.auto_stop.metrics == "loss"
+    assert cfg.training.auto_stop.patience == 9
+
+
+def test_training_accepts_deprecated_val_loss_patience_field():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "training": {
+                "val_loss_patience": 30,
+            }
+        }
+    )
+
+    assert cfg.training.val_loss_patience == 30
+
+
 
 def test_multiple_downsampling_is_incompatible_with_timelapse_context_window():
     with pytest.raises(ValidationError, match="incompatible"):

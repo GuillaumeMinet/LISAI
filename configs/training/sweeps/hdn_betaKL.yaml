@@ -1,6 +1,10 @@
 base_config: configs/training/hdn.yml
 
 runs:
+  - run_name: HDN_betaKL04
+    overrides:
+      training.betaKL: 0.4
+
   - run_name: HDN_betaKL05
     overrides:
       training.betaKL: 0.5
@@ -8,11 +12,7 @@ runs:
   - run_name: HDN_betaKL06
     overrides:
       training.betaKL: 0.6
-
+  
   - run_name: HDN_betaKL07
     overrides:
       training.betaKL: 0.7
-  
-  - run_name: HDN_betaKL08
-    overrides:
-      training.betaKL: 0.8

@@ -139,6 +139,10 @@ def run_evaluate(dataset_name:str,
 
         x = x.to(runtime.device)
         print(f"Input shape: {x.shape}")
+        resolved_ch_out = options["ch_out"]
+        if resolved_ch_out is None and x.ndim >= 4 and x.shape[1] > 1:
+            # Context/multi-channel inputs are used to predict one target frame.
+            resolved_ch_out = 1
 
         outputs = infer_batch(
             runtime.model,
@@ -147,7 +151,7 @@ def run_evaluate(dataset_name:str,
             tiling_size=tiling_size,
             num_samples=options["lvae_num_samples"],
             upsamp=upsamp,
-            ch_out=options["ch_out"],
+            ch_out=resolved_ch_out,
         )
         tosave = {
             "inp": x.cpu().detach().numpy(),

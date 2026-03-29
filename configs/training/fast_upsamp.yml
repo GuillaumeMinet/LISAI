@@ -88,11 +88,18 @@ training:
   n_epochs: 50
   batch_size: 8
   learning_rate: 0.0001
-  val_loss_patience: 30
   optimizer: Adam
   scheduler: ReduceLROnPlateau
   progress_bar: true
-  early_stop: true
+  debug_stop: true
+  warmup:
+    enabled: false
+    steps: 500
+    start_factor: 0.1
+  auto_stop:
+    enabled: false
+    metrics: val_loss
+    patience: 30
 
 loss_function:
   name: CharEdge_loss

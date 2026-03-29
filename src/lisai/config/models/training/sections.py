@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -89,9 +89,12 @@ class TrainingSection(BaseModel):
         default="Adam",
         description="Optimizer name used to update the model parameters.",
     )
-    scheduler: str | None = Field(
+    scheduler: str | dict[str, Any] | None = Field(
         default=None,
-        description="Optional learning-rate scheduler name. Use null to disable scheduling.",
+        description=(
+            "Optional learning-rate scheduler. "
+            "Use a string name (legacy) or an object with `name` plus scheduler kwargs."
+        ),
     )
     progress_bar: bool = Field(
         default=False,
@@ -99,7 +102,13 @@ class TrainingSection(BaseModel):
     )
     early_stop: bool = Field(
         default=False,
-        description="Whether early stopping is enabled when validation performance stops improving.",
+        description=(
+            "Legacy debug-stop flag. Keeps historical truncated-training behavior for backward compatibility."
+        ),
+    )
+    debug_stop: bool = Field(
+        default=False,
+        description="Debug helper: when true, stop after 3 full epochs.",
     )
     pos_encod: bool = Field(
         default=False,
@@ -109,8 +118,65 @@ class TrainingSection(BaseModel):
         default=None,
         description="To clip grad norm value. Set to None to disable gradient clipping.",
     )
+    val_loss_patience: int | None = Field(
+        default=None,
+        ge=0,
+        deprecated=True,
+        description=(
+            "Deprecated and ignored. Use `training.auto_stop.patience` instead."
+        ),
+    )
+    warmup: "WarmupSection" = Field(
+        default_factory=lambda: WarmupSection(),
+        description=(
+            "Optional optimizer-step warmup. Active only when scheduler is ReduceLROnPlateau."
+        ),
+    )
+    auto_stop: "AutoStopSection" = Field(
+        default_factory=lambda: AutoStopSection(),
+        description="Optional metric-based automatic stopping.",
+    )
+
+class WarmupSection(BaseModel):
+    """Manual optimizer-step warmup settings."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable optimizer-step LR warmup.",
+    )
+    steps: int = Field(
+        default=500,
+        ge=0,
+        description="Number of optimizer steps used for warmup.",
+    )
+    start_factor: float = Field(
+        default=0.1,
+        gt=0.0,
+        le=1.0,
+        description="Initial LR factor relative to base LR at warmup start.",
+    )
 
 
+class AutoStopSection(BaseModel):
+    """Metric-based automatic stopping."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable metric-based auto-stop.",
+    )
+    metrics: Literal["loss", "val_loss"] = Field(
+        default="val_loss",
+        description="Metric monitored for auto-stop decisions.",
+    )
+    patience: int = Field(
+        default=30,
+        ge=0,
+        description="Number of non-improving epochs tolerated before stop.",
+    )
 
 class SavingSection(BaseModel):
     """Checkpoint and validation-image saving behavior."""

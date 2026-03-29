@@ -68,6 +68,15 @@ training:
   n_epochs: 100
   learning_rate: 0.0001
   optimizer: Adam
+  debug_stop: false
+  warmup:
+    enabled: false
+    steps: 500
+    start_factor: 0.1
+  auto_stop:
+    enabled: false
+    metrics: val_loss
+    patience: 30
 
 # ========================================================
 # Loss configuration

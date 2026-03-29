@@ -84,8 +84,24 @@ class BaseTrainer(ABC):
         # training parameters
         self.batch_size = self.training_prm.get("batch_size")
         self.n_epochs = self.training_prm.get("n_epochs")
-        self.early_stop = self.training_prm.get("early_stop", False)
+        self.debug_stop = bool(self.training_prm.get("debug_stop", False))
+        self._legacy_early_stop_enabled = bool(self.training_prm.get("early_stop", False))
+        # Keep legacy `early_stop` semantics in trainer subclasses for backward compatibility.
+        self.early_stop = self._legacy_early_stop_enabled and not self.debug_stop
         self.pos_encod = self.training_prm.get("pos_encod", False)
+
+        warmup_cfg = self.training_prm.get("warmup", {}) or {}
+        self._warmup_enabled_requested = bool(warmup_cfg.get("enabled", False))
+        self._warmup_steps = max(int(warmup_cfg.get("steps", 0) or 0), 0)
+        self._warmup_start_factor = float(warmup_cfg.get("start_factor", 0.1))
+        self._warmup_active = False
+        self._warmup_base_lrs: list[float] = []
+        self._warmup_ignore_warned = False
+
+        auto_stop_cfg = self.training_prm.get("auto_stop", {}) or {}
+        self._auto_stop_enabled = bool(auto_stop_cfg.get("enabled", False))
+        self._auto_stop_metric = str(auto_stop_cfg.get("metrics", "val_loss"))
+        self._auto_stop_patience = max(int(auto_stop_cfg.get("patience", 30) or 0), 0)
 
         # progress bar policy
         disable_tqdm = _env_truthy("LISAI_DISABLE_TQDM")
@@ -95,6 +111,11 @@ class BaseTrainer(ABC):
 
         # state dict
         self.state_dict = state_dict if state_dict is not None else {"epoch": -1}
+        self._optimizer_step_count = max(int(self.state_dict.get("optimizer_step_count", 0) or 0), 0)
+        self._auto_stop_best_metric = self.state_dict.get("auto_stop_best_metric", None)
+        if self._auto_stop_best_metric is not None:
+            self._auto_stop_best_metric = float(self._auto_stop_best_metric)
+        self._auto_stop_bad_epochs = max(int(self.state_dict.get("auto_stop_bad_epochs", 0) or 0), 0)
         self._last_safe_training_state = None
         self._safe_state_confirmation_lag = 1
         self._safe_state_rewind_steps = self._resolve_safe_resume_rewind_steps()
@@ -103,6 +124,25 @@ class BaseTrainer(ABC):
 
         # logger (system sets handlers)
         self.logger = logging.getLogger("lisai")
+
+        if self._legacy_early_stop_enabled and self.debug_stop:
+            self.logger.warning(
+                "Both `training.debug_stop` and legacy `training.early_stop` are enabled; "
+                "using `debug_stop` (3 full epochs) and disabling legacy batch-level truncation."
+            )
+
+        if self._auto_stop_enabled and self._auto_stop_metric not in {"loss", "val_loss"}:
+            self.logger.warning(
+                f"Invalid training.auto_stop.metrics={self._auto_stop_metric}; "
+                "falling back to 'val_loss'."
+            )
+            self._auto_stop_metric = "val_loss"
+
+        if self.training_prm.get("val_loss_patience", None) is not None:
+            self.logger.warning(
+                "training.val_loss_patience is deprecated and ignored. "
+                "Use training.auto_stop.patience instead."
+            )
 
         self._drop_optimizer_scheduler_state_on_safe_resume()
         self._base_learning_rate_from_config = self._resolve_base_learning_rate_from_config()
@@ -118,6 +158,7 @@ class BaseTrainer(ABC):
         )
 
         self._apply_recovery_overrides()
+        self._configure_warmup()
 
     # PROPERTY SUBCLASSES MUST DEFINE #
     @property
@@ -218,6 +259,9 @@ class BaseTrainer(ABC):
             if not sch_name:
                 raise ValueError("training.scheduler dict must contain a 'name' key")
             sch_kwargs = {k: v for k, v in sch_cfg.items() if k != "name"}
+            params = sch_kwargs.pop("params", None)
+            if isinstance(params, dict):
+                sch_kwargs = {**params, **sch_kwargs}
         else:
             raise ValueError(f"Invalid training.scheduler type: {type(sch_cfg)}")
 
@@ -255,6 +299,84 @@ class BaseTrainer(ABC):
         if lr is None:
             lr = 1e-4
         return float(lr)
+
+    def _configure_warmup(self) -> None:
+        self._warmup_active = False
+        self._warmup_base_lrs = []
+
+        if not self._warmup_enabled_requested:
+            return
+
+        if self._warmup_steps <= 0:
+            self.logger.warning(
+                "Warmup requested but `training.warmup.steps` is <= 0; warmup disabled."
+            )
+            return
+
+        if getattr(self, "_scheduler_name", None) != "ReduceLROnPlateau":
+            self.logger.warning(
+                "Warmup is only supported with ReduceLROnPlateau. "
+                f"Ignoring warmup for scheduler={getattr(self, '_scheduler_name', None)}."
+            )
+            self._warmup_ignore_warned = True
+            return
+
+        self._warmup_base_lrs = [
+            float(group.get("lr", self._base_learning_rate_from_config))
+            for group in self.optimizer.param_groups
+        ]
+        self._warmup_active = self._optimizer_step_count < self._warmup_steps
+
+        if self._warmup_active:
+            self._set_warmup_lrs_for_step(self._optimizer_step_count)
+            self.logger.info(
+                "Warmup enabled: "
+                f"steps={self._warmup_steps}, start_factor={self._warmup_start_factor}."
+            )
+
+    def _warmup_factor_for_step(self, step_index: int) -> float:
+        if self._warmup_steps <= 1:
+            return 1.0
+        clamped_step = min(max(int(step_index), 0), self._warmup_steps - 1)
+        progress = float(clamped_step) / float(self._warmup_steps - 1)
+        return float(self._warmup_start_factor + (1.0 - self._warmup_start_factor) * progress)
+
+    def _set_warmup_lrs_for_step(self, step_index: int) -> None:
+        if not self._warmup_base_lrs:
+            return
+        factor = self._warmup_factor_for_step(step_index)
+        for group, base_lr in zip(self.optimizer.param_groups, self._warmup_base_lrs, strict=True):
+            group["lr"] = float(base_lr * factor)
+
+    def _set_warmup_base_lrs(self) -> None:
+        if not self._warmup_base_lrs:
+            return
+        for group, base_lr in zip(self.optimizer.param_groups, self._warmup_base_lrs, strict=True):
+            group["lr"] = float(base_lr)
+
+    def _apply_manual_warmup_if_needed(self) -> None:
+        if not self._warmup_active:
+            return
+
+        if self._optimizer_step_count >= self._warmup_steps:
+            self._set_warmup_base_lrs()
+            self._warmup_active = False
+            return
+
+        self._set_warmup_lrs_for_step(self._optimizer_step_count)
+
+    def _check_auto_stop(self, *, train_loss: float, val_loss: float) -> bool:
+        if not self._auto_stop_enabled:
+            return False
+
+        metric_value = float(train_loss if self._auto_stop_metric == "loss" else val_loss)
+        if self._auto_stop_best_metric is None or metric_value < float(self._auto_stop_best_metric):
+            self._auto_stop_best_metric = metric_value
+            self._auto_stop_bad_epochs = 0
+            return False
+
+        self._auto_stop_bad_epochs += 1
+        return self._auto_stop_bad_epochs >= self._auto_stop_patience
 
 
 
@@ -312,6 +434,9 @@ class BaseTrainer(ABC):
                         "val_loss": val_loss,
                         "model_state_dict": self.model.state_dict(),
                         "optimizer_state_dict": self.optimizer.state_dict(),
+                        "optimizer_step_count": int(self._optimizer_step_count),
+                        "auto_stop_best_metric": self._auto_stop_best_metric,
+                        "auto_stop_bad_epochs": int(self._auto_stop_bad_epochs),
                     }
                 )
 
@@ -355,8 +480,28 @@ class BaseTrainer(ABC):
                     cb.on_epoch_end(self, epoch, logs)
                 last_completed_epoch = epoch
 
+                auto_stop_triggered = self._check_auto_stop(
+                    train_loss=float(train_loss),
+                    val_loss=float(val_loss),
+                )
+                self.state_dict["auto_stop_best_metric"] = self._auto_stop_best_metric
+                self.state_dict["auto_stop_bad_epochs"] = int(self._auto_stop_bad_epochs)
+
+                if self.debug_stop and epoch >= 2:
+                    self.logger.info("Debug stop enabled: stopping after 3 full epochs.")
+                    stop_reason = "early_stopped"
+                    break
                 if self.early_stop and epoch > 2:
-                    self.logger.info("Early stopping.")
+                    self.logger.info("Legacy early_stop active: stopping early in debug mode.")
+                    stop_reason = "early_stopped"
+                    break
+                if auto_stop_triggered:
+                    self.logger.info(
+                        "Auto-stop triggered: "
+                        f"metric={self._auto_stop_metric}, "
+                        f"patience={self._auto_stop_patience}, "
+                        f"best={float(self._auto_stop_best_metric):.6f}."
+                    )
                     stop_reason = "early_stopped"
                     break
 
@@ -407,7 +552,9 @@ class BaseTrainer(ABC):
             )
             grad_norm = float(grad_norm.item() if hasattr(grad_norm, "item") else grad_norm)
 
+        self._apply_manual_warmup_if_needed()
         self.optimizer.step()
+        self._optimizer_step_count += 1
         self.optimizer.zero_grad()
         return grad_norm
     
@@ -438,6 +585,9 @@ class BaseTrainer(ABC):
             "scheduler_state_dict": self._cpu_state_dict(self.scheduler.state_dict()) if self.scheduler is not None else None,
             "train_loss": self.state_dict.get("train_loss"),
             "val_loss": self.state_dict.get("val_loss"),
+            "optimizer_step_count": int(self._optimizer_step_count),
+            "auto_stop_best_metric": self._auto_stop_best_metric,
+            "auto_stop_bad_epochs": int(self._auto_stop_bad_epochs),
         }
         self._last_safe_training_state = snapshot
 

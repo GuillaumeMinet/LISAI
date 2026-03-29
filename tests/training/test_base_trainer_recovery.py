@@ -304,3 +304,150 @@ def test_save_last_safe_training_state_uses_confirmed_buffer_with_rewind(monkeyp
     assert recovery_update["last_safe_epoch"] == 1
     assert recovery_update["last_safe_batch_id"] == 10
     assert recovery_update["safe_resume_fail_count"] == 3
+
+
+def test_configure_warmup_enables_for_reduce_on_plateau():
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = torch.optim.SGD([parameter], lr=1.0e-4)
+
+    logs = {"info": [], "warning": []}
+    fake_self = SimpleNamespace(
+        _warmup_enabled_requested=True,
+        _warmup_steps=5,
+        _warmup_start_factor=0.1,
+        _warmup_active=False,
+        _warmup_base_lrs=[],
+        _warmup_ignore_warned=False,
+        _optimizer_step_count=0,
+        _scheduler_name="ReduceLROnPlateau",
+        optimizer=optimizer,
+        _base_learning_rate_from_config=1.0e-4,
+        logger=SimpleNamespace(
+            info=lambda msg: logs["info"].append(msg),
+            warning=lambda msg: logs["warning"].append(msg),
+        ),
+    )
+    fake_self._warmup_factor_for_step = lambda step: base_mod.BaseTrainer._warmup_factor_for_step(fake_self, step)
+    fake_self._set_warmup_lrs_for_step = lambda step: base_mod.BaseTrainer._set_warmup_lrs_for_step(fake_self, step)
+
+    base_mod.BaseTrainer._configure_warmup(fake_self)
+
+    assert fake_self._warmup_active is True
+    assert fake_self._warmup_base_lrs == [pytest.approx(1.0e-4)]
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(1.0e-5)
+    assert logs["warning"] == []
+
+
+def test_configure_warmup_ignores_non_plateau_scheduler():
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = torch.optim.SGD([parameter], lr=1.0e-4)
+
+    warnings = []
+    fake_self = SimpleNamespace(
+        _warmup_enabled_requested=True,
+        _warmup_steps=5,
+        _warmup_start_factor=0.1,
+        _warmup_active=False,
+        _warmup_base_lrs=[],
+        _warmup_ignore_warned=False,
+        _optimizer_step_count=0,
+        _scheduler_name="StepLR",
+        optimizer=optimizer,
+        _base_learning_rate_from_config=1.0e-4,
+        logger=SimpleNamespace(info=lambda _: None, warning=lambda msg: warnings.append(msg)),
+    )
+
+    base_mod.BaseTrainer._configure_warmup(fake_self)
+
+    assert fake_self._warmup_active is False
+    assert warnings
+
+
+def test_apply_manual_warmup_if_needed_scales_lr_with_optimizer_step_counter():
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = torch.optim.SGD([parameter], lr=1.0)
+
+    fake_self = SimpleNamespace(
+        _warmup_active=True,
+        _warmup_steps=3,
+        _warmup_start_factor=0.1,
+        _warmup_base_lrs=[1.0],
+        _optimizer_step_count=0,
+        optimizer=optimizer,
+    )
+    fake_self._warmup_factor_for_step = lambda step: base_mod.BaseTrainer._warmup_factor_for_step(fake_self, step)
+    fake_self._set_warmup_lrs_for_step = lambda step: base_mod.BaseTrainer._set_warmup_lrs_for_step(fake_self, step)
+    fake_self._set_warmup_base_lrs = lambda: base_mod.BaseTrainer._set_warmup_base_lrs(fake_self)
+
+    base_mod.BaseTrainer._apply_manual_warmup_if_needed(fake_self)
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(0.1)
+
+    fake_self._optimizer_step_count = 1
+    base_mod.BaseTrainer._apply_manual_warmup_if_needed(fake_self)
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(0.55)
+
+    fake_self._optimizer_step_count = 2
+    base_mod.BaseTrainer._apply_manual_warmup_if_needed(fake_self)
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(1.0)
+
+
+def test_check_auto_stop_uses_minimize_rule_with_patience():
+    fake_self = SimpleNamespace(
+        _auto_stop_enabled=True,
+        _auto_stop_metric="val_loss",
+        _auto_stop_patience=2,
+        _auto_stop_best_metric=None,
+        _auto_stop_bad_epochs=0,
+    )
+
+    assert base_mod.BaseTrainer._check_auto_stop(fake_self, train_loss=2.0, val_loss=1.0) is False
+    assert fake_self._auto_stop_best_metric == pytest.approx(1.0)
+    assert fake_self._auto_stop_bad_epochs == 0
+
+    assert base_mod.BaseTrainer._check_auto_stop(fake_self, train_loss=2.0, val_loss=1.1) is False
+    assert fake_self._auto_stop_bad_epochs == 1
+
+    assert base_mod.BaseTrainer._check_auto_stop(fake_self, train_loss=2.0, val_loss=1.2) is True
+    assert fake_self._auto_stop_bad_epochs == 2
+
+
+def test_check_auto_stop_can_monitor_train_loss():
+    fake_self = SimpleNamespace(
+        _auto_stop_enabled=True,
+        _auto_stop_metric="loss",
+        _auto_stop_patience=1,
+        _auto_stop_best_metric=None,
+        _auto_stop_bad_epochs=0,
+    )
+
+    assert base_mod.BaseTrainer._check_auto_stop(fake_self, train_loss=0.5, val_loss=0.7) is False
+    assert base_mod.BaseTrainer._check_auto_stop(fake_self, train_loss=0.6, val_loss=0.6) is True
+
+
+def test_capture_safe_training_state_persists_optimizer_step_and_auto_stop_state():
+    model = torch.nn.Linear(1, 1)
+    optimizer = torch.optim.SGD(model.parameters(), lr=1.0e-3)
+
+    fake_self = SimpleNamespace(
+        model=model,
+        optimizer=optimizer,
+        scheduler=None,
+        state_dict={"train_loss": 1.2, "val_loss": 0.9},
+        _optimizer_step_count=42,
+        _auto_stop_best_metric=0.9,
+        _auto_stop_bad_epochs=3,
+        _last_safe_training_state=None,
+        _pending_safe_training_states=deque(),
+        _confirmed_safe_training_states=deque(),
+        _safe_state_confirmation_lag=1,
+        _safe_state_rewind_steps=1,
+    )
+    fake_self._cpu_state_dict = lambda state: base_mod.BaseTrainer._cpu_state_dict(fake_self, state)
+
+    base_mod.BaseTrainer._capture_safe_training_state(fake_self, epoch=5, batch_id=12)
+
+    snapshot = fake_self._last_safe_training_state
+    assert snapshot is not None
+    assert snapshot["optimizer_step_count"] == 42
+    assert snapshot["auto_stop_best_metric"] == pytest.approx(0.9)
+    assert snapshot["auto_stop_bad_epochs"] == 3

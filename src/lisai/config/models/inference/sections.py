@@ -42,7 +42,11 @@ RESULTS_DESC = "Optional in-memory metrics accumulator used by the Python API wh
 OVERWRITE_DESC = "Whether an existing save folder may be overwritten."
 EVAL_GT_DESC = "Optional ground-truth override path used when evaluating against a custom target location."
 DATA_PRM_UPDATE_DESC = "Optional extra data-loader overrides such as {'data_dir': '...'} or {'subfolder': '...'} used during evaluation."
-CH_OUT_DESC = "Optional output channel selection forwarded to inference."
+CH_OUT_DESC = (
+    "Output channel count forwarded to inference. Defaults to 1 for evaluation "
+    "because models are trained to predict a single target frame even when inputs "
+    "contain multiple context channels."
+)
 SPLIT_DESC = "Dataset split to evaluate, typically 'test' or 'val'."
 LIMIT_N_IMGS_DESC = "Optional cap on the number of images or batches evaluated."
 TEST_LOADER_DESC = "Optional pre-built test loader supplied through the Python API to bypass automatic loader construction."
@@ -139,7 +143,7 @@ class EvaluateDefaults(BaseModel):
     overwrite: bool = Field(default=False, description=OVERWRITE_DESC)
     eval_gt: str | None = Field(default=None, description=EVAL_GT_DESC)
     data_prm_update: dict[str, Any] | None = Field(default=None, description=DATA_PRM_UPDATE_DESC)
-    ch_out: int | None = Field(default=None, description=CH_OUT_DESC)
+    ch_out: int | None = Field(default=1, description=CH_OUT_DESC)
     split: str = Field(default="test", description=SPLIT_DESC)
     limit_n_imgs: int | None = Field(default=None, description=LIMIT_N_IMGS_DESC)
 
