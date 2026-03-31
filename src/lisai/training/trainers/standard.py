@@ -61,7 +61,7 @@ class StandardTrainer(BaseTrainer):
                 
                 self._backward_virtual_batch(raw_loss, num_virtual_batches)
 
-                losses.append(raw_loss)
+                losses.append(raw_loss.detach().item())
 
             self._optimizer_step()
 
