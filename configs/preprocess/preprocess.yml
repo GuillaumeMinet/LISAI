@@ -1,26 +1,29 @@
 ﻿# yaml-language-server: $schema=../schema/preprocess.schema.json
 dataset_name: "Gag_timelapses"
-pipeline: "recon_timelapse_simple"
+pipeline: "recon_mltpl_snr"
 data_type: "recon"
 fmt: "timelapse"
 
 pipeline_cfg:
-  dump_subfolder: ""
+  dump_subfolder: "timelapses_gathered"
   combine_subfolders: false
   crop_size: 1200
+  gt_types: ["snr0","avg"]
+  first_low_inp: true
+  registration: true
 
 log:
   enabled: true
 
 split:
   enabled: true
-  mode: "random"
+  mode: "manual"
   random:
     seed: 0
     val_fraction: 0.1
     test_fraction: 0.1
   manual:
-    match_by: "source_name"
-    val: []
-    test: []
+    match_by: "sample_id"
+    val: ["c16"]
+    test: ["c01","c14","c16"]
   reuse: null

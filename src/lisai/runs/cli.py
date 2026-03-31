@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
+import shutil
+import subprocess
 import sys
 import time
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any, Sequence
+
+from lisai.infra.paths import Paths
 
 from .listing import (
     filter_runs,
@@ -13,8 +19,9 @@ from .listing import (
     render_runs_table,
     write_invalid_run_warnings,
 )
-from .scanner import InvalidRunMetadata, scan_runs
+from .scanner import DiscoveredRun, InvalidRunMetadata, scan_runs
 from .schema import RUN_STATUSES
+from .selection import resolve_ambiguous_run_matches
 
 _LIVE_INTERVAL_MIN_SECONDS = 1.0
 
@@ -255,6 +262,408 @@ def run_list_from_args(args: argparse.Namespace) -> int:
     )
 
 
+def _parse_run_ref_selector(run_ref: str) -> tuple[str, str, str]:
+    parts = [part for part in run_ref.replace("\\", "/").split("/") if part]
+    if len(parts) < 2:
+        raise ValueError(
+            "Run reference must be 'dataset/exp_name' or 'dataset/subfolder/exp_name'."
+        )
+    dataset_name = parts[0]
+    run_dir_name = parts[-1]
+    model_subfolder = "/".join(parts[1:-1])
+    return dataset_name, model_subfolder, run_dir_name
+
+
+def _resolve_single_run_selector(
+    args: argparse.Namespace,
+    *,
+    parser: argparse.ArgumentParser,
+) -> DiscoveredRun | None:
+    out = sys.stdout
+    err = sys.stderr
+
+    run = args.run
+    run_index = args.run_index
+    run_id = args.run_id
+    dataset = args.dataset
+    model_subfolder = args.model_subfolder
+    run_dir_name: str | None = None
+
+    if run_id is not None and (run is not None or run_index is not None):
+        print("Use either <run_name> <run_index> or --run-id, not both.", file=err)
+        return None
+
+    if run_id is None:
+        if run is None:
+            print(
+                "Missing run selector. Use dataset[/subfolder]/run_name, <run_name> <run_index>, or --run-id <run_id>.",
+                file=err,
+            )
+            return None
+
+        normalized = run.replace("\\", "/")
+        has_run_ref_separator = "/" in normalized
+        if run_index is None and has_run_ref_separator:
+            if dataset is not None or model_subfolder is not None:
+                print(
+                    "--dataset/--subfolder can only be used with <run_name> <run_index> or --run-id selectors.",
+                    file=err,
+                )
+                return None
+            try:
+                dataset, model_subfolder, run_dir_name = _parse_run_ref_selector(run)
+            except ValueError as exc:
+                parser.error(str(exc))
+                raise AssertionError("argparse.error should raise SystemExit")
+
+        if run_dir_name is None:
+            if run_index is None:
+                print(
+                    "Missing run_index for run_name selector. Use <run_name> <run_index>, "
+                    "or pass dataset[/subfolder]/run_name.",
+                    file=err,
+                )
+                return None
+            if run_index < 0:
+                print("run_index must be >= 0.", file=err)
+                return None
+            if has_run_ref_separator:
+                print(
+                    "run_index cannot be combined with dataset[/subfolder]/run_name selectors.",
+                    file=err,
+                )
+                return None
+
+    scan_result = scan_runs()
+    if run_dir_name is None:
+        matches = filter_runs(
+            scan_result.runs,
+            run_id=run_id,
+            run_name=run if run_id is None else None,
+            run_index=run_index if run_id is None else None,
+            dataset=dataset,
+            model_subfolder=model_subfolder,
+        )
+    else:
+        matches = [
+            candidate
+            for candidate in scan_result.runs
+            if candidate.dataset == dataset
+            and candidate.model_subfolder == model_subfolder
+            and candidate.run_dir.name == run_dir_name
+        ]
+
+    if not matches:
+        if run_id is not None:
+            selector_desc = f"run_id={run_id!r}"
+        elif run_dir_name is not None:
+            selector_desc = f"run={run!r}"
+        else:
+            selector_desc = f"run_name={run!r}, run_index={run_index}"
+        print(f"No matching run found for {selector_desc}.", file=err)
+        print("Use 'lisai runs list' to inspect available runs.", file=err)
+        write_invalid_run_warnings(scan_result.invalid, stderr=err)
+        return None
+
+    selected = resolve_ambiguous_run_matches(
+        matches,
+        stdin=sys.stdin,
+        stdout=out,
+        stderr=err,
+        rerun_hint="Rerun with --dataset/--subfolder or with --run-id to disambiguate.",
+    )
+    if selected is None:
+        write_invalid_run_warnings(scan_result.invalid, stderr=err)
+        return None
+
+    print("Selected run:", file=out)
+    print(render_runs_table([selected]), file=out)
+    write_invalid_run_warnings(scan_result.invalid, stderr=err)
+    return selected
+
+
+def _read_loss_table(loss_file: Path, *, stderr=None):
+    err = sys.stderr if stderr is None else stderr
+    if not loss_file.exists():
+        print(f"Loss file not found: {loss_file}", file=err)
+        return None
+
+    try:
+        import numpy as np
+    except Exception as exc:
+        print(f"Failed to import numpy for loss plotting: {exc}", file=err)
+        return None
+
+    try:
+        with loss_file.open("r", encoding="utf-8") as handle:
+            header_line = handle.readline().strip()
+        headers = [token for token in header_line.split() if token]
+        data = np.loadtxt(loss_file, skiprows=1)
+    except OSError as exc:
+        print(f"Failed to read loss file '{loss_file}': {exc}", file=err)
+        return None
+    except ValueError as exc:
+        print(f"Failed to parse loss file '{loss_file}': {exc}", file=err)
+        return None
+
+    if data.ndim == 1:
+        data = data.reshape(1, -1)
+
+    if data.shape[1] < 3:
+        print(
+            f"Loss file '{loss_file}' must have at least 3 columns: epoch/train/val.",
+            file=err,
+        )
+        return None
+
+    return headers, data
+
+
+def _is_hdn_layout(run: DiscoveredRun, *, headers: Sequence[str], n_columns: int) -> bool:
+    architecture = ""
+    if run.metadata.training_signature is not None:
+        architecture = run.metadata.training_signature.architecture.strip().lower()
+    if "hdn" in architecture or "lvae" in architecture:
+        return True
+
+    normalized_headers = {token.strip().lower() for token in headers}
+    if {"recons_loss", "kl_loss"}.issubset(normalized_headers):
+        return True
+    return n_columns >= 5
+
+
+def _plot_loss_history(
+    *,
+    run: DiscoveredRun,
+    loss_file: Path,
+    headers: Sequence[str],
+    data,
+    hdn_layout: bool,
+    stderr=None,
+) -> int:
+    err = sys.stderr if stderr is None else stderr
+    prepared = _prepare_matplotlib_for_plot(stderr=err)
+    if prepared is None:
+        return 1
+    plt, backend_name, interactive_backend = prepared
+
+    epochs = data[:, 0]
+    train_loss = data[:, 1]
+    val_loss = data[:, 2]
+
+    if hdn_layout and data.shape[1] >= 5:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        ax_left, ax_right = axes
+
+        ax_left.plot(epochs, train_loss, "r", label="train")
+        ax_left.plot(epochs, val_loss, "b", label="val")
+        ax_left.set_title("Train/Val Recon Loss")
+        ax_left.set_xlabel("epoch")
+        ax_left.set_ylabel("loss")
+        ax_left.grid(True, alpha=0.3)
+        ax_left.legend()
+
+        ax_right.plot(epochs, data[:, 3], "g", label="recons_loss")
+        ax_right.plot(epochs, data[:, 4], "k", label="kl_loss")
+        ax_right.set_title("Training Recon/KL Loss")
+        ax_right.set_xlabel("epoch")
+        ax_right.set_ylabel("loss")
+        ax_right.grid(True, alpha=0.3)
+        ax_right.legend()
+    else:
+        if hdn_layout:
+            print(
+                f"warning: HDN-like run detected, but '{loss_file}' has fewer than 5 columns. "
+                "Plotting train/val only.",
+                file=err,
+            )
+        fig, ax = plt.subplots(1, 1, figsize=(7.5, 5))
+        ax.plot(epochs, train_loss, "r", label="train")
+        ax.plot(epochs, val_loss, "b", label="val")
+        ax.set_title("Train/Val Loss")
+        ax.set_xlabel("epoch")
+        ax.set_ylabel("loss")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+    run_label = f"{run.dataset}/{run.model_subfolder}/{run.run_dir.name}"
+    fig.suptitle(run_label)
+    fig.tight_layout()
+    if interactive_backend:
+        plt.show()
+    else:
+        save_path = run.run_dir / "loss_plot.png"
+        try:
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+        except OSError as exc:
+            print(
+                f"Failed to save loss plot to '{save_path}' (backend='{backend_name}'): {exc}",
+                file=err,
+            )
+            plt.close(fig)
+            return 1
+        print(
+            f"warning: matplotlib backend '{backend_name}' is non-interactive; saved plot to {save_path}",
+            file=err,
+        )
+        if _try_open_path(save_path):
+            print(f"Opened fallback plot image: {save_path}", file=err)
+        plt.close(fig)
+    return 0
+
+
+def _prepare_matplotlib_for_plot(*, stderr=None):
+    err = sys.stderr if stderr is None else stderr
+    _ensure_writable_mplconfigdir()
+    try:
+        import matplotlib
+    except Exception as exc:
+        print(f"Failed to import matplotlib for loss plotting: {exc}", file=err)
+        return None
+
+    backend_name = str(matplotlib.get_backend())
+    if _is_non_interactive_backend(backend_name):
+        for candidate in _preferred_interactive_backends():
+            try:
+                matplotlib.use(candidate, force=True)
+            except Exception:
+                continue
+            backend_name = str(matplotlib.get_backend())
+            if not _is_non_interactive_backend(backend_name):
+                break
+
+    try:
+        import matplotlib.pyplot as plt
+    except Exception as exc:
+        print(f"Failed to import matplotlib pyplot for loss plotting: {exc}", file=err)
+        return None
+
+    backend_name = str(matplotlib.get_backend())
+    return plt, backend_name, (not _is_non_interactive_backend(backend_name))
+
+
+def _preferred_interactive_backends() -> tuple[str, ...]:
+    if os.name == "nt":
+        return ("QtAgg", "TkAgg")
+    return ("QtAgg", "TkAgg", "GTK3Agg", "WXAgg")
+
+
+def _is_non_interactive_backend(name: str) -> bool:
+    lowered = name.strip().lower()
+    if lowered in {"qtagg", "tkagg", "wxagg", "macosx"}:
+        return False
+    if lowered.startswith("gtk3agg") or lowered.startswith("gtk4agg"):
+        return False
+    return (
+        "agg" in lowered
+        or "inline" in lowered
+        or lowered.startswith("module://matplotlib_inline")
+    )
+
+
+def _ensure_writable_mplconfigdir() -> None:
+    if os.getenv("MPLCONFIGDIR"):
+        return
+
+    default_dir = Path.home() / ".config" / "matplotlib"
+    if _is_writable_dir(default_dir):
+        return
+
+    fallback_dir = Path("/tmp") / "lisai-mplconfig"
+    fallback_dir.mkdir(parents=True, exist_ok=True)
+    os.environ["MPLCONFIGDIR"] = str(fallback_dir)
+
+
+def _is_writable_dir(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        marker = path / ".write_test"
+        with marker.open("w", encoding="utf-8"):
+            pass
+        marker.unlink(missing_ok=True)
+        return True
+    except OSError:
+        return False
+
+
+def _try_open_path(path: Path) -> bool:
+    resolved = path.resolve()
+
+    startfile = getattr(os, "startfile", None)
+    if callable(startfile):
+        try:
+            startfile(str(resolved))
+            return True
+        except OSError:
+            pass
+
+    commands: list[list[str]] = []
+    explorer = shutil.which("explorer.exe") or shutil.which("explorer")
+    if explorer is not None:
+        target = _to_windows_path(resolved)
+        commands.append([explorer, target if target is not None else str(resolved)])
+
+    xdg_open = shutil.which("xdg-open")
+    if xdg_open is not None:
+        commands.append([xdg_open, str(resolved)])
+
+    for command in commands:
+        try:
+            subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except OSError:
+            continue
+    return False
+
+
+def _to_windows_path(path: Path) -> str | None:
+    wslpath_cmd = shutil.which("wslpath")
+    if wslpath_cmd is None:
+        return None
+    try:
+        completed = subprocess.run(
+            [wslpath_cmd, "-w", str(path)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    converted = completed.stdout.strip()
+    return converted or None
+
+
+def run_open_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    selected = _resolve_single_run_selector(args, parser=parser)
+    if selected is None:
+        return 1
+    if _try_open_path(selected.run_dir):
+        return 0
+    print(selected.run_dir)
+    return 0
+
+
+def run_plot_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    selected = _resolve_single_run_selector(args, parser=parser)
+    if selected is None:
+        return 1
+
+    loss_file = Paths().loss_file_path(run_dir=selected.run_dir)
+    loaded = _read_loss_table(loss_file, stderr=sys.stderr)
+    if loaded is None:
+        return 1
+    headers, data = loaded
+    hdn_layout = _is_hdn_layout(selected, headers=headers, n_columns=int(data.shape[1]))
+    return _plot_loss_history(
+        run=selected,
+        loss_file=loss_file,
+        headers=headers,
+        data=data,
+        hdn_layout=hdn_layout,
+        stderr=sys.stderr,
+    )
+
+
 def add_run_filter_arguments(
     parser: argparse.ArgumentParser,
     *,
@@ -301,6 +710,38 @@ def _add_runs_list_arguments(parser: argparse.ArgumentParser) -> argparse.Argume
     return parser
 
 
+def _add_runs_plot_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "run",
+        nargs="?",
+        help=(
+            "Run selector: dataset[/subfolder]/run_name, or run_name when paired with run_index. "
+            "Use --run-id as an alternative selector."
+        ),
+    )
+    parser.add_argument("run_index", nargs="?", type=int, help="Run index used with a run_name selector.")
+    parser.add_argument("--run-id", help="Stable run identifier to plot.")
+    add_run_filter_arguments(parser, include_identity=False, include_status=False)
+    parser.set_defaults(handler=lambda args, p=parser: run_plot_from_args(args, p))
+    return parser
+
+
+def _add_runs_open_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "run",
+        nargs="?",
+        help=(
+            "Run selector: dataset[/subfolder]/run_name, or run_name when paired with run_index. "
+            "Use --run-id as an alternative selector."
+        ),
+    )
+    parser.add_argument("run_index", nargs="?", type=int, help="Run index used with a run_name selector.")
+    parser.add_argument("--run-id", help="Stable run identifier to open.")
+    add_run_filter_arguments(parser, include_identity=False, include_status=False)
+    parser.set_defaults(handler=lambda args, p=parser: run_open_from_args(args, p))
+    return parser
+
+
 def add_runs_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]):
     parser = subparsers.add_parser(
         "runs",
@@ -316,6 +757,20 @@ def add_runs_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
         description="List locally tracked training runs.",
     )
     _add_runs_list_arguments(list_parser)
+
+    plot_parser = runs_subparsers.add_parser(
+        "plot",
+        help="Plot train/val losses for a selected run.",
+        description="Plot train/val losses for a selected run.",
+    )
+    _add_runs_plot_arguments(plot_parser)
+
+    open_parser = runs_subparsers.add_parser(
+        "open",
+        help="Open a selected run folder in file explorer.",
+        description="Open a selected run folder in file explorer.",
+    )
+    _add_runs_open_arguments(open_parser)
     return parser
 
 
@@ -330,6 +785,20 @@ def build_parser(*, prog: str = "lisai runs") -> argparse.ArgumentParser:
         description="List locally tracked training runs.",
     )
     _add_runs_list_arguments(list_parser)
+
+    plot_parser = subparsers.add_parser(
+        "plot",
+        help="Plot train/val losses for a selected run.",
+        description="Plot train/val losses for a selected run.",
+    )
+    _add_runs_plot_arguments(plot_parser)
+
+    open_parser = subparsers.add_parser(
+        "open",
+        help="Open a selected run folder in file explorer.",
+        description="Open a selected run folder in file explorer.",
+    )
+    _add_runs_open_arguments(open_parser)
     return parser
 
 
