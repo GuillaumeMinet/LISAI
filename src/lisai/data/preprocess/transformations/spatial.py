@@ -29,7 +29,7 @@ def crop_center_stack(stack: np.ndarray, crop_size: int) -> np.ndarray:
     return np.stack([crop_center_2d(frame, crop_size) for frame in stack], axis=0)
 
 
-def register_stack(stack: np.ndarray, reference_index: int = 0):
+def register_stack(stack: np.ndarray, reference_index: int = 0) -> np.ndarray:
     """
     Register stack frames to reference frame using pystackreg.
     """
@@ -39,6 +39,16 @@ def register_stack(stack: np.ndarray, reference_index: int = 0):
         raise ImportError("register_stack requires pystackreg. Install it to use registration.") from e
 
 
+    if reference_index not in (0, 1):
+        raise ValueError(f"Unsupported reference_index={reference_index}. Expected 0 or 1.")
+
     sr = StackReg(StackReg.RIGID_BODY)
-    reference = stack[reference_index]
-    return sr.register_transform_stack(stack, reference=reference)
+
+    return sr.register_transform_stack(stack, reference="first")
+    # if reference_index == 0:
+    #     return sr.register_transform_stack(stack, reference="first")
+
+    # # For reference_index == 1, move frame 0 to the end so original frame 1 is first.
+    # shifted = np.roll(stack, shift=-1, axis=0)
+    # registered_shifted = sr.register_transform_stack(shifted, reference="first")
+    # return np.roll(registered_shifted, shift=1, axis=0)

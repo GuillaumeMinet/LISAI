@@ -87,7 +87,11 @@ class PreprocessSaver:
         ensure_folder(out_path.parent, mode="exist_ok")
 
         if array.ndim == 3:
-            tifffile.imwrite(out_path, array, imagej=True, metadata={"axes": "TYX"})
+            array_to_write = array
+            if array_to_write.dtype == np.float64:
+                # ImageJ TIFF does not support float64 ("d"), use float32 instead.
+                array_to_write = array_to_write.astype(np.float32)
+            tifffile.imwrite(out_path, array_to_write, imagej=True, metadata={"axes": "TYX"})
         else:
             tifffile.imwrite(out_path, array)
 
