@@ -1,8 +1,8 @@
 ﻿# yaml-language-server: $schema=../schema/preprocess.schema.json
-dataset_name: "Gag_timelapses"
+dataset_name: "vim_fixed"
 pipeline: "recon_mltpl_snr"
 data_type: "recon"
-fmt: "timelapse"
+fmt: "mltpl_snr"
 
 pipeline_cfg:
   dump_subfolder: "timelapses_gathered"
@@ -25,5 +25,5 @@ split:
   manual:
     match_by: "sample_id"
     val: ["c16"]
-    test: ["c01","c14","c16"]
+    test: ["c01","c14","c23"]
   reuse: null

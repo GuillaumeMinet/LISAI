@@ -81,7 +81,7 @@ def test_runs_list_uses_filters_and_warns_on_invalid_files(monkeypatch, tmp_path
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert "LISAI runs listing (Gag - running)" in captured.out
+    assert "LISAI runs listing - Dataset: 'Gag' | Status: 'running'" in captured.out
     assert "dataset" in captured.out
     assert "eta_left" in captured.out
     assert "path_consistent" not in captured.out
@@ -250,7 +250,7 @@ def test_runs_list_full_appends_extended_columns(monkeypatch, tmp_path, capsys):
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert "LISAI runs listing (Gag)" in captured.out
+    assert "LISAI runs listing - Dataset: 'Gag'" in captured.out
     columns = _header_columns(captured.out)
     assert columns[:7] == ["dataset", "model_subfolder", "run_name", "idx", "status", "epoch", "eta_left"]
     assert columns[-5:] == ["path_consistent", "closed_cleanly", "start_time", "last_seen", "run_id"]
@@ -292,7 +292,8 @@ def test_runs_list_live_renders_in_place_when_interactive(monkeypatch, tmp_path)
     assert sleep_values == [1.0]
     assert "\x1b[H\x1b[J" in out.getvalue()
     assert "warning: --interval 0.1s is below the minimum 1s; using 1s." in out.getvalue()
-    assert "LISAI runs listing (Gag) LIVE MODE (1s refresh) - Ctrl+C to stop live" in out.getvalue()
+    assert "LISAI runs listing - Dataset: 'Gag'" in out.getvalue()
+    assert "LIVE MODE (1s refresh) - Ctrl+C to stop live" in out.getvalue()
     assert re.search(r"\brun_a\s+00\b", out.getvalue()) is not None
     assert err.getvalue() == ""
 
@@ -317,7 +318,7 @@ def test_runs_list_live_falls_back_to_single_snapshot_without_tty(monkeypatch, t
 
     assert exit_code == 0
     assert captured.out.splitlines()[0] == "warning: --interval 0.25s is below the minimum 1s; using 1s."
-    assert captured.out.splitlines()[1] == "LISAI runs listing (Gag)"
+    assert captured.out.splitlines()[1] == "LISAI runs listing - Dataset: 'Gag'"
     assert re.search(r"\brun_a\s+00\b", captured.out) is not None
     assert "--live requires interactive terminal output" in captured.err
 
@@ -355,7 +356,8 @@ def test_runs_list_clamps_zero_interval_to_one_second(monkeypatch, tmp_path):
     assert exit_code == 0
     assert sleep_values == [1.0]
     assert "warning: --interval 0s is below the minimum 1s; using 1s." in out.getvalue()
-    assert "LISAI runs listing (Gag) LIVE MODE (1s refresh) - Ctrl+C to stop live" in out.getvalue()
+    assert "LISAI runs listing - Dataset: 'Gag'" in out.getvalue()
+    assert "LIVE MODE (1s refresh) - Ctrl+C to stop live" in out.getvalue()
     assert err.getvalue() == ""
 
 

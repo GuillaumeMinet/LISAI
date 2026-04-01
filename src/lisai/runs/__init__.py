@@ -22,6 +22,7 @@ from .listing import (
     render_runs_table,
     write_invalid_run_warnings,
 )
+from .plotting import is_hdn_layout, read_loss_table, save_loss_plot_for_run, show_loss_plot_for_run
 from .scanner import scan_runs
 from .schema import (
     RUN_METADATA_FILENAME,
@@ -53,11 +54,15 @@ __all__ = [
     "is_run_heartbeat_fresh",
     "is_run_likely_active",
     "is_run_likely_stale",
+    "is_hdn_layout",
     "metadata_path",
     "normalize_model_subfolder",
+    "read_loss_table",
     "read_run_metadata",
     "render_runs_table",
+    "save_loss_plot_for_run",
     "scan_runs",
+    "show_loss_plot_for_run",
     "stored_run_path",
     "update_run_heartbeat",
     "update_run_progress",

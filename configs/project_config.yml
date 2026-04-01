@@ -33,6 +33,7 @@ run_layout:
 
   artifacts:
     loss_file: "loss.txt"
+    loss_plot: "loss_plot.png"
     train_log: "train_log.log"
     config_train: "config_train.yaml"
 

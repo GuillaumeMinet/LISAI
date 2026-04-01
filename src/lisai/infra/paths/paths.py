@@ -102,6 +102,9 @@ class Paths:
     def cfg_train_path(self, *, run_dir: str | Path) -> Path:
         return self._artifact(run_dir, "config_train", "config_train.yaml")
 
+    def loss_plot_path(self, *, run_dir: str | Path) -> Path:
+        return self._artifact(run_dir, "loss_plot", "loss_plot.png")
+
     # retrain origin artifacts
     def _origin_artifact(self, run_dir: str | Path, key: str, default: str) -> Path:
         artifacts = self.settings.project.run_layout.retrain_origin_artifacts
@@ -169,5 +172,4 @@ class Paths:
                 epoch_number=epoch_number,
             )
         return self.checkpoints_dir(run_dir=run_dir) / model_name
-
 

@@ -26,6 +26,7 @@ from lisai.runs import (
     update_run_heartbeat,
     update_run_runtime_details,
 )
+from lisai.runs.plotting import save_loss_plot_for_run
 
 from . import setup
 from .runtime import initialize_runtime
@@ -271,6 +272,48 @@ def _run_post_training_evaluation(cfg, runtime) -> None:
     )
 
 
+def _auto_save_loss_plot_image(cfg, runtime, *, terminal_reason: str) -> None:
+    if runtime.run_dir is None:
+        return
+
+    dataset = getattr(getattr(cfg, "data", None), "dataset_name", None)
+    model_subfolder = getattr(getattr(cfg, "routing", None), "models_subfolder", None)
+    architecture = getattr(getattr(cfg, "model", None), "architecture", None)
+    if not isinstance(architecture, str):
+        architecture = None
+
+    try:
+        saved_path = save_loss_plot_for_run(
+            run_dir=runtime.run_dir,
+            dataset=dataset,
+            model_subfolder=model_subfolder,
+            architecture=architecture,
+            stderr=None,
+        )
+    except Exception as exc:
+        _log_runtime_warning(
+            runtime,
+            f"Automatic loss-plot save failed after '{terminal_reason}': "
+            f"{type(exc).__name__}: {exc}",
+        )
+        return
+
+    if saved_path is None:
+        _log_runtime_warning(
+            runtime,
+            f"Loss plot image was not saved after '{terminal_reason}' "
+            "(missing or unreadable loss history).",
+        )
+        return
+
+    logger = getattr(runtime, "logger", None)
+    if logger is None:
+        return
+    info = getattr(logger, "info", None)
+    if callable(info):
+        info(f"Saved loss plot image: {saved_path}")
+
+
 def run_training(config_path):
     """Run training end to end from a config path and return the trainer instance."""
     return run_training_from_resolved_config(resolve_config(config_path))
@@ -349,10 +392,12 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
         )
     except KeyboardInterrupt:
         _safe_run_metadata_call(runtime, "stop finalization", finalize_run_stopped, runtime.run_dir)
+        _auto_save_loss_plot_image(cfg, runtime, terminal_reason="keyboard_interrupt")
         raise
     except Exception:
         runtime.logger.error("Training crashed", exc_info=True)
         _safe_run_metadata_call(runtime, "failure finalization", finalize_run_failed, runtime.run_dir)
+        _auto_save_loss_plot_image(cfg, runtime, terminal_reason="failed")
         raise
     finally:
         _persist_peak_gpu_memory_stats(runtime, monitor_enabled)
@@ -360,6 +405,7 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
             runtime.writer.close()
 
     _finalize_run_monitor(runtime, monitor_enabled, outcome)
+    _auto_save_loss_plot_image(cfg, runtime, terminal_reason=outcome.reason)
 
     try:
         if _should_run_post_training_evaluation(cfg, runtime, outcome):

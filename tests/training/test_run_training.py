@@ -170,6 +170,179 @@ def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.Mo
     assert logger.errors == [("Training crashed", True)]
 
 
+def test_run_training_auto_saves_loss_plot_on_completion(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cfg = _make_cfg()
+    writer = DummyWriter()
+    logger = DummyLogger()
+    run_dir = tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_saved"
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
+    prepared_data = _make_prepared_data()
+    trainer = DummyTrainer(outcome=SimpleNamespace(reason="completed", last_completed_epoch=1))
+    captured = {}
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+    )
+
+    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
+    monkeypatch.setattr(
+        run_training_mod,
+        "save_loss_plot_for_run",
+        lambda **kwargs: captured.update(kwargs) or (run_dir / "loss_plot.png"),
+    )
+
+    run_training_mod.run_training("configs/training/hdn_training.yml")
+
+    assert captured["run_dir"] == run_dir
+    assert captured["dataset"] == "dataset_a"
+    assert captured["model_subfolder"] == "Upsamp"
+    assert captured["architecture"] == "unet"
+
+
+def test_run_training_auto_saves_loss_plot_on_interrupted_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    cfg = _make_cfg()
+    writer = DummyWriter()
+    logger = DummyLogger()
+    run_dir = tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_interrupt_saved"
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
+    prepared_data = _make_prepared_data()
+    trainer = DummyTrainer(outcome=SimpleNamespace(reason="interrupted", last_completed_epoch=1))
+    calls = []
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+    )
+
+    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
+    monkeypatch.setattr(
+        run_training_mod,
+        "save_loss_plot_for_run",
+        lambda **kwargs: calls.append(kwargs) or (run_dir / "loss_plot.png"),
+    )
+
+    run_training_mod.run_training("configs/training/hdn_training.yml")
+
+    assert len(calls) == 1
+    assert calls[0]["run_dir"] == run_dir
+
+
+def test_run_training_auto_saves_loss_plot_on_keyboard_interrupt_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    cfg = _make_cfg()
+    writer = DummyWriter()
+    logger = DummyLogger()
+    run_dir = tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_interrupt_exception"
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
+    prepared_data = _make_prepared_data()
+    trainer = DummyTrainer(raise_on_train=KeyboardInterrupt())
+    calls = []
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+    )
+
+    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
+    monkeypatch.setattr(
+        run_training_mod,
+        "save_loss_plot_for_run",
+        lambda **kwargs: calls.append(kwargs) or (run_dir / "loss_plot.png"),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        run_training_mod.run_training("configs/training/hdn_training.yml")
+
+    assert len(calls) == 1
+    assert calls[0]["run_dir"] == run_dir
+
+
+def test_run_training_auto_saves_loss_plot_on_failure_and_reraises(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    cfg = _make_cfg()
+    writer = DummyWriter()
+    logger = DummyLogger()
+    run_dir = tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_failure_saved"
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
+    prepared_data = _make_prepared_data()
+    trainer = DummyTrainer(raise_on_train=RuntimeError("boom"))
+    calls = []
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+    )
+
+    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
+    monkeypatch.setattr(
+        run_training_mod,
+        "save_loss_plot_for_run",
+        lambda **kwargs: calls.append(kwargs) or None,
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        run_training_mod.run_training("configs/training/hdn_training.yml")
+
+    assert len(calls) == 1
+    assert calls[0]["run_dir"] == run_dir
+
+
+def test_run_training_auto_save_failure_does_not_break_training(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    cfg = _make_cfg()
+    writer = DummyWriter()
+    logger = DummyLogger()
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "run_plot_error")
+    prepared_data = _make_prepared_data()
+    trainer = DummyTrainer(outcome=SimpleNamespace(reason="completed", last_completed_epoch=1))
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+    )
+
+    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
+    monkeypatch.setattr(
+        run_training_mod,
+        "save_loss_plot_for_run",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("plot save failed")),
+    )
+
+    run_training_mod.run_training("configs/training/hdn_training.yml")
+
+    assert any("Automatic loss-plot save failed" in msg for msg in logger.warnings)
+
+
 def test_run_training_triggers_post_training_evaluation_on_completion(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = _make_cfg(post_training_inference=True)
     writer = DummyWriter()
