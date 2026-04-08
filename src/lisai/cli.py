@@ -9,6 +9,7 @@ from lisai.queue.cli import add_queue_subparser
 from lisai.runs.cli import add_runs_subparser
 from lisai.training.cli import add_train_subparser
 from lisai.training.continue_cli import add_continue_subparser
+from lisai.unified_cli import add_list_subparser, add_logs_subparser, add_show_subparser
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,6 +19,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_train_subparser(subparsers)
     add_continue_subparser(subparsers)
+    add_list_subparser(subparsers)
+    add_show_subparser(subparsers)
+    add_logs_subparser(subparsers)
     add_runs_subparser(subparsers)
     add_queue_subparser(subparsers)
     add_preprocess_subparser(subparsers)

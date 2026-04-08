@@ -381,3 +381,26 @@ def test_runs_list_title_without_filters(monkeypatch, tmp_path, capsys):
 
     assert exit_code == 0
     assert captured.out.splitlines()[0] == "LISAI runs listing"
+
+
+def test_runs_list_namespace_remains_available_with_top_level_list(monkeypatch, tmp_path, capsys):
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "HDN" / "run_namespace_00"
+
+    _write_metadata(
+        run_dir,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/run_namespace_00",
+        status="running",
+    )
+
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+
+    exit_code = root_main(["runs", "list", "--status", "running"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "LISAI runs listing - Status: 'running'" in captured.out
+    assert "run_namespace" in captured.out

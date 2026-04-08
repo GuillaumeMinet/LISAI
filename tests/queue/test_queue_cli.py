@@ -610,3 +610,31 @@ def test_queue_submit_sweep_resolves_file_from_default_training_dir(monkeypatch,
     queued_records, _invalid = discover_jobs(status="queued", queue_root=queue_root)
     assert len(queued_records) == 2
     assert sorted(record.job.run_name for record in queued_records) == ["HDN_Gag_LR1e-05", "HDN_Gag_LR5e-05"]
+
+
+def test_queue_show_still_works_after_top_level_unification(monkeypatch, tmp_path, capsys):
+    queue_root = tmp_path / ".lisai" / "queue"
+    monkeypatch.setenv("LISAI_QUEUE_ROOT", str(queue_root))
+    now = datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc)
+
+    queued_job = QueueJob(
+        job_id="job_queue_show_regression",
+        selector="q0099",
+        config=str(tmp_path / "cfg.yml"),
+        status="queued",
+        device="cuda:0",
+        submitted_at=now,
+        updated_at=now,
+        resource_class="medium",
+        run_name="queue_show_regression",
+    )
+    write_job_atomic(
+        queue_state_dir("queued", queue_root=queue_root) / "job_q0099_job_queue_show_regression.json",
+        queued_job,
+    )
+
+    exit_code = root_main(["queue", "show", "q0099", "--lines", "0"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "selector      : q0099" in captured.out
+    assert "status        : queued" in captured.out
