@@ -10,7 +10,7 @@ import tifffile
 from lisai.config import settings
 
 from ..core import FolderSource, Item, OutputDecl, OutputSpec, Source
-from ..transformations import compute_gt_avg, crop_center_stack, register_stack
+from ..transformations import compute_gt_avg, crop_center_stack, register_stack_skimage
 from .base import BasePipeline, PipelineResult
 
 if TYPE_CHECKING:
@@ -142,7 +142,7 @@ class ReconMltplSnrPipeline(BasePipeline[ReconMltplSnrConfig]):
         # Optional registration and crop on the full stack
         if self.cfg.registration:
             ref_idx = 1 if self.cfg.first_low_inp else 0
-            stack = register_stack(stack, reference_index=ref_idx)
+            stack = register_stack_skimage(stack,reference_index=ref_idx,interpolation_order=0)
 
         if self.cfg.crop_size is not None:
             stack = crop_center_stack(stack, self.cfg.crop_size)
