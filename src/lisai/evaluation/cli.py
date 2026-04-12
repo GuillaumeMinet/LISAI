@@ -76,7 +76,7 @@ def add_apply_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPar
     parser.add_argument("--save-folder", "--save_folder", dest="save_folder")
     parser.add_argument("--in-place", "--in_place", dest="in_place", action=argparse.BooleanOptionalAction)
     parser.add_argument("--epoch-number", "--epoch_number", dest="epoch_number", type=int)
-    parser.add_argument("--best-or-last", "--best_or_last", dest="best_or_last", choices=["best", "last"])
+    parser.add_argument("--best-or-last", "--best_or_last", dest="best_or_last", choices=["best", "last", "both"])
     parser.add_argument("--filters", type=_parse_csv_list)
     parser.add_argument("--skip-if-contain", "--skip_if_contain", dest="skip_if_contain", type=_parse_csv_list)
     parser.add_argument("--crop-size", "--crop_size", dest="crop_size", type=_parse_crop_size)
@@ -144,7 +144,7 @@ def add_evaluate_arguments(parser: argparse.ArgumentParser) -> argparse.Argument
         "--config",
         help="Inference config path, or a config name from configs/inference with or without .yml/.yaml. Defaults to defaults.yml.",
     )
-    parser.add_argument("--best-or-last", "--best_or_last", dest="best_or_last", choices=["best", "last"])
+    parser.add_argument("--best-or-last", "--best_or_last", dest="best_or_last", choices=["best", "last", "both"])
     parser.add_argument("--epoch-number", "--epoch_number", dest="epoch_number", type=int)
     parser.add_argument("--tiling-size", "--tiling_size", dest="tiling_size", type=int)
     parser.add_argument("--crop-size", "--crop_size", dest="crop_size", type=_parse_crop_size)

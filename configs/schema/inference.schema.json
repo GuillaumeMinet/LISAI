@@ -46,6 +46,11 @@
         "best_or_last": {
           "anyOf": [
             {
+              "enum": [
+                "best",
+                "last",
+                "both"
+              ],
               "type": "string"
             },
             {
@@ -53,7 +58,7 @@
             }
           ],
           "default": null,
-          "description": "Checkpoint selector used when epoch_number is null. Supported values are 'best' and 'last'.",
+          "description": "Checkpoint selector used when epoch_number is null. Supported values are 'best', 'last', and 'both'.",
           "title": "Best Or Last"
         },
         "filters": {
@@ -340,6 +345,11 @@
         "best_or_last": {
           "anyOf": [
             {
+              "enum": [
+                "best",
+                "last",
+                "both"
+              ],
               "type": "string"
             },
             {
@@ -347,7 +357,7 @@
             }
           ],
           "default": null,
-          "description": "Checkpoint selector used when epoch_number is null. Supported values are 'best' and 'last'.",
+          "description": "Checkpoint selector used when epoch_number is null. Supported values are 'best', 'last', and 'both'.",
           "title": "Best Or Last"
         },
         "epoch_number": {
@@ -494,7 +504,7 @@
             }
           ],
           "default": null,
-          "description": "Optional output channel selection forwarded to inference.",
+          "description": "Output channel count forwarded to inference. Defaults to 1 for evaluation because models are trained to predict a single target frame even when inputs contain multiple context channels.",
           "title": "Ch Out"
         },
         "split": {

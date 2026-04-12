@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from lisai.evaluation.run_evaluate import _build_evaluation_folder_name
+from pathlib import Path
+
+from lisai.evaluation.run_evaluate import (
+    _build_evaluation_folder_name,
+    _expand_checkpoint_selection,
+)
 
 
 def test_build_evaluation_folder_name_uses_requested_epoch_when_explicit():
@@ -28,3 +33,22 @@ def test_build_evaluation_folder_name_falls_back_when_epoch_is_unknown():
         resolved_epoch=None,
         split='test',
     ) == 'evaluation_best'
+
+
+def test_expand_checkpoint_selection_for_both_creates_two_runs():
+    options = {
+        "best_or_last": "both",
+        "epoch_number": None,
+        "save_folder": Path("/tmp/eval"),
+        "results": {"seed": 1},
+    }
+
+    expanded = _expand_checkpoint_selection(options)
+
+    assert [item["best_or_last"] for item in expanded] == ["best", "last"]
+    assert expanded[0]["save_folder"] == Path("/tmp/eval/best")
+    assert expanded[1]["save_folder"] == Path("/tmp/eval/last")
+    assert expanded[0]["results"] == {"seed": 1}
+    assert expanded[1]["results"] == {"seed": 1}
+    assert expanded[0]["results"] is not options["results"]
+    assert expanded[1]["results"] is not options["results"]

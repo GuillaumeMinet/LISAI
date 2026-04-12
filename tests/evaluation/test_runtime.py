@@ -20,6 +20,22 @@ class FakePaths:
         return self.checkpoint_path_value
 
 
+class SelectorAwarePaths:
+    def __init__(self, *, best_path: Path, last_path: Path):
+        self.best_path = best_path
+        self.last_path = last_path
+        self.calls = []
+
+    def checkpoint_path(self, **kwargs):
+        self.calls.append(kwargs)
+        selector = kwargs.get("best_or_last")
+        if selector == "best":
+            return self.best_path
+        if selector == "last":
+            return self.last_path
+        raise AssertionError(f"Unexpected checkpoint selector: {selector}")
+
+
 
 def _make_saved_run(*, checkpoint_methods=('state_dict',), default_tiling_size=128) -> SavedTrainingRun:
     return SavedTrainingRun(
@@ -109,3 +125,44 @@ def test_initialize_runtime_loads_full_model_and_applies_tiling_override(monkeyp
     assert runtime.tiling_size == 256
     assert runtime.resolved_epoch == 9
     assert model_obj.evaluated is True
+
+
+def test_initialize_runtime_with_both_selector_falls_back_to_last(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    best_path = tmp_path / "model_best_state_dict.pt"
+    last_path = tmp_path / "model_last_state_dict.pt"
+    last_path.write_text("ok", encoding="utf-8")
+    fake_paths = SelectorAwarePaths(best_path=best_path, last_path=last_path)
+    model_obj = object()
+
+    monkeypatch.setattr(runtime_mod, "Paths", lambda _settings: fake_paths)
+    monkeypatch.setattr(
+        runtime_mod,
+        "_load_state_dict_model",
+        lambda saved_run, checkpoint_path, device, paths: (model_obj, 11),
+    )
+
+    runtime = runtime_mod.initialize_runtime(
+        saved_run=_make_saved_run(),
+        device="cpu",
+        best_or_last="both",
+        epoch_number=None,
+        tiling_size=None,
+    )
+
+    assert runtime.model is model_obj
+    assert runtime.checkpoint_path == last_path
+    assert fake_paths.calls == [
+        {
+            "run_dir": Path("/runs/dataset_a/exp_a"),
+            "load_method": "state_dict",
+            "best_or_last": "best",
+        },
+        {
+            "run_dir": Path("/runs/dataset_a/exp_a"),
+            "load_method": "state_dict",
+            "best_or_last": "last",
+        },
+    ]

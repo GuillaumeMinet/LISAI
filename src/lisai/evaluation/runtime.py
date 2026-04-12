@@ -59,13 +59,31 @@ def _iter_checkpoint_candidates(
     paths: Paths,
 ):
     """Yield candidate checkpoint paths allowed by the saved run configuration."""
-    for method in saved_run.checkpoint_methods:
-        kwargs: dict[str, Any] = {"run_dir": saved_run.run_dir, "load_method": method}
-        if epoch_number is not None:
-            kwargs["epoch_number"] = epoch_number
-        else:
-            kwargs["best_or_last"] = best_or_last
-        yield method, paths.checkpoint_path(**kwargs)
+    if epoch_number is not None:
+        for method in saved_run.checkpoint_methods:
+            kwargs: dict[str, Any] = {
+                "run_dir": saved_run.run_dir,
+                "load_method": method,
+                "epoch_number": epoch_number,
+            }
+            yield method, paths.checkpoint_path(**kwargs)
+        return
+
+    if best_or_last == "both":
+        selectors = ("best", "last")
+    elif best_or_last in {"best", "last"}:
+        selectors = (best_or_last,)
+    else:
+        raise ValueError("best_or_last must be 'best', 'last', or 'both'.")
+
+    for selector in selectors:
+        for method in saved_run.checkpoint_methods:
+            kwargs = {
+                "run_dir": saved_run.run_dir,
+                "load_method": method,
+                "best_or_last": selector,
+            }
+            yield method, paths.checkpoint_path(**kwargs)
 
 
 

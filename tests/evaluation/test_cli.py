@@ -94,6 +94,30 @@ def test_apply_cli_parses_run_ref_config_and_overrides(monkeypatch):
     assert captured["crop_size"] == 200
 
 
+def test_apply_cli_accepts_best_or_last_both(monkeypatch):
+    captured = {}
+
+    def fake_run_apply_model(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(evaluation_cli, "run_apply_model", fake_run_apply_model)
+
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "apply",
+            "Gag/Upsamp/my_model",
+            "/data/images",
+            "--best-or-last",
+            "both",
+        ]
+    )
+    result = args.handler(args)
+
+    assert result == 0
+    assert captured["best_or_last"] == "both"
+
+
 def test_evaluate_cli_parses_metrics_and_split(monkeypatch):
     captured = {}
 
@@ -124,6 +148,29 @@ def test_evaluate_cli_parses_metrics_and_split(monkeypatch):
     assert captured["config"] == "benchmark"
     assert captured["split"] == "val"
     assert captured["metrics_list"] == ["psnr", "ssim"]
+
+
+def test_evaluate_cli_accepts_best_or_last_both(monkeypatch):
+    captured = {}
+
+    def fake_run_evaluate(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(evaluation_cli, "run_evaluate", fake_run_evaluate)
+
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "evaluate",
+            "Gag/Upsamp/my_model",
+            "--best-or-last",
+            "both",
+        ]
+    )
+    result = args.handler(args)
+
+    assert result == 0
+    assert captured["best_or_last"] == "both"
 
 
 def test_evaluate_cli_accepts_run_name_and_index_selector(monkeypatch, tmp_path):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,7 +15,7 @@ EPOCH_NUMBER_DESC = (
     "Explicit checkpoint epoch number to load. Use null to select the checkpoint "
     "through best_or_last instead."
 )
-BEST_OR_LAST_DESC = "Checkpoint selector used when epoch_number is null. Supported values are 'best' and 'last'."
+BEST_OR_LAST_DESC = "Checkpoint selector used when epoch_number is null. Supported values are 'best', 'last', and 'both'."
 FILTERS_DESC = "File extensions accepted when apply input points to a directory."
 SKIP_IF_CONTAIN_DESC = "Optional substrings; matching filenames are skipped during apply."
 CROP_SIZE_DESC = "Optional center crop used before inference. Use a single integer for a square crop or a height,width tuple."
@@ -52,6 +52,9 @@ LIMIT_N_IMGS_DESC = "Optional cap on the number of images or batches evaluated."
 TEST_LOADER_DESC = "Optional pre-built test loader supplied through the Python API to bypass automatic loader construction."
 
 
+CheckpointSelector = Literal["best", "last", "both"]
+
+
 class ColorCodeDefaults(BaseModel):
     """Complete color-coding settings used for volumetric apply outputs."""
 
@@ -82,7 +85,7 @@ class ApplyDefaults(BaseModel):
     save_folder: str | None = Field(default="default", description=SAVE_FOLDER_DESC)
     in_place: bool = Field(default=False, description=IN_PLACE_DESC)
     epoch_number: int | None = Field(default=None, description=EPOCH_NUMBER_DESC)
-    best_or_last: str = Field(default="best", description=BEST_OR_LAST_DESC)
+    best_or_last: CheckpointSelector = Field(default="best", description=BEST_OR_LAST_DESC)
     filters: list[str] = Field(default_factory=lambda: ["tiff", "tif"], description=FILTERS_DESC)
     skip_if_contain: list[str] | None = Field(default=None, description=SKIP_IF_CONTAIN_DESC)
     crop_size: int | tuple[int, int] | None = Field(default=None, description=CROP_SIZE_DESC)
@@ -108,7 +111,7 @@ class ApplyOverrides(BaseModel):
     save_folder: str | None = Field(default=None, description=SAVE_FOLDER_DESC)
     in_place: bool | None = Field(default=None, description=IN_PLACE_DESC)
     epoch_number: int | None = Field(default=None, description=EPOCH_NUMBER_DESC)
-    best_or_last: str | None = Field(default=None, description=BEST_OR_LAST_DESC)
+    best_or_last: CheckpointSelector | None = Field(default=None, description=BEST_OR_LAST_DESC)
     filters: list[str] | None = Field(default=None, description=FILTERS_DESC)
     skip_if_contain: list[str] | None = Field(default=None, description=SKIP_IF_CONTAIN_DESC)
     crop_size: int | tuple[int, int] | None = Field(default=None, description=CROP_SIZE_DESC)
@@ -131,7 +134,7 @@ class EvaluateDefaults(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    best_or_last: str = Field(default="best", description=BEST_OR_LAST_DESC)
+    best_or_last: CheckpointSelector = Field(default="best", description=BEST_OR_LAST_DESC)
     epoch_number: int | None = Field(default=None, description=EPOCH_NUMBER_DESC)
     test_loader: Any | None = Field(default=None, description=TEST_LOADER_DESC)
     tiling_size: int | None = Field(default=None, description=TILING_SIZE_DESC)
@@ -153,7 +156,7 @@ class EvaluateOverrides(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    best_or_last: str | None = Field(default=None, description=BEST_OR_LAST_DESC)
+    best_or_last: CheckpointSelector | None = Field(default=None, description=BEST_OR_LAST_DESC)
     epoch_number: int | None = Field(default=None, description=EPOCH_NUMBER_DESC)
     tiling_size: int | None = Field(default=None, description=TILING_SIZE_DESC)
     crop_size: int | tuple[int, int] | None = Field(default=None, description=CROP_SIZE_DESC)
@@ -173,6 +176,7 @@ __all__ = [
     "ColorCodeOverrides",
     "ApplyDefaults",
     "ApplyOverrides",
+    "CheckpointSelector",
     "EvaluateDefaults",
     "EvaluateOverrides",
 ]
