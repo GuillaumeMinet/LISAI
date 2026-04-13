@@ -38,10 +38,6 @@ class UNetRCANParams(BaseModel):
 
     @model_validator(mode="after")
     def _validate_nested_params(self):
-        if self.UNet_prm.cab_skip_con:
-            # Accepted but not implemented in the U-Net body. The actual runtime warning
-            # is emitted from the model constructor so the user sees it during execution too.
-            pass
         return self
 
     def resolved_unet_params(self) -> UNetParams:

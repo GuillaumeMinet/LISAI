@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import logging
-import warnings
 
 import torch
 import torch.nn as nn
 
 from lisai.models.common import (
+    CABSkipBlock2d,
     conv_block,
     downsamp_block,
     get_timestep_embedding,
@@ -42,17 +42,12 @@ class UNet_PosEncod(nn.Module):
         self.upsampling_method = params.upsampling_method
         self.remove_skip_con = params.remove_skip_con
         self.cab_skip_con = params.cab_skip_con
+        self.filters_cab = params.filters_cab if params.filters_cab is not None else params.feat
         self.ch = params.ch
         self.temb_ch = self.ch * 4
         self.in_channels = params.in_channels
         self.out_channels = params.out_channels
         self.activation = _activation_from_name(params.activation)
-
-        if self.cab_skip_con:
-            warnings.warn(
-                "`cab_skip_con` is accepted but not implemented in UNet_PosEncod yet; using plain skip connections instead.",
-                stacklevel=2,
-            )
 
         self.encoder_conv = nn.ModuleList()
         self.encoder_downsamp = nn.ModuleList()
@@ -97,14 +92,28 @@ class UNet_PosEncod(nn.Module):
 
         self.decoder_upsamp = nn.ModuleList()
         self.decoder_conv = nn.ModuleList()
+        self.decoder_skip_cab = nn.ModuleList()
         for level in range(self.depth):
             in_ch = self.feat * 2 ** (level + 1)
             out_ch = self.feat * 2 ** level
             self.decoder_upsamp.append(
                 upsamp_block(in_ch, out_ch, activation=self.activation, norm=self.norm)
             )
-
-            decoder_in_ch = out_ch if self._skip_connection_removed(level) else in_ch
+            if self._skip_connection_removed(level):
+                self.decoder_skip_cab.append(nn.Identity())
+                decoder_in_ch = out_ch
+            else:
+                if self.cab_skip_con:
+                    self.decoder_skip_cab.append(
+                        CABSkipBlock2d(
+                            channels=out_ch,
+                            filters_cab=self.filters_cab,
+                            activation=self.activation,
+                        )
+                    )
+                else:
+                    self.decoder_skip_cab.append(nn.Identity())
+                decoder_in_ch = in_ch
             self.decoder_conv.append(
                 conv_block(
                     decoder_in_ch,
@@ -191,7 +200,9 @@ class UNet_PosEncod(nn.Module):
             if self._skip_connection_removed(level):
                 x = self.decoder_conv[level](x)
             else:
-                x = self.decoder_conv[level](torch.cat((x, encoder_out[level]), dim=1))
+                skip = encoder_out[level]
+                skip = self.decoder_skip_cab[level](skip)
+                x = self.decoder_conv[level](torch.cat((x, skip), dim=1))
 
         if self.upsampling_factor > 1 and self.upsampling_order == "after":
             x = self.upsamp_after(x)

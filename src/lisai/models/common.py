@@ -279,3 +279,45 @@ class RG(nn.Module):
         x = self.dropout(x)
         return x
 
+class CABSkipBlock2d(nn.Module):
+    """
+    Channel Attention Block used on U-Net skip features before concatenation.
+
+    Mirrors the original UNet_RCAN_Denoising CAB logic:
+    - conv
+    - activation
+    - conv
+    - global average pooling
+    - 1x1 conv to filters_cab
+    - activation
+    - 1x1 conv back to channels
+    - sigmoid gating
+    - residual add with the original input skip tensor
+    """
+
+    def __init__(self, channels: int, filters_cab: int, activation=swish):
+        super().__init__()
+        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1)
+
+        self.cab_conv = nn.Conv2d(channels, filters_cab, kernel_size=1)
+        self.conv_cab = nn.Conv2d(filters_cab, channels, kernel_size=1)
+
+        self.activation = activation
+
+    def forward(self, x):
+        residual = x
+
+        x = self.conv1(x)
+        x = self.activation(x)
+        x = self.conv2(x)
+
+        z = torch.mean(x, dim=(2, 3), keepdim=True)
+        z = self.cab_conv(z)
+        z = self.activation(z)
+        z = self.conv_cab(z)
+        z = torch.sigmoid(z)
+
+        x = x * z
+        x = x + residual
+        return x

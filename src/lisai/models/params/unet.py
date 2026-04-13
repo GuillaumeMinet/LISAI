@@ -24,13 +24,19 @@ class UNetBackboneParams(BaseModel):
     )
     cab_skip_con: bool = Field(
         default=False,
-        description="Whether CAB skip connections should be used instead of plain skip connections. Accepted for configuration but not implemented yet.",
+        description="Whether CAB skip connections should be used instead of plain skip connections.",
+    )
+    filters_cab: int | None = Field(
+        default=None,
+        description="Hidden channel width used inside CAB skip connections. If None, defaults to `feat` at runtime.",
     )
     ch: int = Field(default=128, description="Base positional-embedding channel width.")
 
-    @field_validator("feat", "depth", "in_channels", "out_channels", "gr_norm", "ch")
+    @field_validator("feat", "depth", "in_channels", "out_channels", "gr_norm", "ch", "filters_cab")
     @classmethod
-    def _validate_positive_ints(cls, value: int):
+    def _validate_positive_ints(cls, value: int | None):
+        if value is None:
+            return value
         if value <= 0:
             raise ValueError("Model channel and depth parameters must be > 0.")
         return value
@@ -53,6 +59,12 @@ class UNetBackboneParams(BaseModel):
     def _validate_remove_skip_limit(self):
         if self.remove_skip_con > self.depth:
             raise ValueError("`remove_skip_con` cannot exceed `depth`.")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_cab_settings(self):
+        if not self.cab_skip_con and self.filters_cab is not None:
+            raise ValueError("`filters_cab` can only be set when `cab_skip_con=True`.")
         return self
 
 
