@@ -6,6 +6,8 @@ from types import SimpleNamespace
 import pytest
 
 import lisai.training.run_training as run_training_mod
+from lisai.training.orchestration import post_training as post_training_mod
+from lisai.training.orchestration import run_monitor as run_monitor_mod
 from lisai.runs.io import read_run_metadata
 from lisai.training.trainers.base import BaseTrainer, TrainingOutcome
 from lisai.training.setup.data import PreparedTrainingData
@@ -239,7 +241,7 @@ def test_run_training_auto_saves_loss_plot_on_completion(monkeypatch: pytest.Mon
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
     monkeypatch.setattr(
-        run_training_mod,
+        post_training_mod,
         "save_loss_plot_for_run",
         lambda **kwargs: captured.update(kwargs) or (run_dir / "loss_plot.png"),
     )
@@ -276,7 +278,7 @@ def test_run_training_auto_saves_loss_plot_on_interrupted_outcome(
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
     monkeypatch.setattr(
-        run_training_mod,
+        post_training_mod,
         "save_loss_plot_for_run",
         lambda **kwargs: calls.append(kwargs) or (run_dir / "loss_plot.png"),
     )
@@ -288,7 +290,7 @@ def test_run_training_auto_saves_loss_plot_on_interrupted_outcome(
     assert read_run_metadata(run_dir).status == "stopped"
 
 
-def test_run_training_auto_saves_loss_plot_on_outer_keyboard_interrupt_exception(
+def test_run_training_skips_auto_loss_plot_on_outer_keyboard_interrupt_exception(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ):
@@ -310,15 +312,14 @@ def test_run_training_auto_saves_loss_plot_on_outer_keyboard_interrupt_exception
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: DummyTrainer())
     monkeypatch.setattr(
-        run_training_mod,
+        post_training_mod,
         "save_loss_plot_for_run",
         lambda **kwargs: calls.append(kwargs) or (run_dir / "loss_plot.png"),
     )
 
     run_training_mod.run_training("configs/training/hdn_training.yml")
 
-    assert len(calls) == 1
-    assert calls[0]["run_dir"] == run_dir
+    assert len(calls) == 0
     metadata = read_run_metadata(run_dir)
     assert metadata.status == "stopped"
     assert metadata.failure_reason is None
@@ -354,7 +355,7 @@ def test_run_training_auto_saves_loss_plot_on_failure_and_reraises(
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
     monkeypatch.setattr(
-        run_training_mod,
+        post_training_mod,
         "save_loss_plot_for_run",
         lambda **kwargs: calls.append(kwargs) or None,
     )
@@ -388,7 +389,7 @@ def test_run_training_auto_save_failure_does_not_break_training(
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
     monkeypatch.setattr(
-        run_training_mod,
+        post_training_mod,
         "save_loss_plot_for_run",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("plot save failed")),
     )
@@ -417,7 +418,7 @@ def test_run_training_triggers_post_training_evaluation_on_completion(monkeypatc
     monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
-    monkeypatch.setattr(run_training_mod, "run_evaluate", lambda **kwargs: captured.update(kwargs))
+    monkeypatch.setattr(post_training_mod, "run_evaluate", lambda **kwargs: captured.update(kwargs))
 
     run_training_mod.run_training("configs/training/hdn_training.yml")
 
@@ -448,8 +449,8 @@ def test_run_training_prompts_before_post_training_evaluation_on_interrupt(monke
     monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
-    monkeypatch.setattr(run_training_mod, "_prompt_yes_no", lambda prompt: True)
-    monkeypatch.setattr(run_training_mod, "run_evaluate", lambda **kwargs: captured.update(kwargs))
+    monkeypatch.setattr(post_training_mod, "_prompt_yes_no", lambda prompt: True)
+    monkeypatch.setattr(post_training_mod, "run_evaluate", lambda **kwargs: captured.update(kwargs))
 
     run_training_mod.run_training("configs/training/hdn_training.yml")
 
@@ -476,8 +477,8 @@ def test_run_training_skips_post_training_evaluation_when_interrupt_prompt_decli
     monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
-    monkeypatch.setattr(run_training_mod, "_prompt_yes_no", lambda prompt: False)
-    monkeypatch.setattr(run_training_mod, "run_evaluate", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(post_training_mod, "_prompt_yes_no", lambda prompt: False)
+    monkeypatch.setattr(post_training_mod, "run_evaluate", lambda **kwargs: calls.append(kwargs))
 
     run_training_mod.run_training("configs/training/hdn_training.yml")
 
@@ -651,7 +652,7 @@ def test_run_training_persists_peak_gpu_memory_stats_when_cuda_available(
     monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", fake_get_trainer)
-    monkeypatch.setattr(run_training_mod.torch, "cuda", FakeCuda)
+    monkeypatch.setattr(run_monitor_mod.torch, "cuda", FakeCuda)
 
     run_training_mod.run_training("configs/training/hdn_training.yml")
     metadata = read_run_metadata(run_dir)
