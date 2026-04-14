@@ -7,9 +7,9 @@ import pytest
 import tifffile
 
 import lisai.cli as root_cli
-import lisai.data.preprocess.cli as preprocess_cli
+import lisai.preprocess.cli as preprocess_cli
 from lisai.config import save_yaml, settings
-from lisai.data.preprocess.reporting import NoOpPreprocessReporter
+from lisai.preprocess.reporting import NoOpPreprocessReporter
 
 
 class DummyPaths:

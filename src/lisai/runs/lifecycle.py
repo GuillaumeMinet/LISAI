@@ -12,12 +12,9 @@ from lisai.infra.fs.run_naming import parse_run_dir_name
 from .identifiers import generate_run_id
 from .io import read_run_metadata, write_run_metadata_atomic
 from .schema import (
-    RUN_NON_TERMINAL_STATUSES,
-    RUN_TERMINAL_STATUSES,
     SCHEMA_VERSION,
     LiveRuntimeStats,
     RunMetadata,
-    RunStatus,
     RuntimeStats,
     TrainingSignature,
     normalize_posix_path,

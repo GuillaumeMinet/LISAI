@@ -8,15 +8,15 @@ from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
 
-from lisai.data.preprocess.core import PreprocessConfig
-from lisai.data.preprocess.core.config import (
+from lisai.preprocess.core import PreprocessConfig
+from lisai.preprocess.core.config import (
     PreprocessLogConfig,
     PreprocessSplitConfig,
     PreprocessSplitManualConfig,
     PreprocessSplitRandomConfig,
     PreprocessSplitReuseConfig,
 )
-from lisai.data.preprocess.pipelines import PIPELINES_REGISTRY
+from lisai.preprocess.pipelines import PIPELINES_REGISTRY
 
 PREPROCESS_MODEL_TYPES: tuple[type[BaseModel], ...] = (
     PreprocessConfig,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from typing import Sequence
 
-from lisai.data.preprocess.cli import add_preprocess_subparser
+from lisai.preprocess.cli import add_preprocess_subparser
 from lisai.evaluation.cli import add_apply_subparser, add_evaluate_subparser
 from lisai.queue.cli import add_queue_subparser
 from lisai.runs.cli import add_runs_subparser

@@ -8,8 +8,8 @@ import pytest
 import tifffile
 
 from lisai.config import load_yaml, settings
-from lisai.data.preprocess import PreprocessRun
-from lisai.data.preprocess.reporting import ConsolePreprocessReporter
+from lisai.preprocess import PreprocessRun
+from lisai.preprocess.reporting import ConsolePreprocessReporter
 
 
 class DummyPaths:

@@ -1,9 +1,9 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 
-from lisai.data.preprocess.cli import main as cli_main
-from lisai.data.preprocess.cli import run_preprocess_config
+from lisai.preprocess.cli import main as cli_main
+from lisai.preprocess.cli import run_preprocess_config
 
 
 def main(cfg_path: str):

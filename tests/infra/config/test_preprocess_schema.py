@@ -5,8 +5,8 @@ from pathlib import Path
 
 from lisai.config import load_yaml
 from lisai.config.json_schema import preprocess_json_schema, write_preprocess_json_schema
-from lisai.data.preprocess.core import PreprocessConfig
-from lisai.data.preprocess.pipelines import PIPELINES_REGISTRY
+from lisai.preprocess.core import PreprocessConfig
+from lisai.preprocess.pipelines import PIPELINES_REGISTRY
 
 
 def _branch_for_pipeline(schema: dict, pipeline_name: str) -> dict:
