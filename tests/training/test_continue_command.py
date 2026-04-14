@@ -432,7 +432,7 @@ def test_continue_allows_stale_running_runs_after_confirmation(monkeypatch, tmp_
     assert "appears stale" in stderr.getvalue()
 
 
-def test_continue_failed_run_prompts_retry_with_lower_lr_message(monkeypatch, tmp_path):
+def test_continue_failed_run_uses_generic_confirmation_prompt(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
     run_name = "failed_once"
     run_index = 0
@@ -460,7 +460,7 @@ def test_continue_failed_run_prompts_retry_with_lower_lr_message(monkeypatch, tm
 
     assert exit_code == 0
     assert captured["cfg"]["load_model"]["model_full_path"] == str(run_dir.resolve())
-    assert "Failed again, retry with automatic lower lr?" in stdout.getvalue()
+    assert "Continue training this run in place?" in stdout.getvalue()
 
 
 def test_continue_failed_run_non_interactive_requires_yes(monkeypatch, tmp_path):

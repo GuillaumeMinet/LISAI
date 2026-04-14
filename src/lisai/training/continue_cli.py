@@ -146,9 +146,7 @@ def continue_run(
 
     if not assume_yes:
         prompt = None
-        if selected_run.metadata.status == "failed":
-            prompt = "Failed again, retry with automatic lower lr? [y/N]: "
-        elif not already_confirmed:
+        if not already_confirmed:
             prompt = "Continue training this run in place? [y/N]: "
 
         if prompt is not None:

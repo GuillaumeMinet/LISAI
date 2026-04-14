@@ -60,6 +60,10 @@ recovery:
     min_lr: 1.0e-8
     max_compound_steps: None
     force_grad_clip_max_norm: None
+  auto_retry:
+    enabled: true
+    max_attempts: 3
+    when: hdn_divergence_only
 
 queue:
   resource_class_vram_mb:

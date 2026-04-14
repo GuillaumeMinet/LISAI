@@ -7,8 +7,23 @@ import pytest
 
 import lisai.training.run_training as run_training_mod
 from lisai.runs.io import read_run_metadata
-from lisai.training.trainers.base import BaseTrainer
+from lisai.training.trainers.base import BaseTrainer, TrainingOutcome
 from lisai.training.setup.data import PreparedTrainingData
+
+
+def _outcome(
+    reason: str,
+    *,
+    last_completed_epoch: int | None,
+    failure_reason: str | None = None,
+    retry_eligible: bool = False,
+) -> TrainingOutcome:
+    return TrainingOutcome(
+        reason=reason,
+        last_completed_epoch=last_completed_epoch,
+        failure_reason=failure_reason,
+        retry_eligible=retry_eligible,
+    )
 
 
 class DummyWriter:
@@ -107,7 +122,7 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
     logger = DummyLogger()
     runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "run_a")
     prepared_data = _make_prepared_data()
-    trainer = DummyTrainer()
+    trainer = DummyTrainer(outcome=_outcome("completed", last_completed_epoch=0))
     captured = {}
 
     def fake_build_model(cfg_arg, device, lisai_paths, model_norm_prm):
@@ -143,7 +158,10 @@ def test_run_training_happy_path_builds_and_trains(monkeypatch: pytest.MonkeyPat
     assert captured["trainer_kwargs"]["patch_info"] is None
 
 
-def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_run_training_does_not_remap_unexpected_trainer_exceptions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
     cfg = _make_cfg()
     writer = DummyWriter()
     logger = DummyLogger()
@@ -167,6 +185,33 @@ def test_run_training_logs_and_reraises_on_training_crash(monkeypatch: pytest.Mo
 
     assert trainer.train_calls == 1
     assert writer.close_calls == 1
+    assert logger.errors == []
+
+
+def test_run_training_logs_traceback_for_outer_orchestration_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    cfg = _make_cfg()
+    writer = DummyWriter()
+    logger = DummyLogger()
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "run_outer_boom")
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: (_ for _ in ()).throw(RuntimeError("prepare boom")),
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+    )
+
+    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: DummyTrainer())
+
+    with pytest.raises(RuntimeError, match="Training failed after 1 attempt\\(s\\): RuntimeError: prepare boom"):
+        run_training_mod.run_training("configs/training/hdn_training.yml")
+
+    assert writer.close_calls == 1
     assert logger.errors == [("Training crashed", True)]
 
 
@@ -177,7 +222,7 @@ def test_run_training_auto_saves_loss_plot_on_completion(monkeypatch: pytest.Mon
     run_dir = tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_saved"
     runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
     prepared_data = _make_prepared_data()
-    trainer = DummyTrainer(outcome=SimpleNamespace(reason="completed", last_completed_epoch=1))
+    trainer = DummyTrainer(outcome=_outcome("completed", last_completed_epoch=1))
     captured = {}
 
     fake_setup = SimpleNamespace(
@@ -214,7 +259,7 @@ def test_run_training_auto_saves_loss_plot_on_interrupted_outcome(
     run_dir = tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_interrupt_saved"
     runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
     prepared_data = _make_prepared_data()
-    trainer = DummyTrainer(outcome=SimpleNamespace(reason="interrupted", last_completed_epoch=1))
+    trainer = DummyTrainer(outcome=_outcome("interrupted", last_completed_epoch=1))
     calls = []
 
     fake_setup = SimpleNamespace(
@@ -237,9 +282,10 @@ def test_run_training_auto_saves_loss_plot_on_interrupted_outcome(
 
     assert len(calls) == 1
     assert calls[0]["run_dir"] == run_dir
+    assert read_run_metadata(run_dir).status == "stopped"
 
 
-def test_run_training_auto_saves_loss_plot_on_keyboard_interrupt_exception(
+def test_run_training_auto_saves_loss_plot_on_outer_keyboard_interrupt_exception(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ):
@@ -248,12 +294,10 @@ def test_run_training_auto_saves_loss_plot_on_keyboard_interrupt_exception(
     logger = DummyLogger()
     run_dir = tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_interrupt_exception"
     runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
-    prepared_data = _make_prepared_data()
-    trainer = DummyTrainer(raise_on_train=KeyboardInterrupt())
     calls = []
 
     fake_setup = SimpleNamespace(
-        prepare_data=lambda c, x: prepared_data,
+        prepare_data=lambda c, x: (_ for _ in ()).throw(KeyboardInterrupt()),
         save_training_config=lambda *args, **kwargs: None,
         build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
     )
@@ -261,18 +305,20 @@ def test_run_training_auto_saves_loss_plot_on_keyboard_interrupt_exception(
     monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
     monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
-    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
+    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: DummyTrainer())
     monkeypatch.setattr(
         run_training_mod,
         "save_loss_plot_for_run",
         lambda **kwargs: calls.append(kwargs) or (run_dir / "loss_plot.png"),
     )
 
-    with pytest.raises(KeyboardInterrupt):
-        run_training_mod.run_training("configs/training/hdn_training.yml")
+    run_training_mod.run_training("configs/training/hdn_training.yml")
 
     assert len(calls) == 1
     assert calls[0]["run_dir"] == run_dir
+    metadata = read_run_metadata(run_dir)
+    assert metadata.status == "stopped"
+    assert metadata.failure_reason is None
 
 
 def test_run_training_auto_saves_loss_plot_on_failure_and_reraises(
@@ -285,7 +331,13 @@ def test_run_training_auto_saves_loss_plot_on_failure_and_reraises(
     run_dir = tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_failure_saved"
     runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
     prepared_data = _make_prepared_data()
-    trainer = DummyTrainer(raise_on_train=RuntimeError("boom"))
+    trainer = DummyTrainer(
+        outcome=_outcome(
+            "failed_nonretryable",
+            last_completed_epoch=0,
+            failure_reason="RuntimeError: boom",
+        )
+    )
     calls = []
 
     fake_setup = SimpleNamespace(
@@ -304,7 +356,7 @@ def test_run_training_auto_saves_loss_plot_on_failure_and_reraises(
         lambda **kwargs: calls.append(kwargs) or None,
     )
 
-    with pytest.raises(RuntimeError, match="boom"):
+    with pytest.raises(RuntimeError, match="Training failed after"):
         run_training_mod.run_training("configs/training/hdn_training.yml")
 
     assert len(calls) == 1
@@ -320,7 +372,7 @@ def test_run_training_auto_save_failure_does_not_break_training(
     logger = DummyLogger()
     runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "run_plot_error")
     prepared_data = _make_prepared_data()
-    trainer = DummyTrainer(outcome=SimpleNamespace(reason="completed", last_completed_epoch=1))
+    trainer = DummyTrainer(outcome=_outcome("completed", last_completed_epoch=1))
 
     fake_setup = SimpleNamespace(
         prepare_data=lambda c, x: prepared_data,
@@ -349,7 +401,7 @@ def test_run_training_triggers_post_training_evaluation_on_completion(monkeypatc
     logger = DummyLogger()
     runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_c")
     prepared_data = _make_prepared_data()
-    trainer = DummyTrainer(outcome=SimpleNamespace(reason="completed", last_completed_epoch=12))
+    trainer = DummyTrainer(outcome=_outcome("completed", last_completed_epoch=12))
     captured = {}
 
     fake_setup = SimpleNamespace(
@@ -380,7 +432,7 @@ def test_run_training_prompts_before_post_training_evaluation_on_interrupt(monke
     logger = DummyLogger()
     runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_d")
     prepared_data = _make_prepared_data()
-    trainer = DummyTrainer(outcome=SimpleNamespace(reason="interrupted", last_completed_epoch=4))
+    trainer = DummyTrainer(outcome=_outcome("interrupted", last_completed_epoch=4))
     captured = {}
 
     fake_setup = SimpleNamespace(
@@ -408,7 +460,7 @@ def test_run_training_skips_post_training_evaluation_when_interrupt_prompt_decli
     logger = DummyLogger()
     runtime = _make_runtime(writer=writer, logger=logger, run_dir=tmp_path / "runs" / "dataset_a" / "Upsamp" / "run_e")
     prepared_data = _make_prepared_data()
-    trainer = DummyTrainer(outcome=SimpleNamespace(reason="interrupted", last_completed_epoch=4))
+    trainer = DummyTrainer(outcome=_outcome("interrupted", last_completed_epoch=4))
     calls = []
 
     fake_setup = SimpleNamespace(
@@ -446,7 +498,7 @@ def test_run_training_writes_and_finalizes_run_metadata_on_completion(monkeypatc
     def fake_get_trainer(**kwargs):
         return CallbackTrainer(
             kwargs["callbacks"],
-            outcome=SimpleNamespace(reason="completed", last_completed_epoch=3),
+            outcome=_outcome("completed", last_completed_epoch=3),
         )
 
     monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
@@ -497,7 +549,7 @@ def test_run_training_finalizes_run_metadata_as_stopped(monkeypatch: pytest.Monk
     def fake_get_trainer(**kwargs):
         return CallbackTrainer(
             kwargs["callbacks"],
-            outcome=SimpleNamespace(reason="interrupted", last_completed_epoch=3),
+            outcome=_outcome("interrupted", last_completed_epoch=3),
         )
 
     monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
@@ -528,14 +580,21 @@ def test_run_training_finalizes_run_metadata_as_failed(monkeypatch: pytest.Monke
     )
 
     def fake_get_trainer(**kwargs):
-        return CallbackTrainer(kwargs["callbacks"], raise_on_train=RuntimeError("boom"))
+        return CallbackTrainer(
+            kwargs["callbacks"],
+            outcome=_outcome(
+                "failed_nonretryable",
+                last_completed_epoch=3,
+                failure_reason="RuntimeError: boom",
+            ),
+        )
 
     monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
     monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", fake_get_trainer)
 
-    with pytest.raises(RuntimeError, match="boom"):
+    with pytest.raises(RuntimeError, match="Training failed after"):
         run_training_mod.run_training("configs/training/hdn_training.yml")
 
     metadata = read_run_metadata(run_dir)
@@ -565,7 +624,7 @@ def test_run_training_persists_peak_gpu_memory_stats_when_cuda_available(
     def fake_get_trainer(**kwargs):
         return CallbackTrainer(
             kwargs["callbacks"],
-            outcome=SimpleNamespace(reason="completed", last_completed_epoch=3),
+            outcome=_outcome("completed", last_completed_epoch=3),
         )
 
     class FakeCuda:
@@ -596,6 +655,149 @@ def test_run_training_persists_peak_gpu_memory_stats_when_cuda_available(
 
     assert metadata.runtime_stats is not None
     assert metadata.runtime_stats.peak_gpu_mem_mb == 10
+
+
+def test_run_training_retries_after_retryable_hdn_divergence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    cfg = _make_cfg()
+    writer = DummyWriter()
+    logger = DummyLogger()
+    run_dir = tmp_path / "datasets" / "dataset_a" / "models" / "Upsamp" / "run_retry"
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
+    prepared_data = _make_prepared_data()
+
+    first = DummyTrainer(
+        outcome=_outcome(
+            "failed_retryable_hdn_divergence",
+            last_completed_epoch=3,
+            failure_reason="diverged",
+            retry_eligible=True,
+        )
+    )
+    second = DummyTrainer(outcome=_outcome("completed", last_completed_epoch=4))
+    trainers = [first, second]
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+    )
+
+    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "resolve_config_dict", lambda cfg_dict: cfg)
+    monkeypatch.setattr(run_training_mod, "_build_retry_continue_config", lambda *args, **kwargs: {"retry": True})
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainers.pop(0))
+
+    out = run_training_mod.run_training("configs/training/hdn_training.yml")
+    metadata = read_run_metadata(run_dir)
+
+    assert out is second
+    assert first.train_calls == 1
+    assert second.train_calls == 1
+    assert metadata.status == "completed"
+    assert metadata.retry_attempt == 2
+    assert metadata.max_retry_attempts == 3
+
+
+def test_run_training_exhausts_retryable_hdn_attempts_and_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    cfg = _make_cfg()
+    writer = DummyWriter()
+    logger = DummyLogger()
+    run_dir = tmp_path / "datasets" / "dataset_a" / "models" / "Upsamp" / "run_retry_fail"
+    runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
+    prepared_data = _make_prepared_data()
+
+    trainers = [
+        DummyTrainer(
+            outcome=_outcome(
+                "failed_retryable_hdn_divergence",
+                last_completed_epoch=0,
+                failure_reason="diverged_1",
+                retry_eligible=True,
+            )
+        ),
+        DummyTrainer(
+            outcome=_outcome(
+                "failed_retryable_hdn_divergence",
+                last_completed_epoch=0,
+                failure_reason="diverged_2",
+                retry_eligible=True,
+            )
+        ),
+        DummyTrainer(
+            outcome=_outcome(
+                "failed_retryable_hdn_divergence",
+                last_completed_epoch=0,
+                failure_reason="diverged_3",
+                retry_eligible=True,
+            )
+        ),
+    ]
+
+    fake_setup = SimpleNamespace(
+        prepare_data=lambda c, x: prepared_data,
+        save_training_config=lambda *args, **kwargs: None,
+        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+    )
+
+    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+    monkeypatch.setattr(run_training_mod, "resolve_config_dict", lambda cfg_dict: cfg)
+    monkeypatch.setattr(run_training_mod, "_build_retry_continue_config", lambda *args, **kwargs: {"retry": True})
+    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainers.pop(0))
+
+    with pytest.raises(RuntimeError, match="Training failed after 3 attempt\\(s\\)"):
+        run_training_mod.run_training("configs/training/hdn_training.yml")
+
+    metadata = read_run_metadata(run_dir)
+    assert metadata.status == "failed"
+    assert metadata.retry_attempt == 3
+    assert metadata.max_retry_attempts == 3
+
+
+def test_resolve_auto_retry_policy_prefers_local_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    cfg = SimpleNamespace(
+        recovery=SimpleNamespace(
+            auto_retry=SimpleNamespace(
+                enabled=False,
+                max_attempts=5,
+                when="hdn_divergence_only",
+            )
+        )
+    )
+
+    configs_root = tmp_path / "configs"
+    configs_root.mkdir(parents=True, exist_ok=True)
+    (configs_root / "local_config.yml").write_text(
+        "\n".join(
+            [
+                "infrastructure:",
+                "  data_root: .",
+                "preferences:",
+                "  recovery:",
+                "    auto_retry:",
+                "      enabled: true",
+                "      max_attempts: 2",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(run_training_mod.settings, "CONFIGS_ROOT", configs_root)
+
+    policy = run_training_mod._resolve_auto_retry_policy(cfg)
+
+    assert policy.enabled is True
+    assert policy.max_attempts == 2
+    assert policy.when == "hdn_divergence_only"
 
 
 def test_display_epoch_is_one_based():

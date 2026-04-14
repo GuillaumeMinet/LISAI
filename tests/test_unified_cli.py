@@ -215,6 +215,7 @@ def test_unified_list_full_includes_loss_failure_and_run_id(monkeypatch, tmp_pat
     assert exit_code == 0
     assert "run_id" in captured.out.splitlines()[0]
     assert "loss" in captured.out.splitlines()[0]
+    assert "retry" in captured.out.splitlines()[0]
     assert "failure" in captured.out.splitlines()[0]
     assert "t=1" in captured.out
     assert "v=0.9" in captured.out
@@ -530,6 +531,7 @@ def test_unified_show_supports_queue_and_run_targets(monkeypatch, tmp_path, caps
     assert exit_code == 0
     assert "kind          : run" in captured.out
     assert f"run_id        : {metadata.run_id}" in captured.out
+    assert "retry         : 1/1" in captured.out
 
 
 def test_unified_logs_uses_canonical_queue_and_run_log_paths(monkeypatch, tmp_path, capsys):

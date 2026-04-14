@@ -93,7 +93,7 @@ def _eligible_historical_runs(
     candidates: list[DiscoveredRun] = []
     for run in runs:
         metadata = run.metadata
-        if metadata.status == "running" and not metadata.closed_cleanly:
+        if not metadata.closed_cleanly:
             continue
         if metadata.training_signature is None:
             continue

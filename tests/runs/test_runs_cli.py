@@ -253,7 +253,15 @@ def test_runs_list_full_appends_extended_columns(monkeypatch, tmp_path, capsys):
     assert "LISAI runs listing - Dataset: 'Gag'" in captured.out
     columns = _header_columns(captured.out)
     assert columns[:7] == ["dataset", "model_subfolder", "run_name", "idx", "status", "epoch", "eta_left"]
-    assert columns[-5:] == ["path_consistent", "closed_cleanly", "start_time", "last_seen", "run_id"]
+    assert columns[-7:] == [
+        "retry",
+        "failure",
+        "path_consistent",
+        "closed_cleanly",
+        "start_time",
+        "last_seen",
+        "run_id",
+    ]
     assert "false" in captured.out
     assert "01ARZ3NDEKTSV4RRFFQ69G5FAV" in captured.out
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from lisai.runs.io import read_run_metadata, write_run_metadata_atomic
-from lisai.runs.lifecycle import update_run_runtime_details
+from lisai.runs.lifecycle import update_run_attempt_state, update_run_runtime_details
 from lisai.runs.schema import RunMetadata
 
 
@@ -110,3 +110,24 @@ def test_update_run_runtime_details_preserves_legacy_peak_only_stats(tmp_path):
     assert metadata.runtime_stats.peak_gpu_mem_mb == 4096
     assert metadata.runtime_stats.total_training_time_sec is None
     assert metadata.runtime_stats.training_time_per_epoch_sec is None
+
+
+def test_update_run_attempt_state_updates_retry_and_pause_status(tmp_path):
+    run_dir = tmp_path / "demo_00"
+    write_run_metadata_atomic(run_dir, RunMetadata.model_validate(_payload(run_dir)))
+
+    update_run_attempt_state(
+        run_dir,
+        status="paused",
+        retry_attempt=2,
+        max_retry_attempts=3,
+        failure_reason="manual_pause",
+    )
+    metadata = read_run_metadata(run_dir)
+
+    assert metadata.status == "paused"
+    assert metadata.closed_cleanly is False
+    assert metadata.ended_at is None
+    assert metadata.retry_attempt == 2
+    assert metadata.max_retry_attempts == 3
+    assert metadata.failure_reason == "manual_pause"

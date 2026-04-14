@@ -23,7 +23,17 @@ except Exception:
     _tqdm_available = False
 
 
-TrainingStopReason = Literal["completed", "early_stopped", "interrupted", "no_epochs"]
+TrainingStopReason = Literal[
+    "completed",
+    "early_stopped",
+    "interrupted",
+    "no_epochs",
+    "failed_retryable_hdn_divergence",
+    "failed_nonretryable",
+    "pause_requested",
+    "paused",
+    "resuming",
+]
 
 
 def _env_truthy(name: str) -> bool:
@@ -37,6 +47,10 @@ def _env_truthy(name: str) -> bool:
 class TrainingOutcome:
     reason: TrainingStopReason
     last_completed_epoch: int | None
+    failure_reason: str | None = None
+    retry_eligible: bool = False
+    retry_attempt: int | None = None
+    max_retry_attempts: int | None = None
 
 
 class BaseTrainer(ABC):
@@ -383,7 +397,7 @@ class BaseTrainer(ABC):
     # =================== #
     #    TRAINING LOOP    #
     # =================== #
-    def train(self):
+    def train(self) -> TrainingOutcome:
         self._align_safe_resume_epoch_with_metadata()
         last_completed_epoch = int(self.state_dict.get("epoch", -1))
         start_epoch = max(last_completed_epoch + 1, 0)
@@ -517,14 +531,24 @@ class BaseTrainer(ABC):
                     f"HDN divergence detected during epoch {self._display_epoch(epoch)}: {e}"
                 )
                 self._save_last_safe_training_state(epoch=epoch, cause=str(e))
-                raise
+                return TrainingOutcome(
+                    reason="failed_retryable_hdn_divergence",
+                    last_completed_epoch=last_completed_epoch if last_completed_epoch >= 0 else None,
+                    failure_reason=str(e),
+                    retry_eligible=True,
+                )
 
             except Exception as e:
                 self.logger.error(
                     f"Training stopped during epoch {self._display_epoch(epoch)}, because of error:\n"
                     f"{type(e)}\n{e}\n"
                 )
-                raise
+                return TrainingOutcome(
+                    reason="failed_nonretryable",
+                    last_completed_epoch=last_completed_epoch if last_completed_epoch >= 0 else None,
+                    failure_reason=f"{type(e).__name__}: {e}",
+                    retry_eligible=False,
+                )
 
         self._log_training_finished(epoch, best_loss, last_val_loss)
         return TrainingOutcome(
@@ -538,7 +562,8 @@ class BaseTrainer(ABC):
     def _backward_virtual_batch(self, raw_loss: torch.Tensor, num_virtual_batches: int) -> None:
         if num_virtual_batches <= 0:
             raise ValueError(f"num_virtual_batches must be >= 1, got {num_virtual_batches}")
-        (raw_loss / num_virtual_batches).backward()
+        # (raw_loss / num_virtual_batches).backward()
+        raw_loss.backward()
 
     def _optimizer_step(self) -> float | None:
         grad_norm = None

@@ -10,6 +10,75 @@ import torch
 import lisai.training.trainers.base as base_mod
 
 
+def _fake_trainer_for_train_failure(exc: BaseException):
+    saved_safe_state = {}
+
+    fake_self = SimpleNamespace(
+        _align_safe_resume_epoch_with_metadata=lambda: None,
+        state_dict={"epoch": -1},
+        _initialize_log_file=lambda: None,
+        n_epochs=2,
+        logger=SimpleNamespace(info=lambda *_: None, error=lambda *_: None),
+        pbar=False,
+        saving_prm={},
+        train_epoch=lambda epoch: (_ for _ in ()).throw(exc),
+        validate=lambda epoch, save_imgs=False: {"loss": 0.0},
+        _log_epoch_metrics=lambda *args, **kwargs: None,
+        model=SimpleNamespace(state_dict=lambda: {}),
+        optimizer=SimpleNamespace(state_dict=lambda: {}),
+        _optimizer_step_count=0,
+        _auto_stop_best_metric=None,
+        _auto_stop_bad_epochs=0,
+        is_lvae=False,
+        scheduler=None,
+        callbacks=[],
+        _check_auto_stop=lambda **kwargs: False,
+        debug_stop=False,
+        early_stop=False,
+        _display_epoch=lambda epoch: base_mod.BaseTrainer._display_epoch(epoch),
+        _log_keyboard_interrupt=lambda *args, **kwargs: None,
+        _save_last_safe_training_state=lambda **kwargs: saved_safe_state.update(kwargs),
+        _log_training_finished=lambda *args, **kwargs: None,
+    )
+    return fake_self, saved_safe_state
+
+
+def test_train_returns_retryable_outcome_on_hdn_divergence():
+    fake_self, saved_safe_state = _fake_trainer_for_train_failure(base_mod.HDNDivergenceError("diverged"))
+
+    outcome = base_mod.BaseTrainer.train(fake_self)
+
+    assert isinstance(outcome, base_mod.TrainingOutcome)
+    assert outcome.reason == "failed_retryable_hdn_divergence"
+    assert outcome.retry_eligible is True
+    assert outcome.failure_reason == "diverged"
+    assert saved_safe_state == {"epoch": 0, "cause": "diverged"}
+
+
+def test_train_returns_nonretryable_outcome_on_generic_exception():
+    fake_self, saved_safe_state = _fake_trainer_for_train_failure(RuntimeError("boom"))
+
+    outcome = base_mod.BaseTrainer.train(fake_self)
+
+    assert isinstance(outcome, base_mod.TrainingOutcome)
+    assert outcome.reason == "failed_nonretryable"
+    assert outcome.retry_eligible is False
+    assert outcome.failure_reason == "RuntimeError: boom"
+    assert saved_safe_state == {}
+
+
+def test_train_returns_interrupted_outcome_on_keyboard_interrupt():
+    fake_self, saved_safe_state = _fake_trainer_for_train_failure(KeyboardInterrupt())
+
+    outcome = base_mod.BaseTrainer.train(fake_self)
+
+    assert isinstance(outcome, base_mod.TrainingOutcome)
+    assert outcome.reason == "interrupted"
+    assert outcome.retry_eligible is False
+    assert outcome.failure_reason is None
+    assert saved_safe_state == {}
+
+
 def test_is_hdn_safe_resume_active_matches_recovery_checkpoint_even_when_status_running(
     monkeypatch: pytest.MonkeyPatch,
 ):

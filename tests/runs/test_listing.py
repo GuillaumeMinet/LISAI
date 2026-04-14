@@ -173,6 +173,28 @@ def test_render_runs_table_displays_dash_eta_left_when_not_running_or_stats_miss
     assert _table_value(table_completed, "eta_left") == "-"
 
 
+def test_display_run_status_preserves_paused_state_label():
+    now = datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc)
+    run = _running_run(
+        run_id="01ARZ3NDEKTSV4RRFFQ69G5FB2",
+        heartbeat=now - timedelta(seconds=5),
+        live_runtime_stats=None,
+    )
+    paused = run.metadata.model_copy(update={"status": "paused"})
+    paused_run = DiscoveredRun(
+        metadata=paused,
+        metadata_path=run.metadata_path,
+        run_dir=run.run_dir,
+        dataset=run.dataset,
+        model_subfolder=run.model_subfolder,
+        group_path=run.group_path,
+        path=run.path,
+        path_consistent=run.path_consistent,
+        consistency_issues=run.consistency_issues,
+    )
+    assert display_run_status(paused_run, now=now) == "paused"
+
+
 def test_render_runs_table_full_includes_start_time_last_seen_and_run_id(monkeypatch):
     now = datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc)
     run = _running_run(
@@ -193,7 +215,11 @@ def test_render_runs_table_full_includes_start_time_last_seen_and_run_id(monkeyp
 
     table = render_runs_table([run], now=now, full=True)
     header = table.splitlines()[0].strip()
-    assert header.endswith("path_consistent  closed_cleanly  start_time  last_seen  run_id")
+    assert header.endswith(
+        "retry  failure  path_consistent  closed_cleanly  start_time  last_seen  run_id"
+    )
+    assert _table_value(table, "retry") == "1/1"
+    assert _table_value(table, "failure") == "-"
     assert _table_value(table, "start_time") == "START_TS"
     assert _table_value(table, "last_seen") == "LAST_TS"
     assert _table_value(table, "run_id") == run.metadata.run_id

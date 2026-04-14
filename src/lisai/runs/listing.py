@@ -168,7 +168,17 @@ def render_runs_table(
         "eta_left",
     ]
     if full:
-        headers.extend(["path_consistent", "closed_cleanly", "start_time", "last_seen", "run_id"])
+        headers.extend(
+            [
+                "retry",
+                "failure",
+                "path_consistent",
+                "closed_cleanly",
+                "start_time",
+                "last_seen",
+                "run_id",
+            ]
+        )
     selection_width = max(2, len(str(len(runs))))
     idx_width = int(getattr(settings.project.naming, "run_dir_index_width", 2))
     rows: list[list[str]] = []
@@ -185,6 +195,8 @@ def render_runs_table(
         if full:
             row.extend(
                 [
+                    _format_retry(run),
+                    _format_failure_summary(run),
                     str(run.path_consistent).lower(),
                     str(run.metadata.closed_cleanly).lower(),
                     format_timestamp_local(run.metadata.created_at),
@@ -287,6 +299,17 @@ def _mean_epoch_duration_seconds(run: DiscoveredRun) -> float | None:
     if runtime_stats is not None and runtime_stats.training_time_per_epoch_sec is not None:
         return float(runtime_stats.training_time_per_epoch_sec)
     return None
+
+
+def _format_retry(run: DiscoveredRun) -> str:
+    return f"{run.metadata.retry_attempt}/{run.metadata.max_retry_attempts}"
+
+
+def _format_failure_summary(run: DiscoveredRun) -> str:
+    reason = (run.metadata.failure_reason or "").strip()
+    if not reason:
+        return "-"
+    return reason if len(reason) <= 60 else f"{reason[:57]}..."
 
 
 __all__ = [

@@ -11,8 +11,18 @@ from .identifiers import is_valid_run_id
 
 RUN_METADATA_FILENAME = ".lisai_run_meta.json"
 SCHEMA_VERSION = 2
-RUN_STATUSES = ("running", "completed", "stopped", "failed")
-RunStatus = Literal["running", "completed", "stopped", "failed"]
+RUN_STATUSES = (
+    "running",
+    "pause_requested",
+    "paused",
+    "resuming",
+    "completed",
+    "stopped",
+    "failed",
+)
+RUN_TERMINAL_STATUSES = ("completed", "stopped", "failed")
+RUN_NON_TERMINAL_STATUSES = ("running", "pause_requested", "paused", "resuming")
+RunStatus = Literal["running", "pause_requested", "paused", "resuming", "completed", "stopped", "failed"]
 
 
 def utc_now() -> datetime:
@@ -217,6 +227,8 @@ class RunMetadata(BaseModel):
     last_safe_epoch: int | None = None
     last_safe_batch_id: int | None = None
     safe_resume_fail_count: int = Field(default=0, ge=0)
+    retry_attempt: int = Field(default=1, ge=1)
+    max_retry_attempts: int = Field(default=1, ge=1)
 
 
 
@@ -292,6 +304,12 @@ class RunMetadata(BaseModel):
         return value
 
     @model_validator(mode="after")
+    def _validate_retry_attempt_consistency(self):
+        if self.retry_attempt > self.max_retry_attempts:
+            raise ValueError("retry_attempt must be <= max_retry_attempts.")
+        return self
+
+    @model_validator(mode="after")
     def _validate_consistency(self):
         if self.updated_at < self.created_at:
             raise ValueError("updated_at must be >= created_at.")
@@ -300,12 +318,14 @@ class RunMetadata(BaseModel):
         if self.ended_at is not None and self.ended_at < self.created_at:
             raise ValueError("ended_at must be >= created_at.")
 
-        if self.status == "running":
+        if self.status in RUN_NON_TERMINAL_STATUSES:
             if self.ended_at is not None:
-                raise ValueError("ended_at must be null while status is running.")
+                raise ValueError("ended_at must be null while status is non-terminal.")
             if self.closed_cleanly:
-                raise ValueError("closed_cleanly must be false while status is running.")
+                raise ValueError("closed_cleanly must be false while status is non-terminal.")
         else:
+            if self.status not in RUN_TERMINAL_STATUSES:
+                raise ValueError(f"Unsupported terminal status: {self.status!r}.")
             if self.ended_at is None:
                 raise ValueError("ended_at must be set for terminal statuses.")
             if not self.closed_cleanly:
@@ -336,7 +356,9 @@ class RunMetadata(BaseModel):
 
 __all__ = [
     "RUN_METADATA_FILENAME",
+    "RUN_NON_TERMINAL_STATUSES",
     "RUN_STATUSES",
+    "RUN_TERMINAL_STATUSES",
     "SCHEMA_VERSION",
     "LiveRuntimeStats",
     "RuntimeStats",

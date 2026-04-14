@@ -12,9 +12,12 @@ from lisai.infra.fs.run_naming import parse_run_dir_name
 from .identifiers import generate_run_id
 from .io import read_run_metadata, write_run_metadata_atomic
 from .schema import (
+    RUN_NON_TERMINAL_STATUSES,
+    RUN_TERMINAL_STATUSES,
     SCHEMA_VERSION,
     LiveRuntimeStats,
     RunMetadata,
+    RunStatus,
     RuntimeStats,
     TrainingSignature,
     normalize_posix_path,
@@ -268,6 +271,45 @@ def update_run_recovery_info(
     return updated
 
 
+def update_run_attempt_state(
+    run_dir: str | Path,
+    *,
+    status: RunStatus | None = None,
+    retry_attempt: int | None = None,
+    max_retry_attempts: int | None = None,
+    failure_reason: str | None = None,
+) -> RunMetadata:
+    metadata = read_run_metadata(run_dir)
+    now = utc_now()
+
+    update_payload: dict[str, object] = {
+        "updated_at": now,
+        "failure_reason": failure_reason,
+        "retry_attempt": metadata.retry_attempt if retry_attempt is None else max(int(retry_attempt), 1),
+        "max_retry_attempts": (
+            metadata.max_retry_attempts
+            if max_retry_attempts is None
+            else max(int(max_retry_attempts), 1)
+        ),
+    }
+
+    if status is not None:
+        update_payload["status"] = status
+        if status in RUN_NON_TERMINAL_STATUSES:
+            update_payload["closed_cleanly"] = False
+            update_payload["ended_at"] = None
+            update_payload["last_heartbeat_at"] = now
+        elif status in RUN_TERMINAL_STATUSES:
+            update_payload["closed_cleanly"] = True
+            update_payload["ended_at"] = now
+            update_payload["last_heartbeat_at"] = now
+        else:
+            raise ValueError(f"Unsupported run status: {status!r}.")
+
+    updated = metadata.model_copy(update=update_payload)
+    write_run_metadata_atomic(run_dir, updated)
+    return updated
+
 
 def finalize_run_completed(run_dir: str | Path) -> RunMetadata:
     return _finalize_run(run_dir, status="completed")
@@ -312,6 +354,7 @@ __all__ = [
     "group_path_from_model_subfolder",
     "normalize_model_subfolder",
     "stored_run_path",
+    "update_run_attempt_state",
     "update_run_heartbeat",
     "update_run_progress",
     "update_run_recovery_info",

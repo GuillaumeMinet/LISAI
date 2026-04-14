@@ -56,6 +56,7 @@ class _UnifiedRow:
     epoch: str
     eta: str
     loss: str
+    retry: str
     failure: str
     sort_time: datetime
 
@@ -338,7 +339,7 @@ def add_list_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
     parser.add_argument(
         "--full",
         action="store_true",
-        help="Include run_id, latest loss, and failure summary columns.",
+        help="Include run_id, latest loss, retry attempt, and failure summary columns.",
     )
     parser.set_defaults(handler=run_list_from_args)
     return parser
@@ -488,6 +489,7 @@ def _build_job_only_row(
         epoch="-",
         eta="-",
         loss="-",
+        retry="-",
         failure=_short_failure_for_job(job),
         sort_time=job.updated_at,
     )
@@ -517,6 +519,7 @@ def _build_merged_row(
         epoch=_format_run_epoch(run),
         eta=_format_run_eta_left(run),
         loss=_format_losses(train_loss, val_loss),
+        retry=_format_run_retry(run),
         failure=run_failure,
         sort_time=max(job.updated_at, run.last_seen),
     )
@@ -541,6 +544,7 @@ def _build_run_only_row(
         epoch=_format_run_epoch(run),
         eta=_format_run_eta_left(run),
         loss=_format_losses(train_loss, val_loss),
+        retry=_format_run_retry(run),
         failure=_short_failure_for_run(run, failure_cache=failure_cache),
         sort_time=run.last_seen,
     )
@@ -554,7 +558,7 @@ def _status_bucket(row: _UnifiedRow) -> int:
     status = row.status_key
     if status in {"completed", "stopped", "failed", "done", "blocked"}:
         return 0
-    if status == "running":
+    if status in {"running", "pause_requested", "paused", "resuming"}:
         return 1
     if status == "queued":
         return 2
@@ -576,7 +580,7 @@ def _render_unified_rows(rows: Sequence[_UnifiedRow], *, full: bool) -> str:
         "eta",
     ]
     if full:
-        headers.extend(["run_id", "loss", "failure"])
+        headers.extend(["run_id", "loss", "retry", "failure"])
 
     values: list[list[str]] = []
     for row in rows:
@@ -591,7 +595,7 @@ def _render_unified_rows(rows: Sequence[_UnifiedRow], *, full: bool) -> str:
             row.eta,
         ]
         if full:
-            line.extend([row.run_id, row.loss, row.failure])
+            line.extend([row.run_id, row.loss, row.retry, row.failure])
         values.append(line)
 
     widths = [max(len(headers[idx]), *(len(item[idx]) for item in values)) for idx in range(len(headers))]
@@ -612,10 +616,12 @@ def _show_job_details(record: DiscoveredJob, *, stdout) -> int:
     train_loss, val_loss = (None, None)
     epoch = "-"
     eta = "-"
+    retry = "-"
     if linked is not None:
         train_loss, val_loss = _latest_losses_for_run(linked, metrics_cache=metrics_cache)
         epoch = _format_run_epoch(linked)
         eta = _format_run_eta_left(linked)
+        retry = _format_run_retry(linked)
 
     print("kind          : queue_job", file=stdout)
     print(f"selector      : {job.selector or '-'}", file=stdout)
@@ -628,6 +634,7 @@ def _show_job_details(record: DiscoveredJob, *, stdout) -> int:
     print(f"run_id        : {job.run_id or '-'}", file=stdout)
     print(f"progress      : {epoch}", file=stdout)
     print(f"eta_left      : {eta}", file=stdout)
+    print(f"retry         : {retry}", file=stdout)
     print(f"latest_loss   : {_format_losses(train_loss, val_loss)}", file=stdout)
     print(f"failure       : {_short_failure_for_job(job)}", file=stdout)
     print(f"submitted_at  : {format_timestamp_local(job.submitted_at)}", file=stdout)
@@ -663,6 +670,7 @@ def _show_run_details(run: DiscoveredRun, *, stdout) -> int:
     print(f"run_index     : {run.metadata.run_index}", file=stdout)
     print(f"progress      : {_format_run_epoch(run)}", file=stdout)
     print(f"eta_left      : {_format_run_eta_left(run)}", file=stdout)
+    print(f"retry         : {_format_run_retry(run)}", file=stdout)
     print(f"latest_loss   : {_format_losses(train_loss, val_loss)}", file=stdout)
     print(f"best_val_loss : {'-' if run.metadata.best_val_loss is None else f'{run.metadata.best_val_loss:.6g}'}", file=stdout)
     print(f"failure       : {_short_failure_for_run(run, failure_cache=failure_cache)}", file=stdout)
@@ -912,6 +920,10 @@ def _format_run_epoch(run: DiscoveredRun) -> str:
     last_epoch = "-" if run.metadata.last_epoch is None else str(run.metadata.last_epoch + 1)
     max_epoch = "-" if run.metadata.max_epoch is None else str(run.metadata.max_epoch)
     return f"{last_epoch}/{max_epoch}"
+
+
+def _format_run_retry(run: DiscoveredRun) -> str:
+    return f"{run.metadata.retry_attempt}/{run.metadata.max_retry_attempts}"
 
 
 def _format_run_eta_left(run: DiscoveredRun) -> str:

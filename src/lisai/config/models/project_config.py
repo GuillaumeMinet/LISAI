@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -55,10 +55,19 @@ class HDNSafeResumeConfig(BaseModel):
         return value
 
 
+class AutoRetryConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    max_attempts: int = Field(default=3, ge=1)
+    when: Literal["hdn_divergence_only"] = "hdn_divergence_only"
+
+
 class RecoveryConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     hdn_safe_resume: HDNSafeResumeConfig = Field(default_factory=HDNSafeResumeConfig)
+    auto_retry: AutoRetryConfig = Field(default_factory=AutoRetryConfig)
 
 
 class QueueResourceClassVRAM(BaseModel):
