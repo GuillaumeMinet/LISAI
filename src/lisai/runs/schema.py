@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
+from lisai.infra.paths.model_subfolder import group_path_from_model_subfolder
+
 from .identifiers import is_valid_run_id
 
 RUN_METADATA_FILENAME = ".lisai_run_meta.json"
@@ -338,10 +340,7 @@ class RunMetadata(BaseModel):
         if self.last_epoch is not None and self.max_epoch is not None and self.last_epoch > self.max_epoch:
             raise ValueError("last_epoch must be <= max_epoch.")
 
-        parts = [part for part in self.model_subfolder.split("/") if part]
-        if not parts:
-            raise ValueError("model_subfolder must not be empty.")
-        expected_group = "/".join(parts[1:]) or None
+        expected_group = group_path_from_model_subfolder(self.model_subfolder)
         if self.group_path != expected_group:
             raise ValueError("group_path must match model_subfolder.")
 

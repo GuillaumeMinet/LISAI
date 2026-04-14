@@ -8,6 +8,10 @@ from pydantic import ValidationError
 
 from lisai.config import settings
 from lisai.infra.fs.run_naming import parse_run_dir_name
+from lisai.infra.paths.model_subfolder import (
+    group_path_from_model_subfolder,
+    normalize_model_subfolder,
+)
 
 from .identifiers import generate_run_id
 from .io import read_run_metadata, write_run_metadata_atomic
@@ -17,28 +21,8 @@ from .schema import (
     RunMetadata,
     RuntimeStats,
     TrainingSignature,
-    normalize_posix_path,
     utc_now,
 )
-
-
-def normalize_model_subfolder(model_subfolder: str | None) -> str | None:
-    if model_subfolder is None:
-        return None
-    text = model_subfolder.replace("\\", "/").strip().strip("/")
-    if not text:
-        return None
-    return normalize_posix_path(text)
-
-
-def group_path_from_model_subfolder(model_subfolder: str | None) -> str | None:
-    normalized = normalize_model_subfolder(model_subfolder)
-    if normalized is None:
-        return None
-    parts = normalized.split("/")
-    if len(parts) <= 1:
-        return None
-    return "/".join(parts[1:])
 
 
 def stored_run_path(run_dir: str | Path) -> str:
