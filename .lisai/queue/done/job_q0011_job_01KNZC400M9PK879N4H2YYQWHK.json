@@ -1,0 +1,32 @@
+{
+  "config": "/home/guillaumeminet/LISAI/.lisai/queue/submitted_configs/CARE_1775948136462301086.yml",
+  "dataset": "vim_fixed",
+  "device": "cuda:0",
+  "error": null,
+  "exit_code": 0,
+  "finished_at": "2026-04-11T22:56:28Z",
+  "job_id": "job_01KNZC400M9PK879N4H2YYQWHK",
+  "launched_at": "2026-04-11T22:55:39Z",
+  "log_path": "/home/guillaumeminet/LISAI/.lisai/queue/logs/job_q0011_job_01KNZC400M9PK879N4H2YYQWHK.log",
+  "model_subfolder": "Denoising",
+  "pid": 146388,
+  "priority": "normal",
+  "resource_class": "medium",
+  "run_id": "01KNZC44TSNP9C95AHKN0SG7Q4",
+  "run_name": "CARE_clip_mse_recon2",
+  "schema_version": 1,
+  "selector": "q0011",
+  "source_config": "/home/guillaumeminet/LISAI/configs/training/CARE.yml",
+  "status": "done",
+  "submitted_at": "2026-04-11T22:55:36Z",
+  "training_signature": {
+    "architecture": "unet",
+    "input_channels": 1,
+    "train_batch_size": 8,
+    "train_patch_size": 128,
+    "trainable_params": null,
+    "upsampling_factor": 1,
+    "val_patch_size": 512
+  },
+  "updated_at": "2026-04-11T22:56:28Z"
+}

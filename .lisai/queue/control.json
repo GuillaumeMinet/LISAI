@@ -1,0 +1,5 @@
+{
+  "max_concurrent_runs_per_gpu": 1,
+  "paused": false,
+  "schema_version": 1
+}

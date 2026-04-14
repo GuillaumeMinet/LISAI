@@ -1,0 +1,32 @@
+{
+  "config": "/home/guillaumeminet/LISAI/.lisai/queue/submitted_configs/unetrcan_1775730812146111366.yml",
+  "dataset": "vim_fixed",
+  "device": "cuda:0",
+  "error": null,
+  "exit_code": 0,
+  "finished_at": "2026-04-09T13:32:31Z",
+  "job_id": "job_01KNRWVS7ZMWV2MEERC24YSSM6",
+  "launched_at": "2026-04-09T12:58:53Z",
+  "log_path": "/home/guillaumeminet/LISAI/.lisai/queue/logs/job_q0006_job_01KNRWVS7ZMWV2MEERC24YSSM6.log",
+  "model_subfolder": "Denoising",
+  "pid": 103687,
+  "priority": "normal",
+  "resource_class": "medium",
+  "run_id": "01KNS55ZCAVXPRNAQ5N61BBS6H",
+  "run_name": "CARE_noclip_charedge",
+  "schema_version": 1,
+  "selector": "q0006",
+  "source_config": "/home/guillaumeminet/LISAI/configs/training/unetrcan.yml",
+  "status": "done",
+  "submitted_at": "2026-04-09T10:33:32Z",
+  "training_signature": {
+    "architecture": "unet",
+    "input_channels": 1,
+    "train_batch_size": 8,
+    "train_patch_size": 128,
+    "trainable_params": null,
+    "upsampling_factor": 1,
+    "val_patch_size": 512
+  },
+  "updated_at": "2026-04-09T13:32:31Z"
+}

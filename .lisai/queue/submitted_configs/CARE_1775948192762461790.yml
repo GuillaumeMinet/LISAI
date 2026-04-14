@@ -4,7 +4,7 @@
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: CL1_Upsamp05_biggerNet
+  exp_name: CARE_clip_mse_recon2
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
 
@@ -12,9 +12,9 @@ experiment:
 # Paths
 # ========================================================
 routing:
-  data_subfolder: "preprocess/recon"
-  models_subfolder: "Upsamp"
-  tensorboard_subfolder: "Upsamp"
+  data_subfolder: "preprocess/recon_2"
+  models_subfolder: "Denoising"
+  tensorboard_subfolder: ""
   # used only for non-canonical loads => full path is used directly
   dataset_full_path: ""
 
@@ -22,8 +22,8 @@ routing:
 # Dataset / DataLoader configuration
 # ========================================================
 data:
-  dataset_name: Gag_timelapses
-  data_format: timelapse
+  dataset_name: vim_fixed
+  data_format: single
   canonical_load: true
   prep_before: true
   already_split: true
@@ -31,63 +31,47 @@ data:
     - tiff
     - tif
 
-  paired: false
-  target: null # for paired datasets
-  input: ""
-  timelapse_prm:
-      timelapse_max_frames: 20
-      context_length: null
+  paired: true
+  target: "gt_avg" # for paired datasets
+  input: "inp_single"
 
-  patch_size: 96
-  val_patch_size: 240
+  patch_size: 128
+  val_patch_size: 512
   batch_size: 64
-
-  downsampling:
-    downsamp_factor: 2
-    downsamp_method: "multiple"
-    multiple_prm:
-      fill_factor: 0.5
-      random: true
 
   # options
   initial_crop: null
   augmentation: false
-  patch_thresh: 0.15 # None or float [0,1]
+  patch_thresh: 0.1 # None or float [0,1]
   select_on_gt: false
+
+normalization:
+  norm_prm:
+    clip: -3
+    normalize_data: false
 
 # ========================================================
 # Model configuration
 # ========================================================
 model:
-  architecture: unet_rcan
+  architecture: unet
   parameters:
-    upsampling_net: rcan
-    upsampling_factor: 2
-    UNet_prm:
-      feat: 64
-      depth: 3
-      in_channels: 2
-      out_channels: 2
-      activation: swish
-      norm: group
-      gr_norm: 8
-      dropout: 0.1
-      cab_skip_con: false
-    RCAN_prm:
-      num_features: 64
-      num_rg: 8
-      num_rcab: 12
-      reduction: 16
-      dropout: 0.1
-      upsamp_kernel_factor: 1
+    feat: 64
+    depth: 4
+    in_channels: 1
+    out_channels: 1
+    activation: swish
+    norm: group
+    gr_norm: 8
+    dropout: 0.1
 
 # ========================================================
 # Training configuration
 # ========================================================
 training:
   n_epochs: 100
-  batch_size: 32
-  learning_rate: 0.00001
+  batch_size: 8
+  learning_rate: 0.001
   optimizer: Adam
   scheduler: ReduceLROnPlateau
   progress_bar: true
@@ -97,14 +81,12 @@ training:
     steps: 500
     start_factor: 0.1
   auto_stop:
-    enabled: false
+    enabled: true
     metrics: val_loss
     patience: 30
 
 loss_function:
-  name: CharEdge_loss
-  CharEdge_loss_prm:
-    alpha: 0.05
+  name: MSE
 
 # ========================================================
 # Saving configuration

@@ -1,0 +1,10 @@
+lisai: INFO : Training Initialization: CARE_clip_mse_recon2_02
+lisai: INFO : Saving to: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_02
+lisai.data_prep: INFO : 88/1701 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : 0/12 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : Training patches: (12904, 1, 128, 128), Validation patches: (12, 1, 512, 512)
+lisai: INFO : Model initialized: UNet_PosEncod
+lisai: INFO : Starting Training...
+lisai: INFO : Training manually stopped during epoch 1.
+lisai: WARNING : Loss plot image was not saved after 'interrupted' (missing or unreadable loss history).
+lisai: INFO : Skipping post-training evaluation because no completed epoch is available.

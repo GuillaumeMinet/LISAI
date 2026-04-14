@@ -1,0 +1,30 @@
+lisai: INFO : Training Initialization: CARE_clip_mse_recon2_06
+lisai: INFO : Saving to: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_06
+lisai.data_prep: INFO : Training patches: (1701, 1, 128, 128), Validation patches: (12, 1, 512, 512)
+lisai: INFO : Model initialized: UNet_PosEncod
+lisai: INFO : Starting Training...
+lisai: INFO : epoch 1/100: train_loss=0.773199 val_loss=0.419334
+lisai: INFO : epoch 1: Best model saved with best_val = 0.4193342328071594.
+lisai: INFO : epoch 2/100: train_loss=0.357600 val_loss=0.394217
+lisai: INFO : epoch 2: Best model saved with best_val = 0.3942171782255173.
+lisai: INFO : epoch 3/100: train_loss=0.293420 val_loss=0.394493
+lisai: INFO : epoch 4/100: train_loss=0.285155 val_loss=0.485800
+lisai: INFO : epoch 5/100: train_loss=0.277974 val_loss=0.406321
+lisai: INFO : epoch 6/100: train_loss=0.251792 val_loss=0.409751
+lisai: INFO : epoch 7/100: train_loss=0.246379 val_loss=0.392269
+lisai: INFO : epoch 7: Best model saved with best_val = 0.39226870238780975.
+lisai: INFO : epoch 8/100: train_loss=0.238665 val_loss=0.389459
+lisai: INFO : epoch 8: Best model saved with best_val = 0.38945890963077545.
+lisai: INFO : epoch 9/100: train_loss=0.237145 val_loss=0.398887
+lisai: INFO : epoch 10/100: train_loss=0.231807 val_loss=0.386243
+lisai: INFO : epoch 10: Best model saved with best_val = 0.38624320179224014.
+lisai: INFO : epoch 11/100: train_loss=0.234236 val_loss=0.387747
+lisai: INFO : epoch 12/100: train_loss=0.232632 val_loss=0.406839
+lisai: INFO : epoch 13/100: train_loss=0.242233 val_loss=0.398785
+lisai: INFO : epoch 14/100: train_loss=0.229142 val_loss=0.385604
+lisai: INFO : epoch 14: Best model saved with best_val = 0.3856038451194763.
+lisai: INFO : Training manually stopped during epoch 15.
+Model perf: best_val_loss: 0.3856038451194763 - current_train_loss: 0.22914163072204366 - current_val_loss: 0.3856038451194763.
+
+lisai: INFO : Saved loss plot image: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_06/loss_plot.png
+Training interrupted. Run evaluation now using 'post_training'? [y/N]: 

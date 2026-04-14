@@ -1,0 +1,76 @@
+lisai: INFO : Training Initialization: CARE_clip_mse_recon_00
+lisai: INFO : Saving to: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon_00
+lisai.data_prep: INFO : Training patches: (1701, 1, 128, 128), Validation patches: (4, 1, 512, 512)
+lisai: INFO : Model initialized: UNet_PosEncod
+lisai: INFO : Starting Training...
+lisai: INFO : epoch 1/100: train_loss=0.765832 val_loss=0.177700
+lisai: INFO : epoch 1: Best model saved with best_val = 0.17769981920719147.
+lisai: INFO : epoch 2/100: train_loss=0.371676 val_loss=0.163502
+lisai: INFO : epoch 2: Best model saved with best_val = 0.16350194811820984.
+lisai: INFO : epoch 3/100: train_loss=0.346585 val_loss=0.163744
+lisai: INFO : epoch 4/100: train_loss=0.331588 val_loss=0.165578
+lisai: INFO : epoch 5/100: train_loss=0.313488 val_loss=0.155806
+lisai: INFO : epoch 5: Best model saved with best_val = 0.15580573678016663.
+lisai: INFO : epoch 6/100: train_loss=0.300828 val_loss=0.151202
+lisai: INFO : epoch 6: Best model saved with best_val = 0.15120169520378113.
+lisai: INFO : epoch 7/100: train_loss=0.298260 val_loss=0.151256
+lisai: INFO : epoch 8/100: train_loss=0.307933 val_loss=0.158314
+lisai: INFO : epoch 9/100: train_loss=0.315406 val_loss=0.155697
+lisai: INFO : epoch 10/100: train_loss=0.297317 val_loss=0.151483
+lisai: INFO : epoch 11/100: train_loss=0.294025 val_loss=0.170847
+lisai: INFO : epoch 12/100: train_loss=0.289477 val_loss=0.157379
+lisai: INFO : epoch 13/100: train_loss=0.287642 val_loss=0.151140
+lisai: INFO : epoch 13: Best model saved with best_val = 0.151140496134758.
+lisai: INFO : epoch 14/100: train_loss=0.279373 val_loss=0.148550
+lisai: INFO : epoch 14: Best model saved with best_val = 0.1485501527786255.
+lisai: INFO : epoch 15/100: train_loss=0.287668 val_loss=0.149207
+lisai: INFO : epoch 16/100: train_loss=0.294209 val_loss=0.149759
+lisai: INFO : epoch 17/100: train_loss=0.279819 val_loss=0.153293
+lisai: INFO : epoch 18/100: train_loss=0.275039 val_loss=0.150619
+lisai: INFO : epoch 19/100: train_loss=0.278508 val_loss=0.150349
+lisai: INFO : epoch 20/100: train_loss=0.276345 val_loss=0.148969
+lisai: INFO : epoch 21/100: train_loss=0.283046 val_loss=0.149169
+lisai: INFO : epoch 22/100: train_loss=0.284782 val_loss=0.150806
+lisai: INFO : epoch 23/100: train_loss=0.276080 val_loss=0.152069
+lisai: INFO : epoch 24/100: train_loss=0.272005 val_loss=0.149391
+lisai: INFO : epoch 25/100: train_loss=0.270454 val_loss=0.150252
+lisai: ERROR : Training stopped during epoch 25, because of error:
+<class 'TypeError'>
+'>' not supported between instances of 'str' and 'float'
+
+lisai: ERROR : Training crashed
+Traceback (most recent call last):
+  File "/home/guillaumeminet/LISAI/src/lisai/training/run_training.py", line 382, in run_training_from_resolved_config
+    outcome = _normalize_training_outcome(trainer.train())
+  File "/home/guillaumeminet/LISAI/src/lisai/training/trainers/base.py", line 465, in train
+    self.scheduler.step(val_loss)
+  File "/home/guillaumeminet/miniforge3/envs/lisai-cuda/lib/python3.10/site-packages/torch/optim/lr_scheduler.py", line 1336, in step
+    self._reduce_lr(epoch)
+  File "/home/guillaumeminet/miniforge3/envs/lisai-cuda/lib/python3.10/site-packages/torch/optim/lr_scheduler.py", line 1345, in _reduce_lr
+    new_lr = max(old_lr * self.factor, self.min_lrs[i])
+TypeError: '>' not supported between instances of 'str' and 'float'
+lisai: INFO : Saved loss plot image: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon_00/loss_plot.png
+Traceback (most recent call last):
+  File "/home/guillaumeminet/miniforge3/envs/lisai-cuda/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/guillaumeminet/miniforge3/envs/lisai-cuda/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/home/guillaumeminet/LISAI/src/lisai/__main__.py", line 7, in <module>
+    raise SystemExit(main())
+  File "/home/guillaumeminet/LISAI/src/lisai/cli.py", line 36, in main
+    return args.handler(args)
+  File "/home/guillaumeminet/LISAI/src/lisai/training/cli.py", line 128, in <lambda>
+    parser.set_defaults(handler=lambda args, p=parser: run_from_args(args, p))
+  File "/home/guillaumeminet/LISAI/src/lisai/training/cli.py", line 96, in run_from_args
+    run_training(resolve_config_path(config_arg))
+  File "/home/guillaumeminet/LISAI/src/lisai/training/run_training.py", line 319, in run_training
+    return run_training_from_resolved_config(resolve_config(config_path))
+  File "/home/guillaumeminet/LISAI/src/lisai/training/run_training.py", line 382, in run_training_from_resolved_config
+    outcome = _normalize_training_outcome(trainer.train())
+  File "/home/guillaumeminet/LISAI/src/lisai/training/trainers/base.py", line 465, in train
+    self.scheduler.step(val_loss)
+  File "/home/guillaumeminet/miniforge3/envs/lisai-cuda/lib/python3.10/site-packages/torch/optim/lr_scheduler.py", line 1336, in step
+    self._reduce_lr(epoch)
+  File "/home/guillaumeminet/miniforge3/envs/lisai-cuda/lib/python3.10/site-packages/torch/optim/lr_scheduler.py", line 1345, in _reduce_lr
+    new_lr = max(old_lr * self.factor, self.min_lrs[i])
+TypeError: '>' not supported between instances of 'str' and 'float'

@@ -1,0 +1,25 @@
+lisai: INFO : Training Initialization: UnetRcan_clip_charEdge_recon2_registered_CABskipcon_00
+lisai: INFO : Saving to: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/UnetRcan_clip_charEdge_recon2_registered_CABskipcon_00
+lisai.data_prep: INFO : 1338/6804 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : 0/16 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : Training patches: (5466, 1, 64, 64), Validation patches: (16, 1, 256, 256)
+lisai: INFO : Model initialized: UNetRCAN
+lisai: INFO : Starting Training...
+lisai: INFO : epoch 1/100: train_loss=0.678866 val_loss=1.647609
+lisai: INFO : epoch 1: Best model saved with best_val = 1.647608995437622.
+lisai: INFO : epoch 2/100: train_loss=0.572991 val_loss=1.649783
+lisai: INFO : epoch 3/100: train_loss=0.556671 val_loss=1.639975
+lisai: INFO : epoch 3: Best model saved with best_val = 1.6399751901626587.
+lisai: INFO : epoch 4/100: train_loss=0.554307 val_loss=1.646192
+lisai: INFO : epoch 5/100: train_loss=0.546816 val_loss=1.622925
+lisai: INFO : epoch 5: Best model saved with best_val = 1.6229249238967896.
+lisai: INFO : epoch 6/100: train_loss=0.547169 val_loss=1.622128
+lisai: INFO : epoch 6: Best model saved with best_val = 1.6221283674240112.
+lisai: INFO : epoch 7/100: train_loss=0.543726 val_loss=1.623511
+lisai: INFO : epoch 8/100: train_loss=0.542509 val_loss=1.614594
+lisai: INFO : epoch 8: Best model saved with best_val = 1.614593505859375.
+lisai: INFO : Training manually stopped during epoch 9.
+Model perf: best_val_loss: 1.614593505859375 - current_train_loss: 0.5425087976873967 - current_val_loss: 1.614593505859375.
+
+lisai: INFO : Saved loss plot image: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/UnetRcan_clip_charEdge_recon2_registered_CABskipcon_00/loss_plot.png
+Training interrupted. Run evaluation now using 'post_training'? [y/N]: 

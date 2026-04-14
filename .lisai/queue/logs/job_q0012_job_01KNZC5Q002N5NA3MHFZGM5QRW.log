@@ -1,0 +1,57 @@
+lisai: INFO : Training Initialization: CARE_clip_mse_recon2_03
+lisai: INFO : Saving to: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_03
+lisai.data_prep: INFO : 88/1701 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : 0/12 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : Training patches: (1613, 1, 128, 128), Validation patches: (12, 1, 512, 512)
+lisai: INFO : Model initialized: UNet_PosEncod
+lisai: INFO : Starting Training...
+lisai: INFO : epoch 1/100: train_loss=0.443949 val_loss=0.365582
+lisai: INFO : epoch 1: Best model saved with best_val = 0.36558157950639725.
+lisai: INFO : epoch 2/100: train_loss=0.247190 val_loss=0.370140
+lisai: INFO : epoch 3/100: train_loss=0.223236 val_loss=0.374847
+lisai: INFO : epoch 4/100: train_loss=0.213114 val_loss=0.376736
+lisai: INFO : epoch 5/100: train_loss=0.208798 val_loss=0.375427
+lisai: INFO : epoch 6/100: train_loss=0.208352 val_loss=0.378624
+lisai: INFO : epoch 7/100: train_loss=0.202923 val_loss=0.372191
+lisai: INFO : epoch 8/100: train_loss=0.201856 val_loss=0.390416
+lisai: INFO : epoch 9/100: train_loss=0.201192 val_loss=0.376698
+lisai: INFO : epoch 10/100: train_loss=0.201820 val_loss=0.369980
+lisai: INFO : epoch 11/100: train_loss=0.200154 val_loss=0.375245
+lisai: INFO : epoch 12/100: train_loss=0.194726 val_loss=0.366880
+lisai: INFO : epoch 13/100: train_loss=0.189682 val_loss=0.375505
+lisai: INFO : epoch 14/100: train_loss=0.188643 val_loss=0.376442
+lisai: INFO : epoch 15/100: train_loss=0.188102 val_loss=0.375920
+lisai: INFO : epoch 16/100: train_loss=0.187841 val_loss=0.372121
+lisai: INFO : epoch 17/100: train_loss=0.188132 val_loss=0.374677
+lisai: INFO : epoch 18/100: train_loss=0.186984 val_loss=0.372029
+lisai: INFO : epoch 19/100: train_loss=0.187508 val_loss=0.372496
+lisai: INFO : epoch 20/100: train_loss=0.186851 val_loss=0.377547
+lisai: INFO : epoch 21/100: train_loss=0.188092 val_loss=0.372623
+lisai: INFO : epoch 22/100: train_loss=0.186929 val_loss=0.374179
+lisai: INFO : epoch 23/100: train_loss=0.186350 val_loss=0.373528
+lisai: INFO : epoch 24/100: train_loss=0.186424 val_loss=0.372929
+lisai: INFO : epoch 25/100: train_loss=0.185490 val_loss=0.372992
+lisai: INFO : epoch 26/100: train_loss=0.185626 val_loss=0.373029
+lisai: INFO : epoch 27/100: train_loss=0.185626 val_loss=0.373230
+lisai: INFO : epoch 28/100: train_loss=0.185712 val_loss=0.372870
+lisai: INFO : epoch 29/100: train_loss=0.185902 val_loss=0.373002
+lisai: INFO : epoch 30/100: train_loss=0.185111 val_loss=0.373161
+lisai: INFO : epoch 31/100: train_loss=0.185562 val_loss=0.372992
+lisai: INFO : Auto-stop triggered: metric=val_loss, patience=30, best=0.365582.
+lisai: INFO : Finished training: 31/100 epochs.
+Model perf: best_val_loss: 0.36558157950639725 - current_val_loss: 0.372992143034935.
+
+lisai: INFO : Saved loss plot image: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_03/loss_plot.png
+/home/guillaumeminet/LISAI/src/lisai/evaluation/runtime.py:133: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  loaded = torch.load(checkpoint_path, map_location=device)
+Found upsampling factor to be: 1
+
+Image 0 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/4 [00:00<?, ?it/s]Tiling:  25%|██▌       | 1/4 [00:00<00:00,  3.32it/s]Tiling:  75%|███████▌  | 3/4 [00:00<00:00,  7.11it/s]Tiling: 100%|██████████| 4/4 [00:00<00:00,  7.22it/s]
+Image 1 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/4 [00:00<?, ?it/s]Tiling:  50%|█████     | 2/4 [00:00<00:00, 12.03it/s]Tiling: 100%|██████████| 4/4 [00:00<00:00, 11.90it/s]Tiling: 100%|██████████| 4/4 [00:00<00:00, 11.91it/s]
+Image 2 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/4 [00:00<?, ?it/s]Tiling:  50%|█████     | 2/4 [00:00<00:00, 11.93it/s]Tiling: 100%|██████████| 4/4 [00:00<00:00, 11.85it/s]Tiling: 100%|██████████| 4/4 [00:00<00:00, 11.86it/s]

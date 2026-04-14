@@ -1,0 +1,59 @@
+lisai: INFO : Training Initialization: CARE_clip_mse_recon2_01
+lisai: INFO : Saving to: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_01
+lisai.data_prep: INFO : 88/1701 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : 0/12 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : Training patches: (12904, 1, 128, 128), Validation patches: (12, 1, 512, 512)
+lisai: INFO : Model initialized: UNet_PosEncod
+lisai: INFO : Starting Training...
+lisai: INFO : epoch 1/100: train_loss=0.260583 val_loss=0.368325
+lisai: INFO : epoch 1: Best model saved with best_val = 0.36832475662231445.
+lisai: INFO : epoch 2/100: train_loss=0.197133 val_loss=0.365631
+lisai: INFO : epoch 2: Best model saved with best_val = 0.3656313233077526.
+lisai: INFO : epoch 3/100: train_loss=0.194749 val_loss=0.382350
+lisai: INFO : epoch 4/100: train_loss=0.188021 val_loss=0.378085
+lisai: INFO : epoch 5/100: train_loss=0.188949 val_loss=0.369572
+lisai: INFO : epoch 6/100: train_loss=0.185881 val_loss=0.373762
+lisai: INFO : epoch 7/100: train_loss=0.182681 val_loss=0.366866
+lisai: INFO : epoch 8/100: train_loss=0.183276 val_loss=0.371243
+lisai: INFO : epoch 9/100: train_loss=0.180431 val_loss=0.378591
+lisai: INFO : epoch 10/100: train_loss=0.180930 val_loss=0.375318
+lisai: INFO : epoch 11/100: train_loss=0.177733 val_loss=0.373770
+lisai: INFO : epoch 12/100: train_loss=0.176203 val_loss=0.371047
+lisai: INFO : epoch 13/100: train_loss=0.179589 val_loss=0.375337
+lisai: INFO : epoch 14/100: train_loss=0.174544 val_loss=0.373543
+lisai: INFO : epoch 15/100: train_loss=0.173136 val_loss=0.373889
+lisai: INFO : epoch 16/100: train_loss=0.172631 val_loss=0.373557
+lisai: INFO : epoch 17/100: train_loss=0.172088 val_loss=0.373016
+lisai: INFO : epoch 18/100: train_loss=0.171806 val_loss=0.375149
+lisai: INFO : epoch 19/100: train_loss=0.171539 val_loss=0.373944
+lisai: INFO : epoch 20/100: train_loss=0.171236 val_loss=0.374931
+lisai: INFO : epoch 21/100: train_loss=0.170931 val_loss=0.371892
+lisai: INFO : epoch 22/100: train_loss=0.171328 val_loss=0.372893
+lisai: INFO : epoch 23/100: train_loss=0.170869 val_loss=0.373702
+lisai: INFO : epoch 24/100: train_loss=0.170441 val_loss=0.372558
+lisai: INFO : epoch 25/100: train_loss=0.169970 val_loss=0.373904
+lisai: INFO : epoch 26/100: train_loss=0.169805 val_loss=0.372840
+lisai: INFO : epoch 27/100: train_loss=0.169784 val_loss=0.373018
+lisai: INFO : epoch 28/100: train_loss=0.169783 val_loss=0.372662
+lisai: INFO : epoch 29/100: train_loss=0.169724 val_loss=0.373846
+lisai: INFO : epoch 30/100: train_loss=0.169736 val_loss=0.373807
+lisai: INFO : epoch 31/100: train_loss=0.169663 val_loss=0.372696
+lisai: INFO : epoch 32/100: train_loss=0.169620 val_loss=0.373361
+lisai: INFO : Auto-stop triggered: metric=val_loss, patience=30, best=0.365631.
+lisai: INFO : Finished training: 32/100 epochs.
+Model perf: best_val_loss: 0.3656313233077526 - current_val_loss: 0.3733614906668663.
+
+lisai: INFO : Saved loss plot image: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_01/loss_plot.png
+/home/guillaumeminet/LISAI/src/lisai/evaluation/runtime.py:133: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  loaded = torch.load(checkpoint_path, map_location=device)
+Found upsampling factor to be: 1
+
+Image 0 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/4 [00:00<?, ?it/s]Tiling:  25%|██▌       | 1/4 [00:00<00:00,  3.04it/s]Tiling:  75%|███████▌  | 3/4 [00:00<00:00,  6.70it/s]Tiling: 100%|██████████| 4/4 [00:00<00:00,  6.81it/s]
+Image 1 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/4 [00:00<?, ?it/s]Tiling:  50%|█████     | 2/4 [00:00<00:00, 11.67it/s]Tiling: 100%|██████████| 4/4 [00:00<00:00, 11.65it/s]Tiling: 100%|██████████| 4/4 [00:00<00:00, 11.64it/s]
+Image 2 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/4 [00:00<?, ?it/s]Tiling:  50%|█████     | 2/4 [00:00<00:00, 11.74it/s]Tiling: 100%|██████████| 4/4 [00:00<00:00, 11.69it/s]Tiling: 100%|██████████| 4/4 [00:00<00:00, 11.69it/s]

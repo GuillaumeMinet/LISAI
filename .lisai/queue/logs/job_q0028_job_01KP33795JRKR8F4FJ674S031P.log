@@ -1,0 +1,61 @@
+lisai: INFO : Training Initialization: UnetRcan_clip_charEdge_recon2_01
+lisai: INFO : Saving to: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/UnetRcan_clip_charEdge_recon2_01
+lisai.data_prep: INFO : 88/1701 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : 0/12 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : Training patches: (1613, 1, 128, 128), Validation patches: (12, 1, 512, 512)
+lisai: INFO : Model initialized: UNetRCAN
+lisai: INFO : Warmup enabled: steps=500, start_factor=0.1.
+lisai: INFO : Starting Training...
+lisai: INFO : epoch 1/100: train_loss=1.494587 val_loss=3.583209
+lisai: INFO : epoch 1: Best model saved with best_val = 3.5832093954086304.
+lisai: INFO : epoch 2/100: train_loss=1.056673 val_loss=3.506229
+lisai: INFO : epoch 2: Best model saved with best_val = 3.5062286257743835.
+lisai: INFO : epoch 3/100: train_loss=0.925696 val_loss=3.532235
+lisai: INFO : epoch 4/100: train_loss=0.853061 val_loss=3.501626
+lisai: INFO : epoch 4: Best model saved with best_val = 3.5016262531280518.
+lisai: INFO : epoch 5/100: train_loss=0.818084 val_loss=3.649706
+lisai: INFO : epoch 6/100: train_loss=0.789525 val_loss=3.508040
+lisai: INFO : epoch 7/100: train_loss=0.767021 val_loss=3.581855
+lisai: INFO : epoch 8/100: train_loss=0.759600 val_loss=3.556985
+lisai: INFO : epoch 9/100: train_loss=0.744502 val_loss=3.483104
+lisai: INFO : epoch 9: Best model saved with best_val = 3.4831044673919678.
+lisai: INFO : epoch 10/100: train_loss=0.734361 val_loss=3.491328
+lisai: INFO : epoch 11/100: train_loss=0.740919 val_loss=3.471613
+lisai: INFO : epoch 11: Best model saved with best_val = 3.471613347530365.
+lisai: INFO : epoch 12/100: train_loss=0.727679 val_loss=3.482147
+lisai: INFO : epoch 13/100: train_loss=0.720702 val_loss=3.556617
+lisai: INFO : epoch 14/100: train_loss=0.717132 val_loss=3.510159
+lisai: INFO : epoch 15/100: train_loss=0.706222 val_loss=3.472539
+lisai: INFO : epoch 16/100: train_loss=0.707983 val_loss=3.593413
+lisai: INFO : epoch 17/100: train_loss=0.708662 val_loss=3.697880
+lisai: INFO : epoch 18/100: train_loss=0.715411 val_loss=3.549370
+lisai: INFO : epoch 19/100: train_loss=0.704408 val_loss=3.480563
+lisai: INFO : epoch 20/100: train_loss=0.701730 val_loss=3.448755
+lisai: INFO : epoch 20: Best model saved with best_val = 3.4487550854682922.
+lisai: INFO : epoch 21/100: train_loss=0.701134 val_loss=3.491033
+lisai: INFO : epoch 22/100: train_loss=0.690532 val_loss=3.474344
+lisai: INFO : epoch 23/100: train_loss=0.698138 val_loss=3.554729
+lisai: INFO : epoch 24/100: train_loss=0.698790 val_loss=3.457596
+lisai: INFO : epoch 25/100: train_loss=0.692197 val_loss=3.490509
+lisai: INFO : epoch 26/100: train_loss=0.689076 val_loss=3.536672
+lisai: INFO : epoch 27/100: train_loss=0.687558 val_loss=3.492275
+lisai: INFO : epoch 28/100: train_loss=0.690558 val_loss=3.539819
+lisai: INFO : epoch 29/100: train_loss=0.692739 val_loss=3.488476
+lisai: INFO : epoch 30/100: train_loss=0.687594 val_loss=3.485904
+lisai: INFO : epoch 31/100: train_loss=0.684000 val_loss=3.493834
+lisai: INFO : epoch 32/100: train_loss=0.682579 val_loss=3.488716
+lisai: INFO : epoch 33/100: train_loss=0.681875 val_loss=3.479654
+lisai: INFO : epoch 34/100: train_loss=0.682105 val_loss=3.480973
+lisai: INFO : epoch 35/100: train_loss=0.681122 val_loss=3.493985
+lisai: INFO : epoch 36/100: train_loss=0.683739 val_loss=3.489588
+lisai: INFO : epoch 37/100: train_loss=0.680581 val_loss=3.487646
+lisai: INFO : epoch 38/100: train_loss=0.681069 val_loss=3.492516
+lisai: INFO : epoch 39/100: train_loss=0.680739 val_loss=3.491575
+lisai: INFO : epoch 40/100: train_loss=0.683250 val_loss=3.470632
+lisai: INFO : epoch 41/100: train_loss=0.682641 val_loss=3.484508
+lisai: INFO : epoch 42/100: train_loss=0.681067 val_loss=3.476101
+lisai: INFO : Training manually stopped during epoch 43.
+Model perf: best_val_loss: 3.4487550854682922 - current_train_loss: 0.6810665233890609 - current_val_loss: 3.47610080242157.
+
+lisai: INFO : Saved loss plot image: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/UnetRcan_clip_charEdge_recon2_01/loss_plot.png
+Training interrupted. Run evaluation now using 'post_training'? [y/N]: 

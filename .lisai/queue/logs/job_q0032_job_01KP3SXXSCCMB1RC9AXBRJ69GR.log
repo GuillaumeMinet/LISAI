@@ -1,0 +1,129 @@
+lisai: INFO : Training Initialization: UnetRcan_clip_charEdge_recon2_registered_01
+lisai: INFO : Saving to: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/UnetRcan_clip_charEdge_recon2_registered_01
+lisai.data_prep: INFO : 1338/6804 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : 0/16 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : Training patches: (5466, 1, 64, 64), Validation patches: (16, 1, 256, 256)
+lisai: INFO : Model initialized: UNetRCAN
+lisai: INFO : Starting Training...
+lisai: INFO : epoch 1/100: train_loss=0.686513 val_loss=1.640400
+lisai: INFO : epoch 1: Best model saved with best_val = 1.6404002904891968.
+lisai: INFO : epoch 2/100: train_loss=0.573410 val_loss=1.643029
+lisai: INFO : epoch 3/100: train_loss=0.553904 val_loss=1.632041
+lisai: INFO : epoch 3: Best model saved with best_val = 1.6320412158966064.
+lisai: INFO : epoch 4/100: train_loss=0.550039 val_loss=1.631906
+lisai: INFO : epoch 4: Best model saved with best_val = 1.6319055557250977.
+lisai: INFO : epoch 5/100: train_loss=0.546137 val_loss=1.621783
+lisai: INFO : epoch 5: Best model saved with best_val = 1.621782898902893.
+lisai: INFO : epoch 6/100: train_loss=0.545927 val_loss=1.617300
+lisai: INFO : epoch 6: Best model saved with best_val = 1.6173003911972046.
+lisai: INFO : epoch 7/100: train_loss=0.543357 val_loss=1.615923
+lisai: INFO : epoch 7: Best model saved with best_val = 1.6159228086471558.
+lisai: INFO : epoch 8/100: train_loss=0.541137 val_loss=1.618703
+lisai: INFO : epoch 9/100: train_loss=0.539171 val_loss=1.614543
+lisai: INFO : epoch 9: Best model saved with best_val = 1.6145427227020264.
+lisai: INFO : epoch 10/100: train_loss=0.538358 val_loss=1.612528
+lisai: INFO : epoch 10: Best model saved with best_val = 1.6125279664993286.
+lisai: INFO : epoch 11/100: train_loss=0.539153 val_loss=1.622985
+lisai: INFO : epoch 12/100: train_loss=0.538911 val_loss=1.617962
+lisai: INFO : epoch 13/100: train_loss=0.537359 val_loss=1.609099
+lisai: INFO : epoch 13: Best model saved with best_val = 1.6090987920761108.
+lisai: INFO : epoch 14/100: train_loss=0.535472 val_loss=1.614078
+lisai: INFO : epoch 15/100: train_loss=0.535853 val_loss=1.606799
+lisai: INFO : epoch 15: Best model saved with best_val = 1.6067994832992554.
+lisai: INFO : epoch 16/100: train_loss=0.535274 val_loss=1.605077
+lisai: INFO : epoch 16: Best model saved with best_val = 1.605076789855957.
+lisai: INFO : epoch 17/100: train_loss=0.534866 val_loss=1.605867
+lisai: INFO : epoch 18/100: train_loss=0.533881 val_loss=1.607351
+lisai: INFO : epoch 19/100: train_loss=0.532776 val_loss=1.606684
+lisai: INFO : epoch 20/100: train_loss=0.532292 val_loss=1.603069
+lisai: INFO : epoch 20: Best model saved with best_val = 1.6030690670013428.
+lisai: INFO : epoch 21/100: train_loss=0.533116 val_loss=1.604812
+lisai: INFO : epoch 22/100: train_loss=0.530995 val_loss=1.604206
+lisai: INFO : epoch 23/100: train_loss=0.531092 val_loss=1.610393
+lisai: INFO : epoch 24/100: train_loss=0.530753 val_loss=1.605792
+lisai: INFO : epoch 25/100: train_loss=0.528580 val_loss=1.598841
+lisai: INFO : epoch 25: Best model saved with best_val = 1.5988410711288452.
+lisai: INFO : epoch 26/100: train_loss=0.529347 val_loss=1.596867
+lisai: INFO : epoch 26: Best model saved with best_val = 1.5968672037124634.
+lisai: INFO : epoch 27/100: train_loss=0.528354 val_loss=1.602399
+lisai: INFO : epoch 28/100: train_loss=0.528412 val_loss=1.604326
+lisai: INFO : epoch 29/100: train_loss=0.528207 val_loss=1.608122
+lisai: INFO : epoch 30/100: train_loss=0.531494 val_loss=1.598522
+lisai: INFO : epoch 31/100: train_loss=0.527859 val_loss=1.608151
+lisai: INFO : epoch 32/100: train_loss=0.527157 val_loss=1.598830
+lisai: INFO : epoch 33/100: train_loss=0.523686 val_loss=1.600677
+lisai: INFO : epoch 34/100: train_loss=0.525561 val_loss=1.611584
+lisai: INFO : epoch 35/100: train_loss=0.521543 val_loss=1.594942
+lisai: INFO : epoch 35: Best model saved with best_val = 1.5949424505233765.
+lisai: INFO : epoch 36/100: train_loss=0.520696 val_loss=1.596464
+lisai: INFO : epoch 37/100: train_loss=0.520373 val_loss=1.591086
+lisai: INFO : epoch 37: Best model saved with best_val = 1.59108567237854.
+lisai: INFO : epoch 38/100: train_loss=0.520150 val_loss=1.609767
+lisai: INFO : epoch 39/100: train_loss=0.522766 val_loss=1.597560
+lisai: INFO : epoch 40/100: train_loss=0.517575 val_loss=1.596023
+lisai: INFO : epoch 41/100: train_loss=0.516164 val_loss=1.601041
+lisai: INFO : epoch 42/100: train_loss=0.517665 val_loss=1.592406
+lisai: INFO : epoch 43/100: train_loss=0.514160 val_loss=1.591563
+lisai: INFO : epoch 44/100: train_loss=0.514372 val_loss=1.593907
+lisai: INFO : epoch 45/100: train_loss=0.512662 val_loss=1.586121
+lisai: INFO : epoch 45: Best model saved with best_val = 1.586120843887329.
+lisai: INFO : epoch 46/100: train_loss=0.511178 val_loss=1.591459
+lisai: INFO : epoch 47/100: train_loss=0.512043 val_loss=1.595207
+lisai: INFO : epoch 48/100: train_loss=0.512460 val_loss=1.599651
+lisai: INFO : epoch 49/100: train_loss=0.511763 val_loss=1.592645
+lisai: INFO : epoch 50/100: train_loss=0.511006 val_loss=1.590812
+lisai: INFO : epoch 51/100: train_loss=0.509076 val_loss=1.592729
+lisai: INFO : epoch 52/100: train_loss=0.507547 val_loss=1.593114
+lisai: INFO : epoch 53/100: train_loss=0.508263 val_loss=1.591561
+lisai: INFO : epoch 54/100: train_loss=0.505392 val_loss=1.590527
+lisai: INFO : epoch 55/100: train_loss=0.506013 val_loss=1.590321
+lisai: INFO : epoch 56/100: train_loss=0.503614 val_loss=1.589101
+lisai: INFO : epoch 57/100: train_loss=0.502299 val_loss=1.598962
+lisai: INFO : epoch 58/100: train_loss=0.502680 val_loss=1.588160
+lisai: INFO : epoch 59/100: train_loss=0.502731 val_loss=1.592754
+lisai: INFO : epoch 60/100: train_loss=0.501450 val_loss=1.592821
+lisai: INFO : epoch 61/100: train_loss=0.499498 val_loss=1.596954
+lisai: INFO : epoch 62/100: train_loss=0.498382 val_loss=1.593460
+lisai: INFO : epoch 63/100: train_loss=0.496968 val_loss=1.589240
+lisai: INFO : epoch 64/100: train_loss=0.498042 val_loss=1.596277
+lisai: INFO : epoch 65/100: train_loss=0.495355 val_loss=1.589311
+lisai: INFO : epoch 66/100: train_loss=0.494491 val_loss=1.608090
+lisai: INFO : epoch 67/100: train_loss=0.492378 val_loss=1.598885
+lisai: INFO : epoch 68/100: train_loss=0.494946 val_loss=1.598560
+lisai: INFO : epoch 69/100: train_loss=0.491127 val_loss=1.590848
+lisai: INFO : epoch 70/100: train_loss=0.488124 val_loss=1.588693
+lisai: INFO : epoch 71/100: train_loss=0.487193 val_loss=1.586874
+lisai: INFO : epoch 72/100: train_loss=0.485878 val_loss=1.600321
+lisai: INFO : epoch 73/100: train_loss=0.484666 val_loss=1.595359
+lisai: INFO : epoch 74/100: train_loss=0.485053 val_loss=1.587630
+lisai: INFO : epoch 75/100: train_loss=0.483444 val_loss=1.593123
+lisai: INFO : Auto-stop triggered: metric=val_loss, patience=30, best=1.586121.
+lisai: INFO : Finished training: 75/100 epochs.
+Model perf: best_val_loss: 1.586120843887329 - current_val_loss: 1.5931233167648315.
+
+lisai: INFO : Saved loss plot image: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/UnetRcan_clip_charEdge_recon2_registered_01/loss_plot.png
+/home/guillaumeminet/LISAI/src/lisai/evaluation/runtime.py:151: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  loaded = torch.load(checkpoint_path, map_location=device)
+best_or_last='both': running evaluation for checkpoints ['best', 'last'].
+Found upsampling factor to be: 1
+
+Image 0 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/9 [00:00<?, ?it/s]Tiling:  11%|█         | 1/9 [00:00<00:05,  1.56it/s]Tiling:  22%|██▏       | 2/9 [00:01<00:03,  1.99it/s]Tiling:  33%|███▎      | 3/9 [00:01<00:02,  2.17it/s]Tiling:  44%|████▍     | 4/9 [00:01<00:02,  2.27it/s]Tiling:  56%|█████▌    | 5/9 [00:02<00:01,  2.32it/s]Tiling:  67%|██████▋   | 6/9 [00:02<00:01,  2.35it/s]Tiling:  78%|███████▊  | 7/9 [00:03<00:00,  2.38it/s]Tiling:  89%|████████▉ | 8/9 [00:03<00:00,  2.40it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.42it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.29it/s]
+Image 1 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/9 [00:00<?, ?it/s]Tiling:  11%|█         | 1/9 [00:00<00:03,  2.45it/s]Tiling:  22%|██▏       | 2/9 [00:00<00:02,  2.43it/s]Tiling:  33%|███▎      | 3/9 [00:01<00:02,  2.41it/s]Tiling:  44%|████▍     | 4/9 [00:01<00:02,  2.42it/s]Tiling:  56%|█████▌    | 5/9 [00:02<00:01,  2.43it/s]Tiling:  67%|██████▋   | 6/9 [00:02<00:01,  2.43it/s]Tiling:  78%|███████▊  | 7/9 [00:02<00:00,  2.43it/s]Tiling:  89%|████████▉ | 8/9 [00:03<00:00,  2.43it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.42it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.42it/s]
+Image 2 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/9 [00:00<?, ?it/s]Tiling:  11%|█         | 1/9 [00:00<00:03,  2.45it/s]Tiling:  22%|██▏       | 2/9 [00:00<00:02,  2.45it/s]Tiling:  33%|███▎      | 3/9 [00:01<00:02,  2.44it/s]Tiling:  44%|████▍     | 4/9 [00:01<00:02,  2.43it/s]Tiling:  56%|█████▌    | 5/9 [00:02<00:01,  2.43it/s]Tiling:  67%|██████▋   | 6/9 [00:02<00:01,  2.41it/s]Tiling:  78%|███████▊  | 7/9 [00:02<00:00,  2.40it/s]Tiling:  89%|████████▉ | 8/9 [00:03<00:00,  2.40it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.41it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.42it/s]
+Found upsampling factor to be: 1
+
+Image 0 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/9 [00:00<?, ?it/s]Tiling:  11%|█         | 1/9 [00:00<00:04,  1.94it/s]Tiling:  22%|██▏       | 2/9 [00:00<00:03,  2.21it/s]Tiling:  33%|███▎      | 3/9 [00:01<00:02,  2.31it/s]Tiling:  44%|████▍     | 4/9 [00:01<00:02,  2.35it/s]Tiling:  56%|█████▌    | 5/9 [00:02<00:01,  2.36it/s]Tiling:  67%|██████▋   | 6/9 [00:02<00:01,  2.36it/s]Tiling:  78%|███████▊  | 7/9 [00:02<00:00,  2.39it/s]Tiling:  89%|████████▉ | 8/9 [00:03<00:00,  2.42it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.44it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.37it/s]
+Image 1 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/9 [00:00<?, ?it/s]Tiling:  11%|█         | 1/9 [00:00<00:03,  2.48it/s]Tiling:  22%|██▏       | 2/9 [00:00<00:02,  2.47it/s]Tiling:  33%|███▎      | 3/9 [00:01<00:02,  2.44it/s]Tiling:  44%|████▍     | 4/9 [00:01<00:02,  2.42it/s]Tiling:  56%|█████▌    | 5/9 [00:02<00:01,  2.41it/s]Tiling:  67%|██████▋   | 6/9 [00:02<00:01,  2.41it/s]Tiling:  78%|███████▊  | 7/9 [00:02<00:00,  2.40it/s]Tiling:  89%|████████▉ | 8/9 [00:03<00:00,  2.38it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.37it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.40it/s]
+Image 2 / 3
+Input shape: torch.Size([1, 1, 1200, 1200])
+Tiling:   0%|          | 0/9 [00:00<?, ?it/s]Tiling:  11%|█         | 1/9 [00:00<00:03,  2.38it/s]Tiling:  22%|██▏       | 2/9 [00:00<00:02,  2.36it/s]Tiling:  33%|███▎      | 3/9 [00:01<00:02,  2.35it/s]Tiling:  44%|████▍     | 4/9 [00:01<00:02,  2.34it/s]Tiling:  56%|█████▌    | 5/9 [00:02<00:01,  2.34it/s]Tiling:  67%|██████▋   | 6/9 [00:02<00:01,  2.33it/s]Tiling:  78%|███████▊  | 7/9 [00:02<00:00,  2.32it/s]Tiling:  89%|████████▉ | 8/9 [00:03<00:00,  2.30it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.30it/s]Tiling: 100%|██████████| 9/9 [00:03<00:00,  2.32it/s]

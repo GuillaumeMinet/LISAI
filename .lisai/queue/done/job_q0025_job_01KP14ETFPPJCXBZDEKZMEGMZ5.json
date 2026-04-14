@@ -1,0 +1,32 @@
+{
+  "config": "/home/guillaumeminet/LISAI/.lisai/queue/submitted_configs/UnetRcan_1776007211503677490.yml",
+  "dataset": "vim_fixed",
+  "device": "cuda:0",
+  "error": null,
+  "exit_code": 0,
+  "finished_at": "2026-04-12T19:44:36Z",
+  "job_id": "job_01KP14ETFPPJCXBZDEKZMEGMZ5",
+  "launched_at": "2026-04-12T15:20:12Z",
+  "log_path": "/home/guillaumeminet/LISAI/.lisai/queue/logs/job_q0025_job_01KP14ETFPPJCXBZDEKZMEGMZ5.log",
+  "model_subfolder": "Denoising",
+  "pid": 207377,
+  "priority": "normal",
+  "resource_class": "medium",
+  "run_id": "01KP14EWV6C5GY7WBKR94BVP81",
+  "run_name": "UnetRcan_clip_charEdge",
+  "schema_version": 1,
+  "selector": "q0025",
+  "source_config": "/home/guillaumeminet/LISAI/configs/training/UnetRcan.yml",
+  "status": "done",
+  "submitted_at": "2026-04-12T15:20:11Z",
+  "training_signature": {
+    "architecture": "unet_rcan",
+    "input_channels": 1,
+    "train_batch_size": 8,
+    "train_patch_size": 128,
+    "trainable_params": null,
+    "upsampling_factor": 1,
+    "val_patch_size": 512
+  },
+  "updated_at": "2026-04-12T19:44:36Z"
+}

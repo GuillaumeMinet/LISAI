@@ -11,6 +11,7 @@ pipeline_cfg:
   gt_types: ["snr0","avg"]
   first_low_inp: true
   registration: true
+  gt_avg_n_frames: 3
 
 log:
   enabled: true

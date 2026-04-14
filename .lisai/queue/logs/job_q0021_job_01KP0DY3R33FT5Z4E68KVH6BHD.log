@@ -1,0 +1,163 @@
+lisai: INFO : Training Initialization: CARE_clip_mse_recon2_08
+lisai: INFO : Saving to: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_08
+lisai.data_prep: INFO : 397/1701 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : 0/12 removed patches, with threshold=0.1.
+lisai.data_prep: INFO : Training patches: (10432, 1, 128, 128), Validation patches: (12, 1, 512, 512)
+lisai: INFO : Model initialized: UNet_PosEncod
+lisai: INFO : Starting Training...
+lisai: INFO : epoch 1/100: train_loss=0.325132 val_loss=0.312805
+lisai: INFO : epoch 1: Best model saved with best_val = 0.3128052167594433.
+lisai: INFO : epoch 2/100: train_loss=0.223108 val_loss=0.325281
+lisai: INFO : epoch 3/100: train_loss=0.217871 val_loss=0.306266
+lisai: INFO : epoch 3: Best model saved with best_val = 0.30626557767391205.
+lisai: INFO : epoch 4/100: train_loss=0.211040 val_loss=0.331303
+lisai: INFO : epoch 5/100: train_loss=0.208144 val_loss=0.319423
+lisai: INFO : epoch 6/100: train_loss=0.203223 val_loss=0.326146
+lisai: INFO : epoch 7/100: train_loss=0.201674 val_loss=0.321462
+lisai: INFO : epoch 8/100: train_loss=0.201584 val_loss=0.317418
+lisai: INFO : epoch 9/100: train_loss=0.199927 val_loss=0.330517
+lisai: INFO : epoch 10/100: train_loss=0.196817 val_loss=0.313093
+lisai: INFO : epoch 11/100: train_loss=0.196788 val_loss=0.318289
+lisai: INFO : epoch 12/100: train_loss=0.195612 val_loss=0.307476
+lisai: INFO : epoch 13/100: train_loss=0.194013 val_loss=0.325960
+lisai: INFO : epoch 14/100: train_loss=0.193926 val_loss=0.318444
+lisai: INFO : epoch 15/100: train_loss=0.185357 val_loss=0.318628
+lisai: INFO : epoch 16/100: train_loss=0.184269 val_loss=0.316571
+lisai: INFO : epoch 17/100: train_loss=0.183730 val_loss=0.316147
+lisai: INFO : epoch 18/100: train_loss=0.183157 val_loss=0.315018
+lisai: INFO : epoch 19/100: train_loss=0.182892 val_loss=0.315573
+lisai: INFO : epoch 20/100: train_loss=0.182545 val_loss=0.314045
+lisai: INFO : epoch 21/100: train_loss=0.182159 val_loss=0.313268
+lisai: INFO : epoch 22/100: train_loss=0.181625 val_loss=0.312412
+lisai: INFO : epoch 23/100: train_loss=0.181481 val_loss=0.313669
+lisai: INFO : epoch 24/100: train_loss=0.180943 val_loss=0.318196
+lisai: INFO : epoch 25/100: train_loss=0.180485 val_loss=0.317336
+lisai: INFO : epoch 26/100: train_loss=0.179989 val_loss=0.315236
+lisai: INFO : epoch 27/100: train_loss=0.179606 val_loss=0.315068
+lisai: INFO : epoch 28/100: train_loss=0.179541 val_loss=0.315426
+lisai: INFO : epoch 29/100: train_loss=0.179468 val_loss=0.314825
+lisai: INFO : epoch 30/100: train_loss=0.179386 val_loss=0.315064
+lisai: INFO : epoch 31/100: train_loss=0.179358 val_loss=0.315249
+lisai: INFO : epoch 32/100: train_loss=0.179236 val_loss=0.315242
+lisai: INFO : epoch 33/100: train_loss=0.179209 val_loss=0.314563
+lisai: INFO : epoch 34/100: train_loss=0.179162 val_loss=0.315856
+lisai: INFO : epoch 35/100: train_loss=0.179134 val_loss=0.316718
+lisai: INFO : epoch 36/100: train_loss=0.179033 val_loss=0.316470
+lisai: INFO : epoch 37/100: train_loss=0.178920 val_loss=0.315323
+lisai: INFO : epoch 38/100: train_loss=0.178918 val_loss=0.315015
+lisai: INFO : epoch 39/100: train_loss=0.178913 val_loss=0.315653
+lisai: INFO : epoch 40/100: train_loss=0.178856 val_loss=0.315301
+lisai: INFO : epoch 41/100: train_loss=0.178929 val_loss=0.315143
+lisai: INFO : epoch 42/100: train_loss=0.178873 val_loss=0.314865
+lisai: INFO : epoch 43/100: train_loss=0.178840 val_loss=0.315310
+lisai: INFO : epoch 44/100: train_loss=0.178829 val_loss=0.314978
+lisai: INFO : epoch 45/100: train_loss=0.178871 val_loss=0.315322
+lisai: INFO : epoch 46/100: train_loss=0.178833 val_loss=0.315634
+lisai: INFO : epoch 47/100: train_loss=0.178785 val_loss=0.315232
+lisai: INFO : epoch 48/100: train_loss=0.178783 val_loss=0.315313
+lisai: INFO : epoch 49/100: train_loss=0.178761 val_loss=0.315337
+lisai: INFO : epoch 50/100: train_loss=0.178809 val_loss=0.315319
+lisai: INFO : epoch 51/100: train_loss=0.178743 val_loss=0.315355
+lisai: INFO : epoch 52/100: train_loss=0.178812 val_loss=0.315328
+lisai: INFO : epoch 53/100: train_loss=0.178789 val_loss=0.315317
+lisai: INFO : epoch 54/100: train_loss=0.178738 val_loss=0.315334
+lisai: INFO : epoch 55/100: train_loss=0.178866 val_loss=0.315358
+lisai: INFO : epoch 56/100: train_loss=0.178769 val_loss=0.315327
+lisai: INFO : epoch 57/100: train_loss=0.178797 val_loss=0.315326
+lisai: INFO : epoch 58/100: train_loss=0.178781 val_loss=0.315327
+lisai: INFO : epoch 59/100: train_loss=0.178811 val_loss=0.315322
+lisai: INFO : epoch 60/100: train_loss=0.178772 val_loss=0.315323
+lisai: INFO : epoch 61/100: train_loss=0.178816 val_loss=0.315319
+lisai: INFO : epoch 62/100: train_loss=0.178751 val_loss=0.315316
+lisai: INFO : epoch 63/100: train_loss=0.178732 val_loss=0.315320
+lisai: INFO : epoch 64/100: train_loss=0.178808 val_loss=0.315321
+lisai: INFO : epoch 65/100: train_loss=0.178776 val_loss=0.315318
+lisai: INFO : epoch 66/100: train_loss=0.178838 val_loss=0.315314
+lisai: INFO : epoch 67/100: train_loss=0.178788 val_loss=0.315313
+lisai: INFO : epoch 68/100: train_loss=0.178796 val_loss=0.315315
+lisai: INFO : epoch 69/100: train_loss=0.178786 val_loss=0.315313
+lisai: INFO : epoch 70/100: train_loss=0.178826 val_loss=0.315309
+lisai: INFO : epoch 71/100: train_loss=0.178804 val_loss=0.315311
+lisai: INFO : epoch 72/100: train_loss=0.178769 val_loss=0.315312
+lisai: INFO : epoch 73/100: train_loss=0.178760 val_loss=0.315310
+lisai: INFO : epoch 74/100: train_loss=0.178779 val_loss=0.315310
+lisai: INFO : epoch 75/100: train_loss=0.178804 val_loss=0.315311
+lisai: INFO : epoch 76/100: train_loss=0.178842 val_loss=0.315309
+lisai: INFO : epoch 77/100: train_loss=0.178764 val_loss=0.315310
+lisai: INFO : epoch 78/100: train_loss=0.178827 val_loss=0.315311
+lisai: INFO : epoch 79/100: train_loss=0.178768 val_loss=0.315314
+lisai: INFO : epoch 80/100: train_loss=0.178804 val_loss=0.315313
+lisai: INFO : epoch 81/100: train_loss=0.178784 val_loss=0.315314
+lisai: INFO : epoch 82/100: train_loss=0.178769 val_loss=0.315314
+lisai: INFO : epoch 83/100: train_loss=0.178779 val_loss=0.315314
+lisai: INFO : epoch 84/100: train_loss=0.178755 val_loss=0.315317
+lisai: INFO : epoch 85/100: train_loss=0.178749 val_loss=0.315317
+lisai: INFO : epoch 86/100: train_loss=0.178783 val_loss=0.315318
+lisai: INFO : epoch 87/100: train_loss=0.178819 val_loss=0.315319
+lisai: INFO : epoch 88/100: train_loss=0.178774 val_loss=0.315315
+lisai: INFO : epoch 89/100: train_loss=0.178740 val_loss=0.315317
+lisai: INFO : epoch 90/100: train_loss=0.178806 val_loss=0.315318
+lisai: INFO : epoch 91/100: train_loss=0.178795 val_loss=0.315318
+lisai: INFO : epoch 92/100: train_loss=0.178772 val_loss=0.315319
+lisai: INFO : epoch 93/100: train_loss=0.178788 val_loss=0.315317
+lisai: INFO : epoch 94/100: train_loss=0.178807 val_loss=0.315321
+lisai: INFO : epoch 95/100: train_loss=0.178749 val_loss=0.315322
+lisai: INFO : epoch 96/100: train_loss=0.178858 val_loss=0.315318
+lisai: INFO : epoch 97/100: train_loss=0.178788 val_loss=0.315316
+lisai: INFO : epoch 98/100: train_loss=0.178758 val_loss=0.315314
+lisai: INFO : epoch 99/100: train_loss=0.178793 val_loss=0.315317
+lisai: INFO : epoch 100/100: train_loss=0.178800 val_loss=0.315319
+lisai: INFO : Finished training: 100/100 epochs.
+Model perf: best_val_loss: 0.30626557767391205 - current_val_loss: 0.31531888991594315.
+
+lisai: INFO : Saved loss plot image: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_08/loss_plot.png
+lisai: ERROR : Post-training evaluation failed
+Traceback (most recent call last):
+  File "/home/guillaumeminet/LISAI/src/lisai/training/run_training.py", line 412, in run_training_from_resolved_config
+    _run_post_training_evaluation(cfg, runtime)
+  File "/home/guillaumeminet/LISAI/src/lisai/training/run_training.py", line 267, in _run_post_training_evaluation
+    run_evaluate(
+  File "/home/guillaumeminet/LISAI/src/lisai/evaluation/run_evaluate.py", line 92, in run_evaluate
+  File "/home/guillaumeminet/LISAI/src/lisai/evaluation/runtime.py", line 166, in initialize_runtime
+    raise ValueError(f"Unsupported checkpoint type at {checkpoint_path}: {type(loaded)}")
+  File "/home/guillaumeminet/LISAI/src/lisai/evaluation/runtime.py", line 81, in _resolve_checkpoint_path
+    kwargs = {
+  File "/home/guillaumeminet/LISAI/src/lisai/evaluation/runtime.py", line 68, in _iter_checkpoint_candidates
+    }
+  File "/home/guillaumeminet/LISAI/src/lisai/infra/paths/paths.py", line 168, in checkpoint_path
+    model_name = model_filename(
+  File "/home/guillaumeminet/LISAI/src/lisai/infra/paths/checkpoint_naming.py", line 27, in model_filename
+    raise ValueError("best_or_last must be 'best' or 'last'")
+ValueError: best_or_last must be 'best' or 'last'
+Traceback (most recent call last):
+  File "/home/guillaumeminet/miniforge3/envs/lisai-cuda/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/guillaumeminet/miniforge3/envs/lisai-cuda/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/home/guillaumeminet/LISAI/src/lisai/__main__.py", line 7, in <module>
+    raise SystemExit(main())
+  File "/home/guillaumeminet/LISAI/src/lisai/cli.py", line 36, in main
+    return args.handler(args)
+  File "/home/guillaumeminet/LISAI/src/lisai/training/cli.py", line 128, in <lambda>
+    parser.set_defaults(handler=lambda args, p=parser: run_from_args(args, p))
+  File "/home/guillaumeminet/LISAI/src/lisai/training/cli.py", line 96, in run_from_args
+    run_training(resolve_config_path(config_arg))
+  File "/home/guillaumeminet/LISAI/src/lisai/training/run_training.py", line 319, in run_training
+    return run_training_from_resolved_config(resolve_config(config_path))
+  File "/home/guillaumeminet/LISAI/src/lisai/training/run_training.py", line 412, in run_training_from_resolved_config
+    _run_post_training_evaluation(cfg, runtime)
+  File "/home/guillaumeminet/LISAI/src/lisai/training/run_training.py", line 267, in _run_post_training_evaluation
+    run_evaluate(
+  File "/home/guillaumeminet/LISAI/src/lisai/evaluation/run_evaluate.py", line 92, in run_evaluate
+    
+  File "/home/guillaumeminet/LISAI/src/lisai/evaluation/runtime.py", line 166, in initialize_runtime
+    raise ValueError(f"Unsupported checkpoint type at {checkpoint_path}: {type(loaded)}")
+  File "/home/guillaumeminet/LISAI/src/lisai/evaluation/runtime.py", line 81, in _resolve_checkpoint_path
+    kwargs = {
+  File "/home/guillaumeminet/LISAI/src/lisai/evaluation/runtime.py", line 68, in _iter_checkpoint_candidates
+    }
+  File "/home/guillaumeminet/LISAI/src/lisai/infra/paths/paths.py", line 168, in checkpoint_path
+    model_name = model_filename(
+  File "/home/guillaumeminet/LISAI/src/lisai/infra/paths/checkpoint_naming.py", line 27, in model_filename
+    raise ValueError("best_or_last must be 'best' or 'last'")
+ValueError: best_or_last must be 'best' or 'last'

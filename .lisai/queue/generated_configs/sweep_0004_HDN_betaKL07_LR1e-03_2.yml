@@ -1,0 +1,67 @@
+experiment:
+  mode: train
+  exp_name: HDN_betaKL07_LR1e-03
+  overwrite: false
+  post_training_inference: true
+routing:
+  data_subfolder: preprocess/recon
+  models_subfolder: HDN
+  tensorboard_subfolder: HDN
+  dataset_full_path: ''
+data:
+  dataset_name: Gag_noisy_timelapses
+  data_format: timelapse
+  canonical_load: true
+  prep_before: true
+  already_split: true
+  filters:
+  - tiff
+  - tif
+  paired: false
+  target: null
+  input: ''
+  timelapse_prm:
+    timelapse_max_frames: 10
+    shuffle: true
+  patch_size: 128
+  val_patch_size: 256
+  batch_size: 64
+  initial_crop: null
+  augmentation: false
+  patch_thresh: 0.1
+  select_on_gt: false
+normalization:
+  load_from_noise_model: true
+  norm_prm: null
+noise_model:
+  name: Noise0_SigN2Vavg_Clip-3_norm_bis
+model:
+  architecture: lvae
+  parameters:
+    num_latents: 5
+    z_dims: 32
+    blocks_per_layer: 6
+    batchnorm: true
+    free_bits: 1.0
+training:
+  n_epochs: 10
+  batch_size: 16
+  learning_rate: 0.001
+  betaKL: 0.6
+  val_loss_patience: 30
+  optimizer: Adam
+  scheduler: ReduceLROnPlateau
+  progress_bar: true
+  early_stop: false
+saving:
+  enabled: true
+  canonical_save: true
+  overwrite_best: true
+  save_last: true
+  entire_model: true
+  state_dict: true
+  validation_images: true
+  validation_freq: 10
+tensorboard:
+  enabled: false
+  validation_images: true

@@ -1,0 +1,14 @@
+lisai: INFO : Training Initialization: CARE_clip_mse_recon2_fullskipcon_00
+lisai: INFO : Saving to: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_fullskipcon_00
+lisai.data_prep: INFO : Training patches: (1701, 1, 128, 128), Validation patches: (12, 1, 512, 512)
+lisai: INFO : Model initialized: UNet_PosEncod
+lisai: INFO : Starting Training...
+lisai: INFO : epoch 1/100: train_loss=0.552039 val_loss=0.494969
+lisai: INFO : epoch 1: Best model saved with best_val = 0.49496889114379883.
+lisai: INFO : epoch 2/100: train_loss=0.257920 val_loss=0.484166
+lisai: INFO : epoch 2: Best model saved with best_val = 0.48416584730148315.
+lisai: INFO : Training manually stopped during epoch 2.
+Model perf: best_val_loss: 0.48416584730148315 - current_train_loss: 0.25792049943843737 - current_val_loss: 0.48416584730148315.
+
+lisai: INFO : Saved loss plot image: /mnt/e/lisai/datasets/vim_fixed/models/Denoising/CARE_clip_mse_recon2_fullskipcon_00/loss_plot.png
+Training interrupted. Run evaluation now using 'post_training'? [y/N]: 
