@@ -227,8 +227,18 @@ class RunMetadata(BaseModel):
     last_safe_epoch: int | None = None
     last_safe_batch_id: int | None = None
     safe_resume_fail_count: int = Field(default=0, ge=0)
-    retry_attempt: int = Field(default=1, ge=1)
-    max_retry_attempts: int = Field(default=1, ge=1)
+
+
+    @model_validator(mode="before")
+    @classmethod
+    def _strip_legacy_retry_orchestration_fields(cls, value):
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        payload.pop("retry_attempt", None)
+        payload.pop("max_retry_attempts", None)
+        payload.pop("retry_state", None)
+        return payload
 
 
 
@@ -302,12 +312,6 @@ class RunMetadata(BaseModel):
         if value is not None and value < 0:
             raise ValueError("max_epoch must be >= 0.")
         return value
-
-    @model_validator(mode="after")
-    def _validate_retry_attempt_consistency(self):
-        if self.retry_attempt > self.max_retry_attempts:
-            raise ValueError("retry_attempt must be <= max_retry_attempts.")
-        return self
 
     @model_validator(mode="after")
     def _validate_consistency(self):

@@ -208,7 +208,7 @@ def test_run_training_logs_traceback_for_outer_orchestration_failure(
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: DummyTrainer())
 
-    with pytest.raises(RuntimeError, match="Training failed after 1 attempt\\(s\\): RuntimeError: prepare boom"):
+    with pytest.raises(RuntimeError, match="Training failed: RuntimeError: prepare boom"):
         run_training_mod.run_training("configs/training/hdn_training.yml")
 
     assert writer.close_calls == 1
@@ -356,7 +356,7 @@ def test_run_training_auto_saves_loss_plot_on_failure_and_reraises(
         lambda **kwargs: calls.append(kwargs) or None,
     )
 
-    with pytest.raises(RuntimeError, match="Training failed after"):
+    with pytest.raises(RuntimeError, match="Training failed:"):
         run_training_mod.run_training("configs/training/hdn_training.yml")
 
     assert len(calls) == 1
@@ -594,7 +594,7 @@ def test_run_training_finalizes_run_metadata_as_failed(monkeypatch: pytest.Monke
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
     monkeypatch.setattr(run_training_mod, "get_trainer", fake_get_trainer)
 
-    with pytest.raises(RuntimeError, match="Training failed after"):
+    with pytest.raises(RuntimeError, match="Training failed:"):
         run_training_mod.run_training("configs/training/hdn_training.yml")
 
     metadata = read_run_metadata(run_dir)
@@ -657,7 +657,7 @@ def test_run_training_persists_peak_gpu_memory_stats_when_cuda_available(
     assert metadata.runtime_stats.peak_gpu_mem_mb == 10
 
 
-def test_run_training_retries_after_retryable_hdn_divergence(
+def test_run_training_does_not_retry_retryable_hdn_divergence(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ):
@@ -668,7 +668,7 @@ def test_run_training_retries_after_retryable_hdn_divergence(
     runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
     prepared_data = _make_prepared_data()
 
-    first = DummyTrainer(
+    trainer = DummyTrainer(
         outcome=_outcome(
             "failed_retryable_hdn_divergence",
             last_completed_epoch=3,
@@ -676,8 +676,6 @@ def test_run_training_retries_after_retryable_hdn_divergence(
             retry_eligible=True,
         )
     )
-    second = DummyTrainer(outcome=_outcome("completed", last_completed_epoch=4))
-    trainers = [first, second]
 
     fake_setup = SimpleNamespace(
         prepare_data=lambda c, x: prepared_data,
@@ -686,118 +684,17 @@ def test_run_training_retries_after_retryable_hdn_divergence(
     )
 
     monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
-    monkeypatch.setattr(run_training_mod, "resolve_config_dict", lambda cfg_dict: cfg)
-    monkeypatch.setattr(run_training_mod, "_build_retry_continue_config", lambda *args, **kwargs: {"retry": True})
     monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
-    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainers.pop(0))
+    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
 
-    out = run_training_mod.run_training("configs/training/hdn_training.yml")
-    metadata = read_run_metadata(run_dir)
-
-    assert out is second
-    assert first.train_calls == 1
-    assert second.train_calls == 1
-    assert metadata.status == "completed"
-    assert metadata.retry_attempt == 2
-    assert metadata.max_retry_attempts == 3
-
-
-def test_run_training_exhausts_retryable_hdn_attempts_and_fails(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-):
-    cfg = _make_cfg()
-    writer = DummyWriter()
-    logger = DummyLogger()
-    run_dir = tmp_path / "datasets" / "dataset_a" / "models" / "Upsamp" / "run_retry_fail"
-    runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
-    prepared_data = _make_prepared_data()
-
-    trainers = [
-        DummyTrainer(
-            outcome=_outcome(
-                "failed_retryable_hdn_divergence",
-                last_completed_epoch=0,
-                failure_reason="diverged_1",
-                retry_eligible=True,
-            )
-        ),
-        DummyTrainer(
-            outcome=_outcome(
-                "failed_retryable_hdn_divergence",
-                last_completed_epoch=0,
-                failure_reason="diverged_2",
-                retry_eligible=True,
-            )
-        ),
-        DummyTrainer(
-            outcome=_outcome(
-                "failed_retryable_hdn_divergence",
-                last_completed_epoch=0,
-                failure_reason="diverged_3",
-                retry_eligible=True,
-            )
-        ),
-    ]
-
-    fake_setup = SimpleNamespace(
-        prepare_data=lambda c, x: prepared_data,
-        save_training_config=lambda *args, **kwargs: None,
-        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
-    )
-
-    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
-    monkeypatch.setattr(run_training_mod, "resolve_config_dict", lambda cfg_dict: cfg)
-    monkeypatch.setattr(run_training_mod, "_build_retry_continue_config", lambda *args, **kwargs: {"retry": True})
-    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
-    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
-    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainers.pop(0))
-
-    with pytest.raises(RuntimeError, match="Training failed after 3 attempt\\(s\\)"):
+    with pytest.raises(RuntimeError, match="Training failed: diverged"):
         run_training_mod.run_training("configs/training/hdn_training.yml")
-
     metadata = read_run_metadata(run_dir)
+
+    assert trainer.train_calls == 1
     assert metadata.status == "failed"
-    assert metadata.retry_attempt == 3
-    assert metadata.max_retry_attempts == 3
-
-
-def test_resolve_auto_retry_policy_prefers_local_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    cfg = SimpleNamespace(
-        recovery=SimpleNamespace(
-            auto_retry=SimpleNamespace(
-                enabled=False,
-                max_attempts=5,
-                when="hdn_divergence_only",
-            )
-        )
-    )
-
-    configs_root = tmp_path / "configs"
-    configs_root.mkdir(parents=True, exist_ok=True)
-    (configs_root / "local_config.yml").write_text(
-        "\n".join(
-            [
-                "infrastructure:",
-                "  data_root: .",
-                "preferences:",
-                "  recovery:",
-                "    auto_retry:",
-                "      enabled: true",
-                "      max_attempts: 2",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(run_training_mod.settings, "CONFIGS_ROOT", configs_root)
-
-    policy = run_training_mod._resolve_auto_retry_policy(cfg)
-
-    assert policy.enabled is True
-    assert policy.max_attempts == 2
-    assert policy.when == "hdn_divergence_only"
+    assert metadata.failure_reason == "diverged"
 
 
 def test_display_epoch_is_one_based():

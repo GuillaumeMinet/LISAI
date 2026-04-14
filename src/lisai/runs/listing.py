@@ -170,7 +170,6 @@ def render_runs_table(
     if full:
         headers.extend(
             [
-                "retry",
                 "failure",
                 "path_consistent",
                 "closed_cleanly",
@@ -195,7 +194,6 @@ def render_runs_table(
         if full:
             row.extend(
                 [
-                    _format_retry(run),
                     _format_failure_summary(run),
                     str(run.path_consistent).lower(),
                     str(run.metadata.closed_cleanly).lower(),
@@ -299,10 +297,6 @@ def _mean_epoch_duration_seconds(run: DiscoveredRun) -> float | None:
     if runtime_stats is not None and runtime_stats.training_time_per_epoch_sec is not None:
         return float(runtime_stats.training_time_per_epoch_sec)
     return None
-
-
-def _format_retry(run: DiscoveredRun) -> str:
-    return f"{run.metadata.retry_attempt}/{run.metadata.max_retry_attempts}"
 
 
 def _format_failure_summary(run: DiscoveredRun) -> str:

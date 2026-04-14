@@ -71,7 +71,6 @@ def test_project_queue_resource_classes_are_configured(settings_obj: Settings):
 
 def test_project_recovery_defaults_are_configured(settings_obj: Settings):
     safe_resume = settings_obj.project.recovery.hdn_safe_resume
-    auto_retry = settings_obj.project.recovery.auto_retry
     assert safe_resume.enabled is True
     assert safe_resume.auto_use_safe_checkpoint_on_continue is True
     assert safe_resume.drop_optimizer_scheduler_state_on_safe_resume is True
@@ -80,6 +79,3 @@ def test_project_recovery_defaults_are_configured(settings_obj: Settings):
     assert safe_resume.min_lr == pytest.approx(1.0e-8)
     assert safe_resume.max_compound_steps is None
     assert safe_resume.force_grad_clip_max_norm is None
-    assert auto_retry.enabled is True
-    assert auto_retry.max_attempts == 3
-    assert auto_retry.when == "hdn_divergence_only"

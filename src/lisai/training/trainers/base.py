@@ -49,8 +49,6 @@ class TrainingOutcome:
     last_completed_epoch: int | None
     failure_reason: str | None = None
     retry_eligible: bool = False
-    retry_attempt: int | None = None
-    max_retry_attempts: int | None = None
 
 
 class BaseTrainer(ABC):

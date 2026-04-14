@@ -216,9 +216,8 @@ def test_render_runs_table_full_includes_start_time_last_seen_and_run_id(monkeyp
     table = render_runs_table([run], now=now, full=True)
     header = table.splitlines()[0].strip()
     assert header.endswith(
-        "retry  failure  path_consistent  closed_cleanly  start_time  last_seen  run_id"
+        "failure  path_consistent  closed_cleanly  start_time  last_seen  run_id"
     )
-    assert _table_value(table, "retry") == "1/1"
     assert _table_value(table, "failure") == "-"
     assert _table_value(table, "start_time") == "START_TS"
     assert _table_value(table, "last_seen") == "LAST_TS"

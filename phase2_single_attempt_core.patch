@@ -1,0 +1,1141 @@
+diff --git a/configs/project_config.yml b/configs/project_config.yml
+index 9565509..8f73c93 100644
+--- a/configs/project_config.yml
++++ b/configs/project_config.yml
+@@ -60,10 +60,6 @@ recovery:
+     min_lr: 1.0e-8
+     max_compound_steps: None
+     force_grad_clip_max_norm: None
+-  auto_retry:
+-    enabled: true
+-    max_attempts: 3
+-    when: hdn_divergence_only
+ 
+ queue:
+   resource_class_vram_mb:
+diff --git a/src/lisai/config/models/project_config.py b/src/lisai/config/models/project_config.py
+index d7cf990..bea524e 100644
+--- a/src/lisai/config/models/project_config.py
++++ b/src/lisai/config/models/project_config.py
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-from typing import Dict, Literal
++from typing import Dict
+ 
+ from pydantic import BaseModel, ConfigDict, Field, field_validator
+ 
+@@ -55,19 +55,10 @@ class HDNSafeResumeConfig(BaseModel):
+         return value
+ 
+ 
+-class AutoRetryConfig(BaseModel):
+-    model_config = ConfigDict(extra="forbid")
+-
+-    enabled: bool = True
+-    max_attempts: int = Field(default=3, ge=1)
+-    when: Literal["hdn_divergence_only"] = "hdn_divergence_only"
+-
+-
+ class RecoveryConfig(BaseModel):
+     model_config = ConfigDict(extra="forbid")
+ 
+     hdn_safe_resume: HDNSafeResumeConfig = Field(default_factory=HDNSafeResumeConfig)
+-    auto_retry: AutoRetryConfig = Field(default_factory=AutoRetryConfig)
+ 
+ 
+ class QueueResourceClassVRAM(BaseModel):
+diff --git a/src/lisai/runs/__init__.py b/src/lisai/runs/__init__.py
+index 2b68a8a..0510546 100644
+--- a/src/lisai/runs/__init__.py
++++ b/src/lisai/runs/__init__.py
+@@ -8,7 +8,7 @@ from .lifecycle import (
+     group_path_from_model_subfolder,
+     normalize_model_subfolder,
+     stored_run_path,
+-    update_run_attempt_state,
++    update_run_failure_reason,
+     update_run_heartbeat,
+     update_run_progress,
+     update_run_recovery_info,
+@@ -65,7 +65,7 @@ __all__ = [
+     "scan_runs",
+     "show_loss_plot_for_run",
+     "stored_run_path",
+-    "update_run_attempt_state",
++    "update_run_failure_reason",
+     "update_run_heartbeat",
+     "update_run_progress",
+     "update_run_recovery_info",
+diff --git a/src/lisai/runs/cli.py b/src/lisai/runs/cli.py
+index 540e8d1..bede367 100644
+--- a/src/lisai/runs/cli.py
++++ b/src/lisai/runs/cli.py
+@@ -486,7 +486,7 @@ def _add_runs_list_arguments(parser: argparse.ArgumentParser) -> argparse.Argume
+         action="store_true",
+         help=(
+             "Include extra metadata columns "
+-            "(retry, failure, path_consistent, closed_cleanly, start_time, last_seen, run_id)."
++            "(failure, path_consistent, closed_cleanly, start_time, last_seen, run_id)."
+         ),
+     )
+     parser.add_argument(
+diff --git a/src/lisai/runs/lifecycle.py b/src/lisai/runs/lifecycle.py
+index c2bf9ee..264ac24 100644
+--- a/src/lisai/runs/lifecycle.py
++++ b/src/lisai/runs/lifecycle.py
+@@ -271,42 +271,19 @@ def update_run_recovery_info(
+     return updated
+ 
+ 
+-def update_run_attempt_state(
++def update_run_failure_reason(
+     run_dir: str | Path,
+     *,
+-    status: RunStatus | None = None,
+-    retry_attempt: int | None = None,
+-    max_retry_attempts: int | None = None,
+     failure_reason: str | None = None,
+ ) -> RunMetadata:
+     metadata = read_run_metadata(run_dir)
+     now = utc_now()
+-
+-    update_payload: dict[str, object] = {
+-        "updated_at": now,
+-        "failure_reason": failure_reason,
+-        "retry_attempt": metadata.retry_attempt if retry_attempt is None else max(int(retry_attempt), 1),
+-        "max_retry_attempts": (
+-            metadata.max_retry_attempts
+-            if max_retry_attempts is None
+-            else max(int(max_retry_attempts), 1)
+-        ),
+-    }
+-
+-    if status is not None:
+-        update_payload["status"] = status
+-        if status in RUN_NON_TERMINAL_STATUSES:
+-            update_payload["closed_cleanly"] = False
+-            update_payload["ended_at"] = None
+-            update_payload["last_heartbeat_at"] = now
+-        elif status in RUN_TERMINAL_STATUSES:
+-            update_payload["closed_cleanly"] = True
+-            update_payload["ended_at"] = now
+-            update_payload["last_heartbeat_at"] = now
+-        else:
+-            raise ValueError(f"Unsupported run status: {status!r}.")
+-
+-    updated = metadata.model_copy(update=update_payload)
++    updated = metadata.model_copy(
++        update={
++            "updated_at": now,
++            "failure_reason": failure_reason,
++        }
++    )
+     write_run_metadata_atomic(run_dir, updated)
+     return updated
+ 
+@@ -354,7 +331,7 @@ __all__ = [
+     "group_path_from_model_subfolder",
+     "normalize_model_subfolder",
+     "stored_run_path",
+-    "update_run_attempt_state",
++    "update_run_failure_reason",
+     "update_run_heartbeat",
+     "update_run_progress",
+     "update_run_recovery_info",
+diff --git a/src/lisai/runs/listing.py b/src/lisai/runs/listing.py
+index dfc0d8e..f805bf6 100644
+--- a/src/lisai/runs/listing.py
++++ b/src/lisai/runs/listing.py
+@@ -170,7 +170,6 @@ def render_runs_table(
+     if full:
+         headers.extend(
+             [
+-                "retry",
+                 "failure",
+                 "path_consistent",
+                 "closed_cleanly",
+@@ -195,7 +194,6 @@ def render_runs_table(
+         if full:
+             row.extend(
+                 [
+-                    _format_retry(run),
+                     _format_failure_summary(run),
+                     str(run.path_consistent).lower(),
+                     str(run.metadata.closed_cleanly).lower(),
+@@ -301,10 +299,6 @@ def _mean_epoch_duration_seconds(run: DiscoveredRun) -> float | None:
+     return None
+ 
+ 
+-def _format_retry(run: DiscoveredRun) -> str:
+-    return f"{run.metadata.retry_attempt}/{run.metadata.max_retry_attempts}"
+-
+-
+ def _format_failure_summary(run: DiscoveredRun) -> str:
+     reason = (run.metadata.failure_reason or "").strip()
+     if not reason:
+diff --git a/src/lisai/runs/schema.py b/src/lisai/runs/schema.py
+index d039d0a..007a7b4 100644
+--- a/src/lisai/runs/schema.py
++++ b/src/lisai/runs/schema.py
+@@ -227,8 +227,18 @@ class RunMetadata(BaseModel):
+     last_safe_epoch: int | None = None
+     last_safe_batch_id: int | None = None
+     safe_resume_fail_count: int = Field(default=0, ge=0)
+-    retry_attempt: int = Field(default=1, ge=1)
+-    max_retry_attempts: int = Field(default=1, ge=1)
++
++
++    @model_validator(mode="before")
++    @classmethod
++    def _strip_legacy_retry_orchestration_fields(cls, value):
++        if not isinstance(value, dict):
++            return value
++        payload = dict(value)
++        payload.pop("retry_attempt", None)
++        payload.pop("max_retry_attempts", None)
++        payload.pop("retry_state", None)
++        return payload
+ 
+ 
+ 
+@@ -303,12 +313,6 @@ class RunMetadata(BaseModel):
+             raise ValueError("max_epoch must be >= 0.")
+         return value
+ 
+-    @model_validator(mode="after")
+-    def _validate_retry_attempt_consistency(self):
+-        if self.retry_attempt > self.max_retry_attempts:
+-            raise ValueError("retry_attempt must be <= max_retry_attempts.")
+-        return self
+-
+     @model_validator(mode="after")
+     def _validate_consistency(self):
+         if self.updated_at < self.created_at:
+diff --git a/src/lisai/training/run_training.py b/src/lisai/training/run_training.py
+index 17b7711..a94a180 100644
+--- a/src/lisai/training/run_training.py
++++ b/src/lisai/training/run_training.py
+@@ -8,13 +8,11 @@ build the model, construct the trainer, and execute the training loop.
+ from __future__ import annotations
+ 
+ import time
+-from dataclasses import dataclass, replace
+-from pathlib import Path
+ from typing import TYPE_CHECKING
+ 
+ import torch
+ 
+-from lisai.config import load_yaml, resolve_config, resolve_config_dict, settings
++from lisai.config import resolve_config, resolve_config_dict
+ from lisai.evaluation import run_evaluate
+ from lisai.runs import (
+     RunMetadataCallback,
+@@ -25,7 +23,7 @@ from lisai.runs import (
+     finalize_run_failed,
+     finalize_run_stopped,
+     group_path_from_model_subfolder,
+-    update_run_attempt_state,
++    update_run_failure_reason,
+     update_run_heartbeat,
+     update_run_runtime_details,
+ )
+@@ -41,81 +39,6 @@ if TYPE_CHECKING:
+ 
+ 
+ POST_TRAINING_INFERENCE_CONFIG = "post_training"
+-_AUTO_RETRY_WHEN = "hdn_divergence_only"
+-
+-
+-@dataclass(frozen=True)
+-class AutoRetryPolicy:
+-    enabled: bool
+-    max_attempts: int
+-    when: str = _AUTO_RETRY_WHEN
+-
+-
+-def _retryable_reason(reason: str) -> bool:
+-    return reason == "failed_retryable_hdn_divergence"
+-
+-
+-def _coerce_bool(value, *, default: bool) -> bool:
+-    if value is None:
+-        return default
+-    if isinstance(value, bool):
+-        return value
+-    if isinstance(value, str):
+-        lowered = value.strip().lower()
+-        if lowered in {"1", "true", "yes", "on"}:
+-            return True
+-        if lowered in {"0", "false", "no", "off"}:
+-            return False
+-    return bool(value)
+-
+-
+-def _coerce_max_attempts(value, *, default: int) -> int:
+-    if value is None:
+-        return default
+-    try:
+-        parsed = int(value)
+-    except Exception:
+-        return default
+-    return max(parsed, 1)
+-
+-
+-def _local_retry_preferences() -> dict[str, object]:
+-    local_cfg_path = settings.CONFIGS_ROOT / "local_config.yml"
+-    if not local_cfg_path.exists():
+-        return {}
+-    try:
+-        payload = load_yaml(local_cfg_path)
+-    except Exception:
+-        return {}
+-    if not isinstance(payload, dict):
+-        return {}
+-    prefs = payload.get("preferences")
+-    if not isinstance(prefs, dict):
+-        return {}
+-    recovery = prefs.get("recovery")
+-    if not isinstance(recovery, dict):
+-        return {}
+-    auto_retry = recovery.get("auto_retry")
+-    if not isinstance(auto_retry, dict):
+-        return {}
+-    return auto_retry
+-
+-
+-def _resolve_auto_retry_policy(cfg) -> AutoRetryPolicy:
+-    recovery = getattr(cfg, "recovery", None)
+-    auto_retry_cfg = getattr(recovery, "auto_retry", None)
+-
+-    enabled = _coerce_bool(getattr(auto_retry_cfg, "enabled", True), default=True)
+-    max_attempts = _coerce_max_attempts(getattr(auto_retry_cfg, "max_attempts", 3), default=3)
+-    when = str(getattr(auto_retry_cfg, "when", _AUTO_RETRY_WHEN) or _AUTO_RETRY_WHEN).strip()
+-
+-    local_pref = _local_retry_preferences()
+-    if "enabled" in local_pref:
+-        enabled = _coerce_bool(local_pref.get("enabled"), default=enabled)
+-    if "max_attempts" in local_pref:
+-        max_attempts = _coerce_max_attempts(local_pref.get("max_attempts"), default=max_attempts)
+-
+-    return AutoRetryPolicy(enabled=enabled, max_attempts=max_attempts, when=when or _AUTO_RETRY_WHEN)
+ 
+ 
+ def _prompt_yes_no(prompt: str) -> bool:
+@@ -128,22 +51,11 @@ def _prompt_yes_no(prompt: str) -> bool:
+ 
+ def _normalize_training_outcome(
+     outcome,
+-    *,
+-    retry_attempt: int | None = None,
+-    max_retry_attempts: int | None = None,
+ ) -> "TrainingOutcome":
+     from lisai.training.trainers.base import TrainingOutcome
+ 
+     assert isinstance(outcome, TrainingOutcome), "trainer.train() must return TrainingOutcome"
+-    return replace(
+-        outcome,
+-        retry_attempt=retry_attempt if retry_attempt is not None else outcome.retry_attempt,
+-        max_retry_attempts=(
+-            max_retry_attempts
+-            if max_retry_attempts is not None
+-            else outcome.max_retry_attempts
+-        ),
+-    )
++    return outcome
+ 
+ 
+ def _should_run_post_training_evaluation(cfg, runtime, outcome: "TrainingOutcome") -> bool:
+@@ -356,67 +268,16 @@ def _is_failed_outcome(outcome: "TrainingOutcome") -> bool:
+     return outcome.reason in {"failed_retryable_hdn_divergence", "failed_nonretryable"}
+ 
+ 
+-def _should_retry_after_outcome(
+-    outcome: "TrainingOutcome",
+-    *,
+-    policy: AutoRetryPolicy,
+-    retry_attempt: int,
+-    run_dir: Path | None,
+-) -> bool:
+-    if run_dir is None:
+-        return False
+-    if not policy.enabled:
+-        return False
+-    if retry_attempt >= policy.max_attempts:
+-        return False
+-    if policy.when != _AUTO_RETRY_WHEN:
+-        return False
+-    if not _retryable_reason(outcome.reason):
+-        return False
+-    return bool(outcome.retry_eligible)
+-
+-
+-def _build_retry_continue_config(cfg, *, run_dir: Path) -> dict:
+-    post_training_inference = bool(getattr(cfg.experiment, "post_training_inference", True))
+-
+-    return {
+-        "experiment": {
+-            "mode": "continue_training",
+-            "post_training_inference": post_training_inference,
+-        },
+-        "training": cfg.training.model_dump(mode="python", exclude_none=True),
+-        "saving": cfg.saving.model_dump(mode="python", exclude_none=True),
+-        "tensorboard": cfg.tensorboard.model_dump(mode="python", exclude_none=True),
+-        "recovery": cfg.recovery.model_dump(mode="python", exclude_none=True),
+-        "load_model": {
+-            "canonical_load": False,
+-            "model_full_path": str(run_dir.resolve()),
+-            "load_method": "state_dict",
+-            "best_or_last": "last",
+-        },
+-    }
+-
+-
+-def _record_attempt_state(
+-    runtime,
+-    *,
+-    status: str | None = None,
+-    retry_attempt: int | None = None,
+-    max_retry_attempts: int | None = None,
+-    failure_reason: str | None = None,
+-):
+-    if runtime.run_dir is None:
++def _record_failure_reason(runtime, monitor_enabled: bool, outcome: "TrainingOutcome"):
++    if not monitor_enabled or runtime.run_dir is None:
+         return
+ 
+     _safe_run_metadata_call(
+         runtime,
+-        "attempt state update",
+-        update_run_attempt_state,
++        "failure reason update",
++        update_run_failure_reason,
+         runtime.run_dir,
+-        status=status,
+-        retry_attempt=retry_attempt,
+-        max_retry_attempts=max_retry_attempts,
+-        failure_reason=failure_reason,
++        failure_reason=outcome.failure_reason,
+     )
+ 
+ 
+@@ -488,139 +349,95 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
+     """Run training from a resolved experiment config and return the trainer instance."""
+     runtime = initialize_runtime(cfg)
+     monitor_enabled = _install_run_monitor(cfg, runtime)
+-    retry_policy = _resolve_auto_retry_policy(cfg)
+ 
+     final_trainer = None
+     final_outcome = None
+     total_training_time_sec = 0.0
+-    attempt_cfg = cfg
+-    retry_attempt = 1
+     try:
+-        while True:
+-            _record_attempt_state(
++        attempt_start_perf = time.perf_counter()
++        catastrophic_outcome = None
++        try:
++            prepared_data = setup.prepare_data(cfg, runtime)
++            _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
++
++            setup.save_training_config(
++                cfg,
+                 runtime,
+-                status="running",
+-                retry_attempt=retry_attempt,
+-                max_retry_attempts=retry_policy.max_attempts,
++                prepared_data.data_norm_prm,
++                prepared_data.model_norm_prm,
+             )
+-            attempt_start_perf = time.perf_counter()
+-            outer_outcome = None
+-            try:
+-                prepared_data = setup.prepare_data(attempt_cfg, runtime)
+-                _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
+-
+-                setup.save_training_config(
+-                    attempt_cfg,
+-                    runtime,
+-                    prepared_data.data_norm_prm,
+-                    prepared_data.model_norm_prm,
+-                )
+-                _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
+-
+-                model, state_dict = setup.build_model(
+-                    attempt_cfg,
+-                    runtime.device,
+-                    runtime.paths,
+-                    prepared_data.model_norm_prm,
+-                )
+-                trainable_params = count_trainable_parameters(model)
+-                _update_training_signature(
+-                    attempt_cfg,
+-                    runtime,
+-                    monitor_enabled,
+-                    trainable_params=trainable_params,
+-                )
+-                _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
+-
+-                final_trainer = get_trainer(
+-                    architecture=attempt_cfg.model.architecture,
+-                    model=model,
+-                    train_loader=prepared_data.train_loader,
+-                    val_loader=prepared_data.val_loader,
+-                    device=runtime.device,
+-                    cfg=attempt_cfg,
+-                    run_dir=runtime.run_dir,
+-                    volumetric=attempt_cfg.model.architecture == "unet3d",
+-                    writer=runtime.writer,
+-                    state_dict=state_dict,
+-                    callbacks=runtime.callbacks,
+-                    patch_info=prepared_data.patch_info,
+-                    console_filter=runtime.console_filter,
+-                    file_filter=runtime.file_filter,
+-                )
+-                _reset_peak_gpu_memory_stats(runtime, monitor_enabled)
+-            except KeyboardInterrupt:
+-                from lisai.training.trainers.base import TrainingOutcome
+-
+-                outer_outcome = TrainingOutcome(
+-                    reason="interrupted",
+-                    last_completed_epoch=None,
+-                    retry_eligible=False,
+-                )
+-            except Exception as exc:
+-                from lisai.training.trainers.base import TrainingOutcome
+-
+-                logger = getattr(runtime, "logger", None)
+-                error = getattr(logger, "error", None)
+-                if callable(error):
+-                    error("Training crashed", exc_info=True)
+-                outer_outcome = TrainingOutcome(
+-                    reason="failed_nonretryable",
+-                    last_completed_epoch=None,
+-                    failure_reason=f"{type(exc).__name__}: {exc}",
+-                    retry_eligible=False,
+-                )
+-
+-            if outer_outcome is not None:
+-                final_outcome = _normalize_training_outcome(
+-                    outer_outcome,
+-                    retry_attempt=retry_attempt,
+-                    max_retry_attempts=retry_policy.max_attempts,
+-                )
+-            else:
+-                final_outcome = _normalize_training_outcome(
+-                    final_trainer.train(),
+-                    retry_attempt=retry_attempt,
+-                    max_retry_attempts=retry_policy.max_attempts,
+-                )
+-
+-            attempt_duration = max(time.perf_counter() - attempt_start_perf, 0.0)
+-            total_training_time_sec += attempt_duration
+-            _update_training_timing(
+-                runtime,
+-                monitor_enabled,
+-                total_training_time_sec=total_training_time_sec,
+-                training_time_per_epoch_sec=_training_time_per_epoch_sec(
+-                    total_training_time_sec=total_training_time_sec,
+-                    outcome=final_outcome,
+-                ),
++            _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
++
++            model, state_dict = setup.build_model(
++                cfg,
++                runtime.device,
++                runtime.paths,
++                prepared_data.model_norm_prm,
+             )
+-            _record_attempt_state(
++            trainable_params = count_trainable_parameters(model)
++            _update_training_signature(
++                cfg,
+                 runtime,
+-                retry_attempt=retry_attempt,
+-                max_retry_attempts=retry_policy.max_attempts,
+-                failure_reason=final_outcome.failure_reason,
++                monitor_enabled,
++                trainable_params=trainable_params,
+             )
+-
+-            if not _should_retry_after_outcome(
+-                final_outcome,
+-                policy=retry_policy,
+-                retry_attempt=retry_attempt,
++            _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
++
++            final_trainer = get_trainer(
++                architecture=cfg.model.architecture,
++                model=model,
++                train_loader=prepared_data.train_loader,
++                val_loader=prepared_data.val_loader,
++                device=runtime.device,
++                cfg=cfg,
+                 run_dir=runtime.run_dir,
+-            ):
+-                break
+-
+-            retry_attempt += 1
+-            runtime.logger.warning(
+-                "Retrying training after retryable outcome "
+-                f"({final_outcome.reason}): attempt {retry_attempt}/{retry_policy.max_attempts}."
++                volumetric=cfg.model.architecture == "unet3d",
++                writer=runtime.writer,
++                state_dict=state_dict,
++                callbacks=runtime.callbacks,
++                patch_info=prepared_data.patch_info,
++                console_filter=runtime.console_filter,
++                file_filter=runtime.file_filter,
+             )
+-            attempt_cfg = resolve_config_dict(
+-                _build_retry_continue_config(
+-                    attempt_cfg,
+-                    run_dir=runtime.run_dir,
+-                )
++            _reset_peak_gpu_memory_stats(runtime, monitor_enabled)
++        except KeyboardInterrupt:
++            from lisai.training.trainers.base import TrainingOutcome
++
++            catastrophic_outcome = TrainingOutcome(
++                reason="interrupted",
++                last_completed_epoch=None,
++                retry_eligible=False,
+             )
++        except Exception as exc:
++            from lisai.training.trainers.base import TrainingOutcome
++
++            logger = getattr(runtime, "logger", None)
++            error = getattr(logger, "error", None)
++            if callable(error):
++                error("Training crashed", exc_info=True)
++            catastrophic_outcome = TrainingOutcome(
++                reason="failed_nonretryable",
++                last_completed_epoch=None,
++                failure_reason=f"{type(exc).__name__}: {exc}",
++                retry_eligible=False,
++            )
++
++        if catastrophic_outcome is not None:
++            final_outcome = _normalize_training_outcome(catastrophic_outcome)
++        else:
++            # Keep trainer-managed failure behavior authoritative for train-loop errors.
++            final_outcome = _normalize_training_outcome(final_trainer.train())
++
++        total_training_time_sec = max(time.perf_counter() - attempt_start_perf, 0.0)
++        _update_training_timing(
++            runtime,
++            monitor_enabled,
++            total_training_time_sec=total_training_time_sec,
++            training_time_per_epoch_sec=_training_time_per_epoch_sec(
++                total_training_time_sec=total_training_time_sec,
++                outcome=final_outcome,
++            ),
++        )
+     finally:
+         _persist_peak_gpu_memory_stats(runtime, monitor_enabled)
+         if runtime.writer:
+@@ -630,12 +447,7 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
+         raise RuntimeError("Training orchestration completed without a TrainingOutcome.")
+ 
+     _finalize_run_monitor(runtime, monitor_enabled, final_outcome)
+-    _record_attempt_state(
+-        runtime,
+-        retry_attempt=final_outcome.retry_attempt,
+-        max_retry_attempts=final_outcome.max_retry_attempts,
+-        failure_reason=final_outcome.failure_reason,
+-    )
++    _record_failure_reason(runtime, monitor_enabled, final_outcome)
+     _auto_save_loss_plot_image(cfg, runtime, terminal_reason=final_outcome.reason)
+ 
+     try:
+@@ -647,6 +459,6 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
+ 
+     if _is_failed_outcome(final_outcome):
+         reason = final_outcome.failure_reason or final_outcome.reason
+-        raise RuntimeError(f"Training failed after {retry_attempt} attempt(s): {reason}")
++        raise RuntimeError(f"Training failed: {reason}")
+ 
+     return final_trainer
+diff --git a/src/lisai/training/trainers/base.py b/src/lisai/training/trainers/base.py
+index a6ca6ef..d69d24a 100644
+--- a/src/lisai/training/trainers/base.py
++++ b/src/lisai/training/trainers/base.py
+@@ -49,8 +49,6 @@ class TrainingOutcome:
+     last_completed_epoch: int | None
+     failure_reason: str | None = None
+     retry_eligible: bool = False
+-    retry_attempt: int | None = None
+-    max_retry_attempts: int | None = None
+ 
+ 
+ class BaseTrainer(ABC):
+diff --git a/src/lisai/unified_cli.py b/src/lisai/unified_cli.py
+index 6faf5d3..91bf4dc 100644
+--- a/src/lisai/unified_cli.py
++++ b/src/lisai/unified_cli.py
+@@ -56,7 +56,6 @@ class _UnifiedRow:
+     epoch: str
+     eta: str
+     loss: str
+-    retry: str
+     failure: str
+     sort_time: datetime
+ 
+@@ -339,7 +338,7 @@ def add_list_subparser(subparsers: argparse._SubParsersAction[argparse.ArgumentP
+     parser.add_argument(
+         "--full",
+         action="store_true",
+-        help="Include run_id, latest loss, retry attempt, and failure summary columns.",
++        help="Include run_id, latest loss, and failure summary columns.",
+     )
+     parser.set_defaults(handler=run_list_from_args)
+     return parser
+@@ -489,7 +488,6 @@ def _build_job_only_row(
+         epoch="-",
+         eta="-",
+         loss="-",
+-        retry="-",
+         failure=_short_failure_for_job(job),
+         sort_time=job.updated_at,
+     )
+@@ -519,7 +517,6 @@ def _build_merged_row(
+         epoch=_format_run_epoch(run),
+         eta=_format_run_eta_left(run),
+         loss=_format_losses(train_loss, val_loss),
+-        retry=_format_run_retry(run),
+         failure=run_failure,
+         sort_time=max(job.updated_at, run.last_seen),
+     )
+@@ -544,7 +541,6 @@ def _build_run_only_row(
+         epoch=_format_run_epoch(run),
+         eta=_format_run_eta_left(run),
+         loss=_format_losses(train_loss, val_loss),
+-        retry=_format_run_retry(run),
+         failure=_short_failure_for_run(run, failure_cache=failure_cache),
+         sort_time=run.last_seen,
+     )
+@@ -580,7 +576,7 @@ def _render_unified_rows(rows: Sequence[_UnifiedRow], *, full: bool) -> str:
+         "eta",
+     ]
+     if full:
+-        headers.extend(["run_id", "loss", "retry", "failure"])
++        headers.extend(["run_id", "loss", "failure"])
+ 
+     values: list[list[str]] = []
+     for row in rows:
+@@ -595,7 +591,7 @@ def _render_unified_rows(rows: Sequence[_UnifiedRow], *, full: bool) -> str:
+             row.eta,
+         ]
+         if full:
+-            line.extend([row.run_id, row.loss, row.retry, row.failure])
++            line.extend([row.run_id, row.loss, row.failure])
+         values.append(line)
+ 
+     widths = [max(len(headers[idx]), *(len(item[idx]) for item in values)) for idx in range(len(headers))]
+@@ -616,12 +612,10 @@ def _show_job_details(record: DiscoveredJob, *, stdout) -> int:
+     train_loss, val_loss = (None, None)
+     epoch = "-"
+     eta = "-"
+-    retry = "-"
+     if linked is not None:
+         train_loss, val_loss = _latest_losses_for_run(linked, metrics_cache=metrics_cache)
+         epoch = _format_run_epoch(linked)
+         eta = _format_run_eta_left(linked)
+-        retry = _format_run_retry(linked)
+ 
+     print("kind          : queue_job", file=stdout)
+     print(f"selector      : {job.selector or '-'}", file=stdout)
+@@ -634,7 +628,6 @@ def _show_job_details(record: DiscoveredJob, *, stdout) -> int:
+     print(f"run_id        : {job.run_id or '-'}", file=stdout)
+     print(f"progress      : {epoch}", file=stdout)
+     print(f"eta_left      : {eta}", file=stdout)
+-    print(f"retry         : {retry}", file=stdout)
+     print(f"latest_loss   : {_format_losses(train_loss, val_loss)}", file=stdout)
+     print(f"failure       : {_short_failure_for_job(job)}", file=stdout)
+     print(f"submitted_at  : {format_timestamp_local(job.submitted_at)}", file=stdout)
+@@ -670,7 +663,6 @@ def _show_run_details(run: DiscoveredRun, *, stdout) -> int:
+     print(f"run_index     : {run.metadata.run_index}", file=stdout)
+     print(f"progress      : {_format_run_epoch(run)}", file=stdout)
+     print(f"eta_left      : {_format_run_eta_left(run)}", file=stdout)
+-    print(f"retry         : {_format_run_retry(run)}", file=stdout)
+     print(f"latest_loss   : {_format_losses(train_loss, val_loss)}", file=stdout)
+     print(f"best_val_loss : {'-' if run.metadata.best_val_loss is None else f'{run.metadata.best_val_loss:.6g}'}", file=stdout)
+     print(f"failure       : {_short_failure_for_run(run, failure_cache=failure_cache)}", file=stdout)
+@@ -922,10 +914,6 @@ def _format_run_epoch(run: DiscoveredRun) -> str:
+     return f"{last_epoch}/{max_epoch}"
+ 
+ 
+-def _format_run_retry(run: DiscoveredRun) -> str:
+-    return f"{run.metadata.retry_attempt}/{run.metadata.max_retry_attempts}"
+-
+-
+ def _format_run_eta_left(run: DiscoveredRun) -> str:
+     seconds_left = _estimate_seconds_left(run)
+     if seconds_left is None:
+diff --git a/tests/infra/config/test_settings.py b/tests/infra/config/test_settings.py
+index c1c8faf..b56e6a1 100644
+--- a/tests/infra/config/test_settings.py
++++ b/tests/infra/config/test_settings.py
+@@ -71,7 +71,6 @@ def test_project_queue_resource_classes_are_configured(settings_obj: Settings):
+ 
+ def test_project_recovery_defaults_are_configured(settings_obj: Settings):
+     safe_resume = settings_obj.project.recovery.hdn_safe_resume
+-    auto_retry = settings_obj.project.recovery.auto_retry
+     assert safe_resume.enabled is True
+     assert safe_resume.auto_use_safe_checkpoint_on_continue is True
+     assert safe_resume.drop_optimizer_scheduler_state_on_safe_resume is True
+@@ -80,6 +79,3 @@ def test_project_recovery_defaults_are_configured(settings_obj: Settings):
+     assert safe_resume.min_lr == pytest.approx(1.0e-8)
+     assert safe_resume.max_compound_steps is None
+     assert safe_resume.force_grad_clip_max_norm is None
+-    assert auto_retry.enabled is True
+-    assert auto_retry.max_attempts == 3
+-    assert auto_retry.when == "hdn_divergence_only"
+diff --git a/tests/runs/test_lifecycle_runtime.py b/tests/runs/test_lifecycle_runtime.py
+index 511e4be..730ee8f 100644
+--- a/tests/runs/test_lifecycle_runtime.py
++++ b/tests/runs/test_lifecycle_runtime.py
+@@ -1,7 +1,11 @@
+ from __future__ import annotations
+ 
+ from lisai.runs.io import read_run_metadata, write_run_metadata_atomic
+-from lisai.runs.lifecycle import update_run_attempt_state, update_run_runtime_details
++from lisai.runs.lifecycle import (
++    update_run_failure_reason,
++    update_run_recovery_info,
++    update_run_runtime_details,
++)
+ from lisai.runs.schema import RunMetadata
+ 
+ 
+@@ -112,22 +116,52 @@ def test_update_run_runtime_details_preserves_legacy_peak_only_stats(tmp_path):
+     assert metadata.runtime_stats.training_time_per_epoch_sec is None
+ 
+ 
+-def test_update_run_attempt_state_updates_retry_and_pause_status(tmp_path):
++def test_update_run_recovery_info_updates_failure_and_safe_resume_fields(tmp_path):
+     run_dir = tmp_path / "demo_00"
+     write_run_metadata_atomic(run_dir, RunMetadata.model_validate(_payload(run_dir)))
+ 
+-    update_run_attempt_state(
++    update_run_recovery_info(
+         run_dir,
+-        status="paused",
+-        retry_attempt=2,
+-        max_retry_attempts=3,
+         failure_reason="manual_pause",
++        recovery_checkpoint_filename="safe_on_divergence.pth",
++        recovery_strategy="hdn_safe_resume_v1",
++        last_safe_epoch=5,
++        last_safe_batch_id=42,
++        safe_resume_fail_count=3,
+     )
+     metadata = read_run_metadata(run_dir)
+ 
+-    assert metadata.status == "paused"
+-    assert metadata.closed_cleanly is False
+-    assert metadata.ended_at is None
+-    assert metadata.retry_attempt == 2
+-    assert metadata.max_retry_attempts == 3
+     assert metadata.failure_reason == "manual_pause"
++    assert metadata.recovery_checkpoint_filename == "safe_on_divergence.pth"
++    assert metadata.recovery_strategy == "hdn_safe_resume_v1"
++    assert metadata.last_safe_epoch == 5
++    assert metadata.last_safe_batch_id == 42
++    assert metadata.safe_resume_fail_count == 3
++
++
++def test_update_run_failure_reason_updates_only_failure_summary(tmp_path):
++    run_dir = tmp_path / "demo_00"
++    write_run_metadata_atomic(
++        run_dir,
++        RunMetadata.model_validate(
++            _payload(
++                run_dir,
++                failure_reason="old failure",
++                recovery_checkpoint_filename="safe_on_divergence.pth",
++                recovery_strategy="hdn_safe_resume_v1",
++                last_safe_epoch=4,
++                last_safe_batch_id=21,
++                safe_resume_fail_count=2,
++            )
++        ),
++    )
++
++    update_run_failure_reason(run_dir, failure_reason="new failure")
++    metadata = read_run_metadata(run_dir)
++
++    assert metadata.failure_reason == "new failure"
++    assert metadata.recovery_checkpoint_filename == "safe_on_divergence.pth"
++    assert metadata.recovery_strategy == "hdn_safe_resume_v1"
++    assert metadata.last_safe_epoch == 4
++    assert metadata.last_safe_batch_id == 21
++    assert metadata.safe_resume_fail_count == 2
+diff --git a/tests/runs/test_listing.py b/tests/runs/test_listing.py
+index d5dcc3f..f25dfb8 100644
+--- a/tests/runs/test_listing.py
++++ b/tests/runs/test_listing.py
+@@ -216,9 +216,8 @@ def test_render_runs_table_full_includes_start_time_last_seen_and_run_id(monkeyp
+     table = render_runs_table([run], now=now, full=True)
+     header = table.splitlines()[0].strip()
+     assert header.endswith(
+-        "retry  failure  path_consistent  closed_cleanly  start_time  last_seen  run_id"
++        "failure  path_consistent  closed_cleanly  start_time  last_seen  run_id"
+     )
+-    assert _table_value(table, "retry") == "1/1"
+     assert _table_value(table, "failure") == "-"
+     assert _table_value(table, "start_time") == "START_TS"
+     assert _table_value(table, "last_seen") == "LAST_TS"
+diff --git a/tests/runs/test_runs_cli.py b/tests/runs/test_runs_cli.py
+index e699bcc..2199daa 100644
+--- a/tests/runs/test_runs_cli.py
++++ b/tests/runs/test_runs_cli.py
+@@ -253,8 +253,7 @@ def test_runs_list_full_appends_extended_columns(monkeypatch, tmp_path, capsys):
+     assert "LISAI runs listing - Dataset: 'Gag'" in captured.out
+     columns = _header_columns(captured.out)
+     assert columns[:7] == ["dataset", "model_subfolder", "run_name", "idx", "status", "epoch", "eta_left"]
+-    assert columns[-7:] == [
+-        "retry",
++    assert columns[-6:] == [
+         "failure",
+         "path_consistent",
+         "closed_cleanly",
+diff --git a/tests/runs/test_schema.py b/tests/runs/test_schema.py
+index 1ef613a..bbb09d3 100644
+--- a/tests/runs/test_schema.py
++++ b/tests/runs/test_schema.py
+@@ -42,8 +42,6 @@ def test_run_metadata_accepts_running_payload():
+     assert metadata.run_name == "HDN_Gag_KL07"
+     assert metadata.run_index == 1
+     assert metadata.safe_resume_fail_count == 0
+-    assert metadata.retry_attempt == 1
+-    assert metadata.max_retry_attempts == 1
+ 
+ 
+ def test_run_metadata_accepts_pause_related_non_terminal_statuses():
+@@ -58,9 +56,19 @@ def test_run_metadata_accepts_pause_related_non_terminal_statuses():
+         assert metadata.status == status
+ 
+ 
+-def test_run_metadata_rejects_retry_attempt_above_max():
+-    with pytest.raises(ValidationError):
+-        RunMetadata.model_validate(_payload(retry_attempt=3, max_retry_attempts=2))
++def test_run_metadata_accepts_legacy_retry_orchestration_fields():
++    metadata = RunMetadata.model_validate(
++        _payload(
++            retry_attempt=3,
++            max_retry_attempts=5,
++            retry_state={"status": "retrying"},
++        )
++    )
++    payload = metadata.model_dump(mode="python")
++
++    assert "retry_attempt" not in payload
++    assert "max_retry_attempts" not in payload
++    assert "retry_state" not in payload
+ 
+ 
+ def test_run_metadata_accepts_optional_training_signature_and_runtime_stats():
+diff --git a/tests/test_unified_cli.py b/tests/test_unified_cli.py
+index 686d58d..deac1f2 100644
+--- a/tests/test_unified_cli.py
++++ b/tests/test_unified_cli.py
+@@ -215,7 +215,6 @@ def test_unified_list_full_includes_loss_failure_and_run_id(monkeypatch, tmp_pat
+     assert exit_code == 0
+     assert "run_id" in captured.out.splitlines()[0]
+     assert "loss" in captured.out.splitlines()[0]
+-    assert "retry" in captured.out.splitlines()[0]
+     assert "failure" in captured.out.splitlines()[0]
+     assert "t=1" in captured.out
+     assert "v=0.9" in captured.out
+@@ -531,7 +530,6 @@ def test_unified_show_supports_queue_and_run_targets(monkeypatch, tmp_path, caps
+     assert exit_code == 0
+     assert "kind          : run" in captured.out
+     assert f"run_id        : {metadata.run_id}" in captured.out
+-    assert "retry         : 1/1" in captured.out
+ 
+ 
+ def test_unified_logs_uses_canonical_queue_and_run_log_paths(monkeypatch, tmp_path, capsys):
+diff --git a/tests/training/test_run_training.py b/tests/training/test_run_training.py
+index 7101cb0..bbb601c 100644
+--- a/tests/training/test_run_training.py
++++ b/tests/training/test_run_training.py
+@@ -208,7 +208,7 @@ def test_run_training_logs_traceback_for_outer_orchestration_failure(
+     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+     monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: DummyTrainer())
+ 
+-    with pytest.raises(RuntimeError, match="Training failed after 1 attempt\\(s\\): RuntimeError: prepare boom"):
++    with pytest.raises(RuntimeError, match="Training failed: RuntimeError: prepare boom"):
+         run_training_mod.run_training("configs/training/hdn_training.yml")
+ 
+     assert writer.close_calls == 1
+@@ -356,7 +356,7 @@ def test_run_training_auto_saves_loss_plot_on_failure_and_reraises(
+         lambda **kwargs: calls.append(kwargs) or None,
+     )
+ 
+-    with pytest.raises(RuntimeError, match="Training failed after"):
++    with pytest.raises(RuntimeError, match="Training failed:"):
+         run_training_mod.run_training("configs/training/hdn_training.yml")
+ 
+     assert len(calls) == 1
+@@ -594,7 +594,7 @@ def test_run_training_finalizes_run_metadata_as_failed(monkeypatch: pytest.Monke
+     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+     monkeypatch.setattr(run_training_mod, "get_trainer", fake_get_trainer)
+ 
+-    with pytest.raises(RuntimeError, match="Training failed after"):
++    with pytest.raises(RuntimeError, match="Training failed:"):
+         run_training_mod.run_training("configs/training/hdn_training.yml")
+ 
+     metadata = read_run_metadata(run_dir)
+@@ -657,7 +657,7 @@ def test_run_training_persists_peak_gpu_memory_stats_when_cuda_available(
+     assert metadata.runtime_stats.peak_gpu_mem_mb == 10
+ 
+ 
+-def test_run_training_retries_after_retryable_hdn_divergence(
++def test_run_training_does_not_retry_retryable_hdn_divergence(
+     monkeypatch: pytest.MonkeyPatch,
+     tmp_path: Path,
+ ):
+@@ -668,7 +668,7 @@ def test_run_training_retries_after_retryable_hdn_divergence(
+     runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
+     prepared_data = _make_prepared_data()
+ 
+-    first = DummyTrainer(
++    trainer = DummyTrainer(
+         outcome=_outcome(
+             "failed_retryable_hdn_divergence",
+             last_completed_epoch=3,
+@@ -676,70 +676,6 @@ def test_run_training_retries_after_retryable_hdn_divergence(
+             retry_eligible=True,
+         )
+     )
+-    second = DummyTrainer(outcome=_outcome("completed", last_completed_epoch=4))
+-    trainers = [first, second]
+-
+-    fake_setup = SimpleNamespace(
+-        prepare_data=lambda c, x: prepared_data,
+-        save_training_config=lambda *args, **kwargs: None,
+-        build_model=lambda cfg_arg, device, lisai_paths, model_norm_prm: ("model_obj", None),
+-    )
+-
+-    monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+-    monkeypatch.setattr(run_training_mod, "resolve_config_dict", lambda cfg_dict: cfg)
+-    monkeypatch.setattr(run_training_mod, "_build_retry_continue_config", lambda *args, **kwargs: {"retry": True})
+-    monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+-    monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+-    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainers.pop(0))
+-
+-    out = run_training_mod.run_training("configs/training/hdn_training.yml")
+-    metadata = read_run_metadata(run_dir)
+-
+-    assert out is second
+-    assert first.train_calls == 1
+-    assert second.train_calls == 1
+-    assert metadata.status == "completed"
+-    assert metadata.retry_attempt == 2
+-    assert metadata.max_retry_attempts == 3
+-
+-
+-def test_run_training_exhausts_retryable_hdn_attempts_and_fails(
+-    monkeypatch: pytest.MonkeyPatch,
+-    tmp_path: Path,
+-):
+-    cfg = _make_cfg()
+-    writer = DummyWriter()
+-    logger = DummyLogger()
+-    run_dir = tmp_path / "datasets" / "dataset_a" / "models" / "Upsamp" / "run_retry_fail"
+-    runtime = _make_runtime(writer=writer, logger=logger, run_dir=run_dir)
+-    prepared_data = _make_prepared_data()
+-
+-    trainers = [
+-        DummyTrainer(
+-            outcome=_outcome(
+-                "failed_retryable_hdn_divergence",
+-                last_completed_epoch=0,
+-                failure_reason="diverged_1",
+-                retry_eligible=True,
+-            )
+-        ),
+-        DummyTrainer(
+-            outcome=_outcome(
+-                "failed_retryable_hdn_divergence",
+-                last_completed_epoch=0,
+-                failure_reason="diverged_2",
+-                retry_eligible=True,
+-            )
+-        ),
+-        DummyTrainer(
+-            outcome=_outcome(
+-                "failed_retryable_hdn_divergence",
+-                last_completed_epoch=0,
+-                failure_reason="diverged_3",
+-                retry_eligible=True,
+-            )
+-        ),
+-    ]
+ 
+     fake_setup = SimpleNamespace(
+         prepare_data=lambda c, x: prepared_data,
+@@ -748,56 +684,17 @@ def test_run_training_exhausts_retryable_hdn_attempts_and_fails(
+     )
+ 
+     monkeypatch.setattr(run_training_mod, "resolve_config", lambda path: cfg)
+-    monkeypatch.setattr(run_training_mod, "resolve_config_dict", lambda cfg_dict: cfg)
+-    monkeypatch.setattr(run_training_mod, "_build_retry_continue_config", lambda *args, **kwargs: {"retry": True})
+     monkeypatch.setattr(run_training_mod, "initialize_runtime", lambda c: runtime)
+     monkeypatch.setattr(run_training_mod, "setup", fake_setup)
+-    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainers.pop(0))
++    monkeypatch.setattr(run_training_mod, "get_trainer", lambda **kwargs: trainer)
+ 
+-    with pytest.raises(RuntimeError, match="Training failed after 3 attempt\\(s\\)"):
++    with pytest.raises(RuntimeError, match="Training failed: diverged"):
+         run_training_mod.run_training("configs/training/hdn_training.yml")
+-
+     metadata = read_run_metadata(run_dir)
+-    assert metadata.status == "failed"
+-    assert metadata.retry_attempt == 3
+-    assert metadata.max_retry_attempts == 3
+-
+-
+-def test_resolve_auto_retry_policy_prefers_local_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+-    cfg = SimpleNamespace(
+-        recovery=SimpleNamespace(
+-            auto_retry=SimpleNamespace(
+-                enabled=False,
+-                max_attempts=5,
+-                when="hdn_divergence_only",
+-            )
+-        )
+-    )
+ 
+-    configs_root = tmp_path / "configs"
+-    configs_root.mkdir(parents=True, exist_ok=True)
+-    (configs_root / "local_config.yml").write_text(
+-        "\n".join(
+-            [
+-                "infrastructure:",
+-                "  data_root: .",
+-                "preferences:",
+-                "  recovery:",
+-                "    auto_retry:",
+-                "      enabled: true",
+-                "      max_attempts: 2",
+-                "",
+-            ]
+-        ),
+-        encoding="utf-8",
+-    )
+-    monkeypatch.setattr(run_training_mod.settings, "CONFIGS_ROOT", configs_root)
+-
+-    policy = run_training_mod._resolve_auto_retry_policy(cfg)
+-
+-    assert policy.enabled is True
+-    assert policy.max_attempts == 2
+-    assert policy.when == "hdn_divergence_only"
++    assert trainer.train_calls == 1
++    assert metadata.status == "failed"
++    assert metadata.failure_reason == "diverged"
+ 
+ 
+ def test_display_epoch_is_one_based():

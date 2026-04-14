@@ -42,8 +42,6 @@ def test_run_metadata_accepts_running_payload():
     assert metadata.run_name == "HDN_Gag_KL07"
     assert metadata.run_index == 1
     assert metadata.safe_resume_fail_count == 0
-    assert metadata.retry_attempt == 1
-    assert metadata.max_retry_attempts == 1
 
 
 def test_run_metadata_accepts_pause_related_non_terminal_statuses():
@@ -58,9 +56,19 @@ def test_run_metadata_accepts_pause_related_non_terminal_statuses():
         assert metadata.status == status
 
 
-def test_run_metadata_rejects_retry_attempt_above_max():
-    with pytest.raises(ValidationError):
-        RunMetadata.model_validate(_payload(retry_attempt=3, max_retry_attempts=2))
+def test_run_metadata_accepts_legacy_retry_orchestration_fields():
+    metadata = RunMetadata.model_validate(
+        _payload(
+            retry_attempt=3,
+            max_retry_attempts=5,
+            retry_state={"status": "retrying"},
+        )
+    )
+    payload = metadata.model_dump(mode="python")
+
+    assert "retry_attempt" not in payload
+    assert "max_retry_attempts" not in payload
+    assert "retry_state" not in payload
 
 
 def test_run_metadata_accepts_optional_training_signature_and_runtime_stats():

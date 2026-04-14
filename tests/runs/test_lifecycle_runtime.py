@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from lisai.runs.io import read_run_metadata, write_run_metadata_atomic
-from lisai.runs.lifecycle import update_run_attempt_state, update_run_runtime_details
+from lisai.runs.lifecycle import (
+    update_run_failure_reason,
+    update_run_recovery_info,
+    update_run_runtime_details,
+)
 from lisai.runs.schema import RunMetadata
 
 
@@ -112,22 +116,52 @@ def test_update_run_runtime_details_preserves_legacy_peak_only_stats(tmp_path):
     assert metadata.runtime_stats.training_time_per_epoch_sec is None
 
 
-def test_update_run_attempt_state_updates_retry_and_pause_status(tmp_path):
+def test_update_run_recovery_info_updates_failure_and_safe_resume_fields(tmp_path):
     run_dir = tmp_path / "demo_00"
     write_run_metadata_atomic(run_dir, RunMetadata.model_validate(_payload(run_dir)))
 
-    update_run_attempt_state(
+    update_run_recovery_info(
         run_dir,
-        status="paused",
-        retry_attempt=2,
-        max_retry_attempts=3,
         failure_reason="manual_pause",
+        recovery_checkpoint_filename="safe_on_divergence.pth",
+        recovery_strategy="hdn_safe_resume_v1",
+        last_safe_epoch=5,
+        last_safe_batch_id=42,
+        safe_resume_fail_count=3,
     )
     metadata = read_run_metadata(run_dir)
 
-    assert metadata.status == "paused"
-    assert metadata.closed_cleanly is False
-    assert metadata.ended_at is None
-    assert metadata.retry_attempt == 2
-    assert metadata.max_retry_attempts == 3
     assert metadata.failure_reason == "manual_pause"
+    assert metadata.recovery_checkpoint_filename == "safe_on_divergence.pth"
+    assert metadata.recovery_strategy == "hdn_safe_resume_v1"
+    assert metadata.last_safe_epoch == 5
+    assert metadata.last_safe_batch_id == 42
+    assert metadata.safe_resume_fail_count == 3
+
+
+def test_update_run_failure_reason_updates_only_failure_summary(tmp_path):
+    run_dir = tmp_path / "demo_00"
+    write_run_metadata_atomic(
+        run_dir,
+        RunMetadata.model_validate(
+            _payload(
+                run_dir,
+                failure_reason="old failure",
+                recovery_checkpoint_filename="safe_on_divergence.pth",
+                recovery_strategy="hdn_safe_resume_v1",
+                last_safe_epoch=4,
+                last_safe_batch_id=21,
+                safe_resume_fail_count=2,
+            )
+        ),
+    )
+
+    update_run_failure_reason(run_dir, failure_reason="new failure")
+    metadata = read_run_metadata(run_dir)
+
+    assert metadata.failure_reason == "new failure"
+    assert metadata.recovery_checkpoint_filename == "safe_on_divergence.pth"
+    assert metadata.recovery_strategy == "hdn_safe_resume_v1"
+    assert metadata.last_safe_epoch == 4
+    assert metadata.last_safe_batch_id == 21
+    assert metadata.safe_resume_fail_count == 2

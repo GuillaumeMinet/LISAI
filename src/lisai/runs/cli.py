@@ -486,7 +486,7 @@ def _add_runs_list_arguments(parser: argparse.ArgumentParser) -> argparse.Argume
         action="store_true",
         help=(
             "Include extra metadata columns "
-            "(retry, failure, path_consistent, closed_cleanly, start_time, last_seen, run_id)."
+            "(failure, path_consistent, closed_cleanly, start_time, last_seen, run_id)."
         ),
     )
     parser.add_argument(
