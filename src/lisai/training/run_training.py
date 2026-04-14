@@ -22,9 +22,9 @@ from lisai.runs import (
     finalize_run_completed,
     finalize_run_failed,
     finalize_run_stopped,
+    finalize_setup_failed,
     group_path_from_model_subfolder,
     update_run_failure_reason,
-    update_run_heartbeat,
     update_run_runtime_details,
 )
 from lisai.runs.plotting import save_loss_plot_for_run
@@ -49,9 +49,7 @@ def _prompt_yes_no(prompt: str) -> bool:
     return answer in {"y", "yes"}
 
 
-def _normalize_training_outcome(
-    outcome,
-) -> "TrainingOutcome":
+def _normalize_training_outcome(outcome) -> "TrainingOutcome":
     from lisai.training.trainers.base import TrainingOutcome
 
     assert isinstance(outcome, TrainingOutcome), "trainer.train() must return TrainingOutcome"
@@ -242,22 +240,18 @@ def _install_run_monitor(cfg, runtime) -> bool:
     return True
 
 
-def _refresh_run_monitor_heartbeat(runtime, monitor_enabled: bool):
-    if not monitor_enabled or runtime.run_dir is None:
-        return
-    _safe_run_metadata_call(runtime, "heartbeat update", update_run_heartbeat, runtime.run_dir)
-
-
 def _finalize_run_monitor(runtime, monitor_enabled: bool, outcome: "TrainingOutcome"):
     if not monitor_enabled or runtime.run_dir is None:
         return
 
     if outcome.reason in {"completed", "early_stopped", "no_epochs"}:
         finalizer = finalize_run_completed
-    elif outcome.reason == "interrupted":
+    elif outcome.reason in {"interrupted", "setup_interrupted"}:
         finalizer = finalize_run_stopped
     elif outcome.reason in {"failed_retryable_hdn_divergence", "failed_nonretryable"}:
         finalizer = finalize_run_failed
+    elif outcome.reason in {"setup_failed"}:
+        finalizer = finalize_setup_failed
     else:
         return
 
@@ -265,7 +259,11 @@ def _finalize_run_monitor(runtime, monitor_enabled: bool, outcome: "TrainingOutc
 
 
 def _is_failed_outcome(outcome: "TrainingOutcome") -> bool:
-    return outcome.reason in {"failed_retryable_hdn_divergence", "failed_nonretryable"}
+    return outcome.reason in {
+        "failed_retryable_hdn_divergence",
+        "failed_nonretryable",
+        "setup_failed",
+    }
 
 
 def _record_failure_reason(runtime, monitor_enabled: bool, outcome: "TrainingOutcome"):
@@ -335,6 +333,113 @@ def _auto_save_loss_plot_image(cfg, runtime, *, terminal_reason: str) -> None:
         info(f"Saved loss plot image: {saved_path}")
 
 
+
+def _setup_training(cfg, runtime, monitor_enabled):
+    try:
+        prepared_data = setup.prepare_data(cfg, runtime)
+        setup.save_training_config(
+            cfg,
+            runtime,
+            prepared_data.data_norm_prm,
+            prepared_data.model_norm_prm,
+        )
+
+        model, state_dict = setup.build_model(
+            cfg,
+            runtime.device,
+            runtime.paths,
+            prepared_data.model_norm_prm,
+        )
+
+        trainable_params = count_trainable_parameters(model)
+
+        _update_training_signature(
+            cfg,
+            runtime,
+            monitor_enabled,
+            trainable_params=trainable_params,
+        )
+
+        trainer = get_trainer(
+            architecture=cfg.model.architecture,
+            model=model,
+            train_loader=prepared_data.train_loader,
+            val_loader=prepared_data.val_loader,
+            device=runtime.device,
+            cfg=cfg,
+            run_dir=runtime.run_dir,
+            volumetric=cfg.model.architecture == "unet3d",
+            writer=runtime.writer,
+            state_dict=state_dict,
+            callbacks=runtime.callbacks,
+            patch_info=prepared_data.patch_info,
+            console_filter=runtime.console_filter,
+            file_filter=runtime.file_filter,
+        )
+        _reset_peak_gpu_memory_stats(runtime, monitor_enabled)
+        return trainer, None
+
+    except KeyboardInterrupt:
+        from lisai.training.trainers.base import TrainingOutcome
+
+        return None, TrainingOutcome(
+            reason="setup_interrupted",
+            last_completed_epoch=None,
+            retry_eligible=False,
+        )
+
+    except Exception as exc:
+        from lisai.training.trainers.base import TrainingOutcome
+
+        logger = getattr(runtime, "logger", None)
+        error = getattr(logger, "error", None)
+        if callable(error):
+            error("Training setup failed", exc_info=True)
+        return None, TrainingOutcome(
+            reason="setup_failed",
+            last_completed_epoch=None,
+            failure_reason=f"{type(exc).__name__}: {exc}",
+            retry_eligible=False,
+        )
+
+
+def _finalize_training_result(
+    cfg,
+    runtime,
+    monitor_enabled,
+    outcome: "TrainingOutcome",
+    *,
+    total_training_time_sec: float | None,
+    training_started: bool,
+):
+    _finalize_run_monitor(runtime, monitor_enabled, outcome)
+    _record_failure_reason(runtime, monitor_enabled, outcome)
+
+    if not training_started:
+        runtime.logger.info("Training interrupted before setup finished.")
+        return
+    
+    _auto_save_loss_plot_image(cfg, runtime, terminal_reason=outcome.reason)
+    time_per_epoch = _training_time_per_epoch_sec(
+        total_training_time_sec=total_training_time_sec,
+        outcome=outcome,
+    )
+    assert total_training_time_sec is not None
+    _update_training_timing(
+        runtime,
+        monitor_enabled,
+        total_training_time_sec=total_training_time_sec,
+        training_time_per_epoch_sec=time_per_epoch,
+    )
+
+    try:
+        if _should_run_post_training_evaluation(cfg, runtime, outcome):
+            _run_post_training_evaluation(cfg, runtime)
+    except Exception:
+        runtime.logger.error("Post-training evaluation failed", exc_info=True)
+        raise
+
+
 def run_training(config_path):
     """Run training end to end from a config path and return the trainer instance."""
     return run_training_from_resolved_config(resolve_config(config_path))
@@ -350,115 +455,45 @@ def run_training_from_resolved_config(cfg: "ResolvedExperiment"):
     runtime = initialize_runtime(cfg)
     monitor_enabled = _install_run_monitor(cfg, runtime)
 
-    final_trainer = None
-    final_outcome = None
-    total_training_time_sec = 0.0
+    trainer = None
+    outcome = None
+    attempt_start_perf = time.perf_counter()
+
     try:
-        attempt_start_perf = time.perf_counter()
-        catastrophic_outcome = None
-        try:
-            prepared_data = setup.prepare_data(cfg, runtime)
-            _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
+        trainer, setup_error = _setup_training(cfg, runtime, monitor_enabled)
 
-            setup.save_training_config(
-                cfg,
-                runtime,
-                prepared_data.data_norm_prm,
-                prepared_data.model_norm_prm,
-            )
-            _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
-
-            model, state_dict = setup.build_model(
-                cfg,
-                runtime.device,
-                runtime.paths,
-                prepared_data.model_norm_prm,
-            )
-            trainable_params = count_trainable_parameters(model)
-            _update_training_signature(
+        if setup_error is not None:
+            outcome = _normalize_training_outcome(setup_error)
+            _finalize_training_result(
                 cfg,
                 runtime,
                 monitor_enabled,
-                trainable_params=trainable_params,
+                outcome,
+                total_training_time_sec=None,
+                training_started=False,
             )
-            _refresh_run_monitor_heartbeat(runtime, monitor_enabled)
-
-            final_trainer = get_trainer(
-                architecture=cfg.model.architecture,
-                model=model,
-                train_loader=prepared_data.train_loader,
-                val_loader=prepared_data.val_loader,
-                device=runtime.device,
-                cfg=cfg,
-                run_dir=runtime.run_dir,
-                volumetric=cfg.model.architecture == "unet3d",
-                writer=runtime.writer,
-                state_dict=state_dict,
-                callbacks=runtime.callbacks,
-                patch_info=prepared_data.patch_info,
-                console_filter=runtime.console_filter,
-                file_filter=runtime.file_filter,
-            )
-            _reset_peak_gpu_memory_stats(runtime, monitor_enabled)
-        except KeyboardInterrupt:
-            from lisai.training.trainers.base import TrainingOutcome
-
-            catastrophic_outcome = TrainingOutcome(
-                reason="interrupted",
-                last_completed_epoch=None,
-                retry_eligible=False,
-            )
-        except Exception as exc:
-            from lisai.training.trainers.base import TrainingOutcome
-
-            logger = getattr(runtime, "logger", None)
-            error = getattr(logger, "error", None)
-            if callable(error):
-                error("Training crashed", exc_info=True)
-            catastrophic_outcome = TrainingOutcome(
-                reason="failed_nonretryable",
-                last_completed_epoch=None,
-                failure_reason=f"{type(exc).__name__}: {exc}",
-                retry_eligible=False,
-            )
-
-        if catastrophic_outcome is not None:
-            final_outcome = _normalize_training_outcome(catastrophic_outcome)
         else:
-            # Keep trainer-managed failure behavior authoritative for train-loop errors.
-            final_outcome = _normalize_training_outcome(final_trainer.train())
-
-        total_training_time_sec = max(time.perf_counter() - attempt_start_perf, 0.0)
-        _update_training_timing(
-            runtime,
-            monitor_enabled,
-            total_training_time_sec=total_training_time_sec,
-            training_time_per_epoch_sec=_training_time_per_epoch_sec(
+            outcome = _normalize_training_outcome(trainer.train())
+            total_training_time_sec = max(time.perf_counter() - attempt_start_perf, 0.0)
+            _finalize_training_result(
+                cfg,
+                runtime,
+                monitor_enabled,
+                outcome,
                 total_training_time_sec=total_training_time_sec,
-                outcome=final_outcome,
-            ),
-        )
+                training_started=True,
+            )
+
     finally:
         _persist_peak_gpu_memory_stats(runtime, monitor_enabled)
         if runtime.writer:
             runtime.writer.close()
 
-    if final_outcome is None:
+    if outcome is None:
         raise RuntimeError("Training orchestration completed without a TrainingOutcome.")
 
-    _finalize_run_monitor(runtime, monitor_enabled, final_outcome)
-    _record_failure_reason(runtime, monitor_enabled, final_outcome)
-    _auto_save_loss_plot_image(cfg, runtime, terminal_reason=final_outcome.reason)
-
-    try:
-        if _should_run_post_training_evaluation(cfg, runtime, final_outcome):
-            _run_post_training_evaluation(cfg, runtime)
-    except Exception:
-        runtime.logger.error("Post-training evaluation failed", exc_info=True)
-        raise
-
-    if _is_failed_outcome(final_outcome):
-        reason = final_outcome.failure_reason or final_outcome.reason
+    if _is_failed_outcome(outcome):
+        reason = outcome.failure_reason or outcome.reason
         raise RuntimeError(f"Training failed: {reason}")
 
-    return final_trainer
+    return trainer

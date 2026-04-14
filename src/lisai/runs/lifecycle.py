@@ -300,6 +300,10 @@ def finalize_run_failed(run_dir: str | Path) -> RunMetadata:
     return _finalize_run(run_dir, status="failed")
 
 
+def finalize_setup_failed(run_dir: str | Path) -> RunMetadata:
+    return _finalize_run(run_dir, status="failed")
+
+
 def _finalize_run(run_dir: str | Path, *, status: str) -> RunMetadata:
     metadata = read_run_metadata(run_dir)
     now = utc_now()
@@ -327,6 +331,7 @@ __all__ = [
     "create_run_metadata",
     "finalize_run_completed",
     "finalize_run_failed",
+    "finalize_setup_failed",
     "finalize_run_stopped",
     "group_path_from_model_subfolder",
     "normalize_model_subfolder",

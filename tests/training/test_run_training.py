@@ -212,7 +212,10 @@ def test_run_training_logs_traceback_for_outer_orchestration_failure(
         run_training_mod.run_training("configs/training/hdn_training.yml")
 
     assert writer.close_calls == 1
-    assert logger.errors == [("Training crashed", True)]
+    assert logger.errors == [("Training setup failed", True)]
+    metadata = read_run_metadata(runtime.run_dir)
+    assert metadata.status == "failed"
+    assert metadata.failure_reason == "RuntimeError: prepare boom"
 
 
 def test_run_training_auto_saves_loss_plot_on_completion(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
