@@ -33,6 +33,9 @@ class Paths:
         self.keys = keys or TemplateKeys()
 
     # Canonical template paths
+    def datasets_root(self) -> Path:
+        return Path(self.settings.resolve_path(self.settings.project.paths.roots["data_dir"])).resolve()
+
     def dataset_registry_path(self) -> Path:
         return self.settings.get_template_path(self.keys.dataset_registry)
 
@@ -71,6 +74,12 @@ class Paths:
             self.keys.noise_model,
             noiseModel_name=noiseModel_name,
         )
+
+    def noise_model_dir(self, *, noiseModel_name: str) -> Path:
+        return self.noise_model_path(noiseModel_name=noiseModel_name).parent
+
+    def noise_model_norm_prm_path(self, *, noiseModel_name: str) -> Path:
+        return self.noise_model_dir(noiseModel_name=noiseModel_name) / "norm_prm.json"
 
     # Run layout subdirectories
     def _subdir(self, run_dir: str | Path, key: str, default: str) -> Path:
@@ -172,4 +181,3 @@ class Paths:
                 epoch_number=epoch_number,
             )
         return self.checkpoints_dir(run_dir=run_dir) / model_name
-

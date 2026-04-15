@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, Mapping
 
 from lisai.models import load_noise_model
@@ -40,8 +39,7 @@ def _load_noise_model_norm_prm(noise_model_name: str | None, lisai_paths: Paths)
     if not noise_model_name:
         return None
 
-    nm_path = lisai_paths.noise_model_path(noiseModel_name=noise_model_name)
-    norm_path = Path(nm_path).parent / "norm_prm.json"
+    norm_path = lisai_paths.noise_model_norm_prm_path(noiseModel_name=noise_model_name)
 
     if not norm_path.exists():
         return None

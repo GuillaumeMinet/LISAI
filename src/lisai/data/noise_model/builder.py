@@ -315,7 +315,7 @@ def build_noise_model(
     )
 
     save_name = cfg.save_name or _build_default_save_name(cfg)
-    base_save_dir = paths.noise_model_path(noiseModel_name=save_name).parent
+    base_save_dir = paths.noise_model_dir(noiseModel_name=save_name)
     save_dir = ensure_output_dir(base_save_dir, overwrite=cfg.overwrite)
 
     files_signal = list_image_files(signal_dir, cfg.filters)

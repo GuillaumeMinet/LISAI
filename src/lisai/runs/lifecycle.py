@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from lisai.config import settings
 from lisai.infra.fs.run_naming import parse_run_dir_name
+from lisai.infra.paths import Paths
 from lisai.infra.paths.model_subfolder import (
     group_path_from_model_subfolder,
     normalize_model_subfolder,
@@ -25,9 +26,12 @@ from .schema import (
 )
 
 
+_PATHS = Paths(settings)
+
+
 def stored_run_path(run_dir: str | Path) -> str:
     path = Path(run_dir).resolve()
-    data_dir = Path(settings.resolve_path(settings.project.paths.roots["data_dir"])).resolve()
+    data_dir = _PATHS.datasets_root()
     data_root = data_dir.parent
 
     try:
