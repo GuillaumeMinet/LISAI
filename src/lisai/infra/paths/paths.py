@@ -36,6 +36,16 @@ class Paths:
     def datasets_root(self) -> Path:
         return Path(self.settings.resolve_path(self.settings.project.paths.roots["data_dir"])).resolve()
 
+    def run_container_dirname(self) -> str:
+        roots = self.settings.project.paths.roots or {}
+        raw = roots.get("run_container_dirname", "models")
+        text = str(raw).strip().strip("/\\")
+        if not text:
+            raise ValueError("project.paths.roots.run_container_dirname must not be empty.")
+        if "/" in text or "\\" in text:
+            raise ValueError("project.paths.roots.run_container_dirname must be a single directory name.")
+        return text
+
     def dataset_registry_path(self) -> Path:
         return self.settings.get_template_path(self.keys.dataset_registry)
 
@@ -50,6 +60,7 @@ class Paths:
         return self.settings.get_template_path(
             self.keys.run_dir,
             dataset_name=dataset_name,
+            run_container_dirname=self.run_container_dirname(),
             models_subfolder=models_subfolder,
             exp_name=exp_name,
         )

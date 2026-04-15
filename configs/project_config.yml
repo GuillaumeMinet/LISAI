@@ -9,6 +9,7 @@ paths:
   roots:
     data_dir: "{data_root}/datasets"
     noise_models_dir: "{data_root}/noise_models"
+    run_container_dirname: "models"
     # code_dir is injected automatically by Settings (project root)
 
   templates:
@@ -17,7 +18,7 @@ paths:
     dataset_loading: "{paths.roots.data_dir}/{dataset_name}/{data_subfolder}"
 
     # run_dir = training dir, where checkpoints, training curves, validation images, etc. are saved
-    run_dir: "{paths.roots.data_dir}/{dataset_name}/models/{models_subfolder}/{exp_name}"
+    run_dir: "{paths.roots.data_dir}/{dataset_name}/{run_container_dirname}/{models_subfolder}/{exp_name}"
 
     tensorboard_runs_dir: "{paths.roots.code_dir}/tensorboard/{dataset_name}/{tensorboard_subfolder}"
 

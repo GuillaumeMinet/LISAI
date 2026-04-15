@@ -15,6 +15,23 @@ class ProjectPaths(BaseModel):
     roots: Dict[str, str]
     templates: Dict[str, str]
 
+    @field_validator("roots", mode="before")
+    @classmethod
+    def _normalize_roots(cls, value):
+        if not isinstance(value, dict):
+            raise TypeError("paths.roots must be an object mapping string keys to templates.")
+        roots = dict(value)
+        raw = roots.get("run_container_dirname", "models")
+        if not isinstance(raw, str):
+            raise TypeError("paths.roots.run_container_dirname must be a string.")
+        normalized = raw.strip().strip("/\\")
+        if not normalized:
+            raise ValueError("paths.roots.run_container_dirname must not be empty.")
+        if "/" in normalized or "\\" in normalized:
+            raise ValueError("paths.roots.run_container_dirname must be a single directory name.")
+        roots["run_container_dirname"] = normalized
+        return roots
+
 
 class RunLayout(BaseModel):
     model_config = ConfigDict(extra="forbid")

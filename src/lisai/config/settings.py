@@ -115,6 +115,12 @@ class Settings:
 
         # Resolve roots (only depend on infra)
         for key, tmpl in (self.project.paths.roots or {}).items():
+            if key == "run_container_dirname":
+                text = str(tmpl).strip().strip("/\\")
+                if not text:
+                    raise ValueError("project.paths.roots.run_container_dirname must not be empty.")
+                ctx.paths.roots[key] = text
+                continue
             value = tmpl.format(**ctx)
             value = str(Path(os.path.normpath(value)).resolve())
             ctx.paths.roots[key] = value
