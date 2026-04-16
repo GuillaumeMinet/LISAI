@@ -65,7 +65,10 @@ def generate_downsamp_inp(inp,downsamp_prm,fix_center=False,context_length = 1,f
         fill_factor = multiple_prm.get("fill_factor")
         assert fill_factor is not None
         n_ch = int(p**2 * fill_factor)
-        downsamp_inp = np.zeros((inp.shape[0],n_ch,int(inp.shape[2]/p),int(inp.shape[3]/p)))
+        downsamp_inp = np.zeros(
+            (inp.shape[0], n_ch, int(inp.shape[2] / p), int(inp.shape[3] / p)),
+            dtype=inp.dtype,
+        )
         
         if multiple_prm.get("random",False): # random px selection
             for patch in range(inp.shape[0]):
@@ -135,5 +138,4 @@ def generate_downsamp_inp(inp,downsamp_prm,fix_center=False,context_length = 1,f
     else:
         raise ValueError(f"Downsampling method {downsamp_method} unknown. Can be 'real','blur' or 'random'.")
         
-
 

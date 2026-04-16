@@ -28,6 +28,10 @@ LVAE_SAVE_SAMPLES_DESC = "Whether individual LVAE samples should be saved in add
 DENORMALIZE_OUTPUT_DESC = "Whether model outputs should be converted back from normalized model space before saving."
 SAVE_INP_DESC = "Whether the input image or tensor should also be saved alongside predictions."
 DOWNSAMP_DESC = "Optional spatial downsampling factor applied to the apply input before inference."
+FILL_FACTOR_DESC = (
+    "Optional fill factor used with deterministic 'multiple' apply downsampling. "
+    "When set, apply uses generate_downsamp_inp with random=false."
+)
 APPLY_COLOR_CODE_DESC = "Whether an additional color-coded visualization should be saved for volumetric apply outputs."
 DARK_FRAME_CONTEXT_LENGTH_DESC = (
     "Whether missing timelapse context frames should be replaced with dark frames "
@@ -98,6 +102,7 @@ class ApplyDefaults(BaseModel):
     denormalize_output: bool = Field(default=True, description=DENORMALIZE_OUTPUT_DESC)
     save_inp: bool = Field(default=False, description=SAVE_INP_DESC)
     downsamp: int | None = Field(default=None, description=DOWNSAMP_DESC)
+    fill_factor: float | None = Field(default=None, gt=0, le=1, description=FILL_FACTOR_DESC)
     apply_color_code: bool = Field(default=False, description=APPLY_COLOR_CODE_DESC)
     color_code_prm: ColorCodeDefaults = Field(default_factory=ColorCodeDefaults, description="Nested volumetric color-coding settings used when apply_color_code is true.")
     dark_frame_context_length: bool = Field(default=False, description=DARK_FRAME_CONTEXT_LENGTH_DESC)
@@ -124,6 +129,7 @@ class ApplyOverrides(BaseModel):
     denormalize_output: bool | None = Field(default=None, description=DENORMALIZE_OUTPUT_DESC)
     save_inp: bool | None = Field(default=None, description=SAVE_INP_DESC)
     downsamp: int | None = Field(default=None, description=DOWNSAMP_DESC)
+    fill_factor: float | None = Field(default=None, gt=0, le=1, description=FILL_FACTOR_DESC)
     apply_color_code: bool | None = Field(default=None, description=APPLY_COLOR_CODE_DESC)
     color_code_prm: ColorCodeOverrides | None = Field(default=None, description="Nested volumetric color-coding overrides used when apply_color_code is true.")
     dark_frame_context_length: bool | None = Field(default=None, description=DARK_FRAME_CONTEXT_LENGTH_DESC)

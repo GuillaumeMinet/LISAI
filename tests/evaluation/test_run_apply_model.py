@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+import lisai.evaluation.run_apply_model as apply_mod
+
+
+def _base_apply_options(**updates):
+    options = {
+        "save_folder": "default",
+        "in_place": False,
+        "epoch_number": None,
+        "best_or_last": "best",
+        "filters": ["tif", "tiff"],
+        "skip_if_contain": None,
+        "crop_size": None,
+        "keep_original_shape": True,
+        "tiling_size": 64,
+        "stack_selection_idx": None,
+        "timelapse_max": None,
+        "lvae_num_samples": 20,
+        "lvae_save_samples": True,
+        "denormalize_output": False,
+        "save_inp": False,
+        "downsamp": 2,
+        "fill_factor": None,
+        "apply_color_code": False,
+        "color_code_prm": {},
+        "dark_frame_context_length": False,
+    }
+    options.update(updates)
+    return options
+
+
+def _patch_common_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    tmp_path: Path,
+    options: dict,
+    input_image: np.ndarray | None = None,
+) -> None:
+    if input_image is None:
+        input_image = np.ones((8, 8), dtype=np.float32)
+
+    monkeypatch.setattr(apply_mod, "resolve_apply_options", lambda **_: options)
+    monkeypatch.setattr(apply_mod, "resolve_run_dir", lambda **_: tmp_path / "run")
+    monkeypatch.setattr(
+        apply_mod,
+        "load_saved_run",
+        lambda _: SimpleNamespace(
+            is_lvae=False,
+            data_norm_prm=None,
+            model_norm_prm=None,
+            upsampling_factor=1,
+            context_length=None,
+        ),
+    )
+    monkeypatch.setattr(
+        apply_mod,
+        "initialize_runtime",
+        lambda **_: SimpleNamespace(model=object(), device="cpu", tiling_size=32),
+    )
+    monkeypatch.setattr(
+        apply_mod,
+        "resolve_prediction_inputs",
+        lambda *_args, **_kwargs: (tmp_path, ["input.tif"], None),
+    )
+    monkeypatch.setattr(apply_mod, "imread", lambda *_: input_image.copy())
+    monkeypatch.setattr(apply_mod, "create_save_folder", lambda path: Path(path))
+    monkeypatch.setattr(apply_mod, "save_outputs", lambda *_args, **_kwargs: None)
+
+
+def test_run_apply_model_keeps_legacy_stride_downsampling_when_fill_factor_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    options = _base_apply_options(downsamp=2, fill_factor=None)
+    _patch_common_runtime(monkeypatch, tmp_path=tmp_path, options=options)
+
+    captured = {}
+
+    def _fake_predict(*args, **_kwargs):
+        img = args[1]
+        captured["img_shape"] = img.shape
+        captured["ch_out"] = _kwargs.get("ch_out")
+        return np.zeros_like(img), None
+
+    monkeypatch.setattr(apply_mod, "predict_4d_stack", _fake_predict)
+    monkeypatch.setattr(
+        apply_mod,
+        "generate_downsamp_inp",
+        lambda *_args, **_kwargs: pytest.fail("generate_downsamp_inp should not be called"),
+    )
+
+    apply_mod.run_apply_model(
+        model_dataset="dataset",
+        model_subfolder="Upsamp",
+        model_name="model",
+        data_path=tmp_path,
+    )
+
+    assert captured["img_shape"] == (1, 1, 4, 4)
+    assert captured["ch_out"] is None
+
+
+def test_run_apply_model_uses_deterministic_multiple_downsampling_when_fill_factor_is_set(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    options = _base_apply_options(downsamp=2, fill_factor=0.5)
+    _patch_common_runtime(monkeypatch, tmp_path=tmp_path, options=options)
+
+    captured = {}
+
+    def _fake_generate_downsamp_inp(img, downsampling_prm):
+        captured["downsampling_prm"] = downsampling_prm
+        captured["source_shape"] = img.shape
+        return np.ones((img.shape[0], 2, img.shape[-2] // 2, img.shape[-1] // 2), dtype=np.float32), None
+
+    def _fake_predict(*args, **_kwargs):
+        img = args[1]
+        captured["img_shape"] = img.shape
+        captured["ch_out"] = _kwargs.get("ch_out")
+        return np.zeros_like(img), None
+
+    monkeypatch.setattr(apply_mod, "generate_downsamp_inp", _fake_generate_downsamp_inp)
+    monkeypatch.setattr(apply_mod, "predict_4d_stack", _fake_predict)
+
+    apply_mod.run_apply_model(
+        model_dataset="dataset",
+        model_subfolder="Upsamp",
+        model_name="model",
+        data_path=tmp_path,
+    )
+
+    assert captured["source_shape"] == (1, 1, 8, 8)
+    assert captured["img_shape"] == (1, 2, 4, 4)
+    assert captured["ch_out"] == 1
+    assert captured["downsampling_prm"] == {
+        "downsamp_factor": 2,
+        "downsamp_method": "multiple",
+        "multiple_prm": {"fill_factor": 0.5, "random": False},
+    }
+
+
+def test_run_apply_model_rejects_fill_factor_without_downsamp(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    options = _base_apply_options(downsamp=None, fill_factor=0.5)
+    _patch_common_runtime(monkeypatch, tmp_path=tmp_path, options=options)
+    monkeypatch.setattr(apply_mod, "predict_4d_stack", lambda *_args, **_kwargs: (None, None))
+
+    with pytest.raises(ValueError, match="requires `apply.downsamp`"):
+        apply_mod.run_apply_model(
+            model_dataset="dataset",
+            model_subfolder="Upsamp",
+            model_name="model",
+            data_path=tmp_path,
+        )
+
+
+def test_run_apply_model_rejects_unsupported_deterministic_multiple_sampling(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    options = _base_apply_options(downsamp=4, fill_factor=0.75)
+    _patch_common_runtime(monkeypatch, tmp_path=tmp_path, options=options)
+    monkeypatch.setattr(
+        apply_mod,
+        "generate_downsamp_inp",
+        lambda *_args, **_kwargs: pytest.fail("generate_downsamp_inp should not be called"),
+    )
+    monkeypatch.setattr(apply_mod, "predict_4d_stack", lambda *_args, **_kwargs: (None, None))
+
+    with pytest.raises(ValueError, match="not implemented"):
+        apply_mod.run_apply_model(
+            model_dataset="dataset",
+            model_subfolder="Upsamp",
+            model_name="model",
+            data_path=tmp_path,
+        )

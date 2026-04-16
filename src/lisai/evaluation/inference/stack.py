@@ -59,6 +59,8 @@ def predict_4d_stack(
     model: torch.nn.Module,
     img: np.ndarray,
     *,
+    timelapse: bool,
+    ch_out: int | None,
     device: torch.device,
     is_lvae: bool,
     tiling_size: int | None,
@@ -69,27 +71,37 @@ def predict_4d_stack(
     dark_frame_context_length: bool,
     verbose: bool = False,
 ):
-    output_shape = (*img.shape[:-2], img.shape[-2] * upsamp, img.shape[-1] * upsamp)
+    if timelapse:
+        output_shape = (*img.shape[:-2], img.shape[-2] * upsamp, img.shape[-1] * upsamp)
+    else:
+        # Non-timelapse inputs use axis 1 as channels, not time.
+        output_shape = (img.shape[0], 1, img.shape[-2] * upsamp, img.shape[-1] * upsamp)
     pred_stack = np.empty(shape=output_shape)
     samples_stack = None
     if is_lvae and lvae_save_samples:
         samples_stack = np.empty(shape=(lvae_num_samples, *output_shape))
 
     for z in range(img.shape[0]):
-        for t in range(img.shape[1]):
-            x_np = _build_temporal_input(
-                img,
-                z=z,
-                t=t,
-                context_length=context_length,
-                dark_frame_context_length=dark_frame_context_length,
-                verbose=verbose,
-            )
+        t_iter = range(img.shape[1]) if timelapse else range(1)
+        for t in t_iter:
+            if timelapse:
+                x_np = _build_temporal_input(
+                    img,
+                    z=z,
+                    t=t,
+                    context_length=context_length,
+                    dark_frame_context_length=dark_frame_context_length,
+                    verbose=verbose,
+                )
+            else:
+                x_np = np.expand_dims(img[z, ...], axis=0)  # [B=1, C, H, W]
             if x_np is None:
                 continue
 
             x = torch.from_numpy(x_np).to(device)
-            ch_out = 1 if context_length is not None else None
+            resolved_ch_out = ch_out
+            if resolved_ch_out is None and context_length is not None:
+                resolved_ch_out = 1
             outputs = infer_batch(
                 model,
                 x,
@@ -97,7 +109,7 @@ def predict_4d_stack(
                 tiling_size=tiling_size,
                 num_samples=lvae_num_samples,
                 upsamp=upsamp,
-                ch_out=ch_out,
+                ch_out=resolved_ch_out,
             )
 
             pred_stack[z, t, ...] = outputs.get("prediction")

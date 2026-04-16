@@ -20,11 +20,64 @@ from lisai.evaluation.inference.stack import predict_4d_stack
 from lisai.evaluation.io import create_save_folder, resolve_prediction_inputs, save_outputs
 from lisai.evaluation.runtime import initialize_runtime
 from lisai.evaluation.saved_run import load_saved_run, resolve_run_dir
+from lisai.lib.upsamp.inp_generators import (
+    _deterministic_mltpl_sampling,
+    generate_downsamp_inp,
+)
 from lisai.evaluation.visualization.z_projection import (
     add_colorbar,
     create_color_coded_image,
     enhance_contrast,
 )
+
+
+def _resolve_fill_factor_for_multiple_apply_downsampling(
+    *,
+    downsamp: int,
+    fill_factor: float,
+    img: np.ndarray,
+) -> float:
+    if not isinstance(downsamp, int) or isinstance(downsamp, bool):
+        raise ValueError(
+            f"`apply.downsamp` must be an integer when `apply.fill_factor` is set; got {downsamp!r}."
+        )
+    if downsamp < 2:
+        raise ValueError(
+            f"`apply.downsamp` must be >= 2 when `apply.fill_factor` is set; got {downsamp}."
+        )
+
+    if not isinstance(fill_factor, (int, float)) or isinstance(fill_factor, bool):
+        raise ValueError(
+            "`apply.fill_factor` must be a float in the interval (0, 1]."
+        )
+    resolved_fill_factor = float(fill_factor)
+    if resolved_fill_factor <= 0 or resolved_fill_factor > 1:
+        raise ValueError(
+            f"`apply.fill_factor` must be in the interval (0, 1], got {fill_factor!r}."
+        )
+
+    if img.shape[1] != 1:
+        raise ValueError(
+            "Deterministic `multiple` apply downsampling requires single-channel inputs "
+            f"after pre-processing, but got shape {img.shape}."
+        )
+
+    n_ch = int(downsamp**2 * resolved_fill_factor)
+    if n_ch < 1:
+        raise ValueError(
+            "Computed zero channels for deterministic `multiple` apply downsampling. "
+            "Increase `apply.fill_factor` or `apply.downsamp`."
+        )
+
+    supported = _deterministic_mltpl_sampling.get(downsamp, {})
+    if n_ch not in supported:
+        raise ValueError(
+            "Deterministic `multiple` downsampling is not implemented for "
+            f"`downsamp_factor={downsamp}` and `n_ch={n_ch}`. "
+            "Choose a different `apply.fill_factor`, a different `apply.downsamp`, "
+            "or set `apply.fill_factor: null` to use legacy stride downsampling."
+        )
+    return resolved_fill_factor
 
 
 def run_apply_model(model_dataset: str,
@@ -47,6 +100,7 @@ def run_apply_model(model_dataset: str,
                 denormalize_output: bool | UnsetType = UNSET,
                 save_inp: bool | UnsetType = UNSET,
                 downsamp: int | None | UnsetType = UNSET,
+                fill_factor: float | None | UnsetType = UNSET,
                 apply_color_code: bool | UnsetType = UNSET,
                 color_code_prm: dict | None | UnsetType = UNSET,
                 dark_frame_context_length: bool | UnsetType = UNSET,
@@ -74,6 +128,7 @@ def run_apply_model(model_dataset: str,
         denormalize_output=denormalize_output,
         save_inp=save_inp,
         downsamp=downsamp,
+        fill_factor=fill_factor,
         apply_color_code=apply_color_code,
         color_code_prm=color_code_prm,
         dark_frame_context_length=dark_frame_context_length,
@@ -146,12 +201,42 @@ def run_apply_model(model_dataset: str,
             original_size = img.shape[-2:]
             img = crop_center(img, crop_size)
 
+        if options["fill_factor"] is not None and options["downsamp"] is None:
+            raise ValueError(
+                "`apply.fill_factor` requires `apply.downsamp` to be set."
+            )
+
         if options["downsamp"] is not None:
-            img = img[..., :: options["downsamp"], :: options["downsamp"]]
+            if options["fill_factor"] is None:
+                img = img[..., :: options["downsamp"], :: options["downsamp"]]
+            else:
+                resolved_fill_factor = _resolve_fill_factor_for_multiple_apply_downsampling(
+                    downsamp=options["downsamp"],
+                    fill_factor=options["fill_factor"],
+                    img=img,
+                )
+                downsampling_prm = {
+                    "downsamp_factor": int(options["downsamp"]),
+                    "downsamp_method": "multiple",
+                    "multiple_prm": {
+                        "fill_factor": resolved_fill_factor,
+                        "random": False,
+                    },
+                }
+                img, _ = generate_downsamp_inp(img, downsampling_prm)
+                print(img.shape)
+                # exit()
+
+        resolved_ch_out = None
+        if img.ndim >= 4 and img.shape[1] > 1:
+            # Align apply behavior with evaluate: multi-channel inputs predict one target channel by default.
+            resolved_ch_out = 1
 
         pred_stack, samples_stack = predict_4d_stack(
             runtime.model,
             img,
+            timelapse=timelapse,
+            ch_out=resolved_ch_out,
             device=runtime.device,
             is_lvae=saved_run.is_lvae,
             tiling_size=tiling_size,

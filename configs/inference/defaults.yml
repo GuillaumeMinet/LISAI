@@ -8,16 +8,17 @@ apply:
     - tiff
     - tif
   skip_if_contain: null
-  crop_size: null
+  crop_size: 1218
   keep_original_shape: true
-  tiling_size: null
+  tiling_size: 400
   stack_selection_idx: null
   timelapse_max: null
-  lvae_num_samples: 20
+  lvae_num_samples: 50
   lvae_save_samples: true
   denormalize_output: true
-  save_inp: false
-  downsamp: null
+  save_inp: true
+  downsamp: 2
+  fill_factor: 0.5
   apply_color_code: false
   color_code_prm:
     colormap: turbo

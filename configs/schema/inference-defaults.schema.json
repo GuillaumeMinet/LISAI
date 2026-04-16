@@ -186,6 +186,21 @@
           "description": "Optional spatial downsampling factor applied to the apply input before inference.",
           "title": "Downsamp"
         },
+        "fill_factor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional fill factor used with deterministic 'multiple' apply downsampling. When set, apply uses generate_downsamp_inp with random=false.",
+          "title": "Fill Factor"
+        },
         "apply_color_code": {
           "default": false,
           "description": "Whether an additional color-coded visualization should be saved for volumetric apply outputs.",

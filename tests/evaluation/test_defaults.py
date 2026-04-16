@@ -34,6 +34,7 @@ def test_resolve_apply_options_merges_defaults_then_named_config_then_cli(tmp_pa
 apply:
   tiling_size: 256
   denormalize_output: false
+  fill_factor: 0.5
   color_code_prm:
     colormap: turbo
     saturation: 0.35
@@ -48,6 +49,7 @@ evaluate:
 apply:
   tiling_size: 512
   crop_size: 128
+  fill_factor: 0.75
 """.strip()
         + "\n",
     )
@@ -56,9 +58,28 @@ apply:
 
     assert resolved["tiling_size"] == 512
     assert resolved["crop_size"] == 128
+    assert resolved["fill_factor"] == pytest.approx(0.75)
     assert resolved["denormalize_output"] is False
     assert resolved["save_inp"] is True
     assert resolved["color_code_prm"]["colormap"] == "turbo"
+
+
+def test_resolve_apply_options_preserves_legacy_downsamp_when_fill_factor_is_not_set(tmp_path: Path):
+    defaults_path = tmp_path / "configs" / "inference" / "defaults.yml"
+    _write(
+        defaults_path,
+        """
+apply:
+  downsamp: 2
+  fill_factor: null
+""".strip()
+        + "\n",
+    )
+
+    resolved = resolve_apply_options(cwd=tmp_path)
+
+    assert resolved["downsamp"] == 2
+    assert resolved["fill_factor"] is None
 
 
 def test_resolve_evaluate_options_requires_requested_section_in_named_config(tmp_path: Path):
