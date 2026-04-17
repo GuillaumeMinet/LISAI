@@ -1,299 +1,317 @@
 {
   "title": "PreprocessConfig",
   "type": "object",
-  "oneOf": [
+  "additionalProperties": false,
+  "properties": {
+    "dataset_name": {
+      "description": "Dataset name as registered in the project data paths and registry.",
+      "title": "Dataset Name",
+      "type": "string"
+    },
+    "pipeline": {
+      "description": "Preprocess pipeline to run. This selects the valid schema for pipeline_cfg.",
+      "title": "Pipeline",
+      "type": "string",
+      "enum": [
+        "recon_mltpl_snr",
+        "recon_timelapse_simple",
+        "single_recon"
+      ]
+    },
+    "data_type": {
+      "description": "Dataset data type produced by preprocessing, typically raw or recon.",
+      "title": "Data Type",
+      "type": "string",
+      "enum": [
+        "raw",
+        "recon"
+      ]
+    },
+    "fmt": {
+      "description": "Output data format used for canonical naming and saving templates.",
+      "title": "Fmt",
+      "type": "string",
+      "enum": [
+        "mltpl_snr",
+        "single",
+        "timelapse"
+      ]
+    },
+    "pipeline_cfg": {
+      "additionalProperties": true,
+      "description": "Pipeline-specific configuration. Editor hints depend on the selected pipeline.",
+      "title": "Pipeline Cfg",
+      "type": "object"
+    },
+    "log": {
+      "$ref": "#/$defs/PreprocessLogConfig",
+      "description": "Options controlling YAML manifest logging for the preprocess run."
+    },
+    "split": {
+      "$ref": "#/$defs/PreprocessSplitConfig",
+      "description": "Options controlling optional train, validation, and test split assignment."
+    }
+  },
+  "required": [
+    "dataset_name",
+    "pipeline",
+    "data_type",
+    "fmt"
+  ],
+  "allOf": [
     {
-      "type": "object",
-      "title": "PreprocessConfig[recon_mltpl_snr]",
-      "additionalProperties": false,
-      "properties": {
-        "dataset_name": {
-          "description": "Dataset name as registered in the project data paths and registry.",
-          "title": "Dataset Name",
-          "type": "string"
+      "if": {
+        "properties": {
+          "pipeline": {
+            "const": "recon_mltpl_snr"
+          }
         },
-        "pipeline": {
-          "description": "Preprocess pipeline to run. This selects the valid schema for pipeline_cfg.",
-          "title": "Pipeline",
-          "type": "string",
-          "const": "recon_mltpl_snr",
-          "default": "recon_mltpl_snr"
-        },
-        "data_type": {
-          "description": "Dataset data type produced by preprocessing, typically raw or recon.",
-          "title": "Data Type",
-          "type": "string"
-        },
-        "fmt": {
-          "description": "Output data format used for canonical naming and saving templates.",
-          "title": "Fmt",
-          "type": "string"
-        },
-        "log": {
-          "$ref": "#/$defs/PreprocessLogConfig",
-          "description": "Options controlling YAML manifest logging for the preprocess run."
-        },
-        "split": {
-          "$ref": "#/$defs/PreprocessSplitConfig",
-          "description": "Options controlling optional train, validation, and test split assignment."
-        },
-        "pipeline_cfg": {
-          "properties": {
-            "dump_subfolder": {
-              "default": "",
-              "description": "Optional subfolder inside the dataset dump/recon directory to read source stacks from.",
-              "title": "Dump Subfolder",
-              "type": "string"
-            },
-            "combine_subfolders": {
-              "default": false,
-              "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
-              "title": "Combine Subfolders",
-              "type": "boolean"
-            },
-            "first_low_inp": {
-              "default": false,
-              "description": "If true, treat the first frame as a dedicated low-SNR single input and save the remaining frames as the multi-SNR input stack.",
-              "title": "First Low Inp",
-              "type": "boolean"
-            },
-            "registration": {
-              "default": true,
-              "description": "If true, rigidly register the stack before generating outputs.",
-              "title": "Registration",
-              "type": "boolean"
-            },
-            "crop_size": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "description": "Optional centered crop size applied to the stack before outputs are extracted.",
-              "title": "Crop Size"
-            },
-            "gt_types": {
-              "anyOf": [
-                {
-                  "items": {
-                    "type": "string"
+        "required": [
+          "pipeline"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data_type": {
+            "description": "Dataset data type produced by preprocessing, typically raw or recon. Allowed for pipeline 'recon_mltpl_snr': recon.",
+            "title": "Data Type",
+            "type": "string",
+            "const": "recon",
+            "default": "recon"
+          },
+          "fmt": {
+            "description": "Output data format used for canonical naming and saving templates. Allowed for pipeline 'recon_mltpl_snr': mltpl_snr.",
+            "title": "Fmt",
+            "type": "string",
+            "const": "mltpl_snr",
+            "default": "mltpl_snr"
+          },
+          "pipeline_cfg": {
+            "properties": {
+              "dump_subfolder": {
+                "default": "",
+                "description": "Optional subfolder inside the dataset dump/recon directory to read source stacks from.",
+                "title": "Dump Subfolder",
+                "type": "string"
+              },
+              "combine_subfolders": {
+                "default": false,
+                "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
+                "title": "Combine Subfolders",
+                "type": "boolean"
+              },
+              "first_low_inp": {
+                "default": false,
+                "description": "If true, treat the first frame as a dedicated low-SNR single input and save the remaining frames as the multi-SNR input stack.",
+                "title": "First Low Inp",
+                "type": "boolean"
+              },
+              "registration": {
+                "default": true,
+                "description": "If true, rigidly register the stack before generating outputs.",
+                "title": "Registration",
+                "type": "boolean"
+              },
+              "crop_size": {
+                "anyOf": [
+                  {
+                    "type": "integer"
                   },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "description": "Optional list of ground-truth outputs to create. Allowed values are 'snr0' and 'avg'.",
-              "title": "Gt Types"
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional centered crop size applied to the stack before outputs are extracted.",
+                "title": "Crop Size"
+              },
+              "gt_types": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional list of ground-truth outputs to create. Allowed values are 'snr0' and 'avg'.",
+                "title": "Gt Types"
+              },
+              "gt_clip_neg": {
+                "default": false,
+                "description": "If true, clamp negative values to zero in generated ground-truth outputs.",
+                "title": "Gt Clip Neg",
+                "type": "boolean"
+              },
+              "gt_avg_n_frames": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional number of leading frames to average when creating the gt_avg output. If omitted, all available GT frames are averaged.",
+                "title": "Gt Avg N Frames"
+              }
             },
-            "gt_clip_neg": {
-              "default": false,
-              "description": "If true, clamp negative values to zero in generated ground-truth outputs.",
-              "title": "Gt Clip Neg",
-              "type": "boolean"
-            },
-            "gt_avg_n_frames": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "description": "Optional number of leading frames to average when creating the gt_avg output. If omitted, all available GT frames are averaged.",
-              "title": "Gt Avg N Frames"
-            }
-          },
-          "title": "ReconMltplSnrConfig",
-          "type": "object",
-          "additionalProperties": false,
-          "description": "Pipeline-specific configuration. Editor hints depend on the selected pipeline."
+            "title": "ReconMltplSnrConfig",
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Pipeline-specific configuration. Editor hints depend on the selected pipeline."
+          }
         }
-      },
-      "required": [
-        "dataset_name",
-        "pipeline",
-        "data_type",
-        "fmt"
-      ]
+      }
     },
     {
-      "type": "object",
-      "title": "PreprocessConfig[recon_timelapse_simple]",
-      "additionalProperties": false,
-      "properties": {
-        "dataset_name": {
-          "description": "Dataset name as registered in the project data paths and registry.",
-          "title": "Dataset Name",
-          "type": "string"
+      "if": {
+        "properties": {
+          "pipeline": {
+            "const": "recon_timelapse_simple"
+          }
         },
-        "pipeline": {
-          "description": "Preprocess pipeline to run. This selects the valid schema for pipeline_cfg.",
-          "title": "Pipeline",
-          "type": "string",
-          "const": "recon_timelapse_simple",
-          "default": "recon_timelapse_simple"
-        },
-        "data_type": {
-          "description": "Dataset data type produced by preprocessing, typically raw or recon.",
-          "title": "Data Type",
-          "type": "string"
-        },
-        "fmt": {
-          "description": "Output data format used for canonical naming and saving templates.",
-          "title": "Fmt",
-          "type": "string"
-        },
-        "log": {
-          "$ref": "#/$defs/PreprocessLogConfig",
-          "description": "Options controlling YAML manifest logging for the preprocess run."
-        },
-        "split": {
-          "$ref": "#/$defs/PreprocessSplitConfig",
-          "description": "Options controlling optional train, validation, and test split assignment."
-        },
-        "pipeline_cfg": {
-          "properties": {
-            "dump_subfolder": {
-              "default": "",
-              "description": "Optional subfolder inside the dataset dump/recon directory to read source timelapses from.",
-              "title": "Dump Subfolder",
-              "type": "string"
-            },
-            "combine_subfolders": {
-              "default": false,
-              "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
-              "title": "Combine Subfolders",
-              "type": "boolean"
-            },
-            "crop_size": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "description": "Optional centered crop size applied to each timelapse frame before saving.",
-              "title": "Crop Size"
-            },
-            "clip_neg": {
-              "default": false,
-              "description": "If true, clamp negative pixel values to zero after preprocessing.",
-              "title": "Clip Neg",
-              "type": "boolean"
-            },
-            "remove_first": {
-              "default": false,
-              "description": "If true, drop the first frame of each timelapse before any other processing.",
-              "title": "Remove First",
-              "type": "boolean"
-            },
-            "bleach_correction": {
-              "default": false,
-              "description": "If true, apply simple-ratio bleach correction to each timelapse stack.",
-              "title": "Bleach Correction",
-              "type": "boolean"
-            }
-          },
-          "title": "ReconTimelapseSimpleConfig",
-          "type": "object",
-          "additionalProperties": false,
-          "description": "Pipeline-specific configuration. Editor hints depend on the selected pipeline."
-        }
+        "required": [
+          "pipeline"
+        ]
       },
-      "required": [
-        "dataset_name",
-        "pipeline",
-        "data_type",
-        "fmt"
-      ]
+      "then": {
+        "properties": {
+          "data_type": {
+            "description": "Dataset data type produced by preprocessing, typically raw or recon. Allowed for pipeline 'recon_timelapse_simple': recon.",
+            "title": "Data Type",
+            "type": "string",
+            "const": "recon",
+            "default": "recon"
+          },
+          "fmt": {
+            "description": "Output data format used for canonical naming and saving templates. Allowed for pipeline 'recon_timelapse_simple': timelapse.",
+            "title": "Fmt",
+            "type": "string",
+            "const": "timelapse",
+            "default": "timelapse"
+          },
+          "pipeline_cfg": {
+            "properties": {
+              "dump_subfolder": {
+                "default": "",
+                "description": "Optional subfolder inside the dataset dump/recon directory to read source timelapses from.",
+                "title": "Dump Subfolder",
+                "type": "string"
+              },
+              "combine_subfolders": {
+                "default": false,
+                "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
+                "title": "Combine Subfolders",
+                "type": "boolean"
+              },
+              "crop_size": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional centered crop size applied to each timelapse frame before saving.",
+                "title": "Crop Size"
+              },
+              "clip_neg": {
+                "default": false,
+                "description": "If true, clamp negative pixel values to zero after preprocessing.",
+                "title": "Clip Neg",
+                "type": "boolean"
+              },
+              "remove_first": {
+                "default": false,
+                "description": "If true, drop the first frame of each timelapse before any other processing.",
+                "title": "Remove First",
+                "type": "boolean"
+              },
+              "bleach_correction": {
+                "default": false,
+                "description": "If true, apply simple-ratio bleach correction to each timelapse stack.",
+                "title": "Bleach Correction",
+                "type": "boolean"
+              }
+            },
+            "title": "ReconTimelapseSimpleConfig",
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Pipeline-specific configuration. Editor hints depend on the selected pipeline."
+          }
+        }
+      }
     },
     {
-      "type": "object",
-      "title": "PreprocessConfig[single_recon]",
-      "additionalProperties": false,
-      "properties": {
-        "dataset_name": {
-          "description": "Dataset name as registered in the project data paths and registry.",
-          "title": "Dataset Name",
-          "type": "string"
+      "if": {
+        "properties": {
+          "pipeline": {
+            "const": "single_recon"
+          }
         },
-        "pipeline": {
-          "description": "Preprocess pipeline to run. This selects the valid schema for pipeline_cfg.",
-          "title": "Pipeline",
-          "type": "string",
-          "const": "single_recon",
-          "default": "single_recon"
-        },
-        "data_type": {
-          "description": "Dataset data type produced by preprocessing, typically raw or recon.",
-          "title": "Data Type",
-          "type": "string"
-        },
-        "fmt": {
-          "description": "Output data format used for canonical naming and saving templates.",
-          "title": "Fmt",
-          "type": "string"
-        },
-        "log": {
-          "$ref": "#/$defs/PreprocessLogConfig",
-          "description": "Options controlling YAML manifest logging for the preprocess run."
-        },
-        "split": {
-          "$ref": "#/$defs/PreprocessSplitConfig",
-          "description": "Options controlling optional train, validation, and test split assignment."
-        },
-        "pipeline_cfg": {
-          "properties": {
-            "dump_subfolder": {
-              "default": "",
-              "description": "Optional subfolder inside the dataset dump/recon directory to read source images from.",
-              "title": "Dump Subfolder",
-              "type": "string"
-            },
-            "combine_subfolders": {
-              "default": false,
-              "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
-              "title": "Combine Subfolders",
-              "type": "boolean"
-            },
-            "crop_size": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "description": "Optional centered crop size applied to each 2D image before saving.",
-              "title": "Crop Size"
-            }
-          },
-          "title": "SingleReconConfig",
-          "type": "object",
-          "additionalProperties": false,
-          "description": "Pipeline-specific configuration. Editor hints depend on the selected pipeline."
-        }
+        "required": [
+          "pipeline"
+        ]
       },
-      "required": [
-        "dataset_name",
-        "pipeline",
-        "data_type",
-        "fmt"
-      ]
+      "then": {
+        "properties": {
+          "data_type": {
+            "description": "Dataset data type produced by preprocessing, typically raw or recon. Allowed for pipeline 'single_recon': recon.",
+            "title": "Data Type",
+            "type": "string",
+            "const": "recon",
+            "default": "recon"
+          },
+          "fmt": {
+            "description": "Output data format used for canonical naming and saving templates. Allowed for pipeline 'single_recon': single.",
+            "title": "Fmt",
+            "type": "string",
+            "const": "single",
+            "default": "single"
+          },
+          "pipeline_cfg": {
+            "properties": {
+              "dump_subfolder": {
+                "default": "",
+                "description": "Optional subfolder inside the dataset dump/recon directory to read source images from.",
+                "title": "Dump Subfolder",
+                "type": "string"
+              },
+              "combine_subfolders": {
+                "default": false,
+                "description": "If true, scan the immediate subfolders of the dump root and combine their files into one preprocess stream.",
+                "title": "Combine Subfolders",
+                "type": "boolean"
+              },
+              "crop_size": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional centered crop size applied to each 2D image before saving.",
+                "title": "Crop Size"
+              }
+            },
+            "title": "SingleReconConfig",
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Pipeline-specific configuration. Editor hints depend on the selected pipeline."
+          }
+        }
+      }
     }
   ],
   "$defs": {
