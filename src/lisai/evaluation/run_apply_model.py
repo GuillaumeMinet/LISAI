@@ -30,36 +30,33 @@ from lisai.evaluation.visualization.z_projection import (
     enhance_contrast,
 )
 
+def _ensure_shape(img: np.ndarray, downsamp_factor: int) -> np.ndarray:
+    """Pad spatial dimensions so they are divisible by `downsamp_factor`.
+
+    Padding is applied only on the bottom/right borders to preserve the
+    top-left sampling grid used by deterministic multiple downsampling.
+    """
+    pad_h = (-img.shape[-2]) % downsamp_factor
+    pad_w = (-img.shape[-1]) % downsamp_factor
+    if pad_h == 0 and pad_w == 0:
+        return img
+
+    pad_width = [(0, 0)] * img.ndim
+    pad_width[-2] = (0, pad_h)
+    pad_width[-1] = (0, pad_w)
+    return np.pad(img, pad_width=tuple(pad_width), mode="constant", constant_values=0)
+
 
 def _resolve_fill_factor_for_multiple_apply_downsampling(
     *,
     downsamp: int,
-    fill_factor: float,
-    img: np.ndarray,
+    fill_factor: float
 ) -> float:
-    if not isinstance(downsamp, int) or isinstance(downsamp, bool):
-        raise ValueError(
-            f"`apply.downsamp` must be an integer when `apply.fill_factor` is set; got {downsamp!r}."
-        )
-    if downsamp < 2:
-        raise ValueError(
-            f"`apply.downsamp` must be >= 2 when `apply.fill_factor` is set; got {downsamp}."
-        )
 
-    if not isinstance(fill_factor, (int, float)) or isinstance(fill_factor, bool):
-        raise ValueError(
-            "`apply.fill_factor` must be a float in the interval (0, 1]."
-        )
     resolved_fill_factor = float(fill_factor)
     if resolved_fill_factor <= 0 or resolved_fill_factor > 1:
         raise ValueError(
             f"`apply.fill_factor` must be in the interval (0, 1], got {fill_factor!r}."
-        )
-
-    if img.shape[1] != 1:
-        raise ValueError(
-            "Deterministic `multiple` apply downsampling requires single-channel inputs "
-            f"after pre-processing, but got shape {img.shape}."
         )
 
     n_ch = int(downsamp**2 * resolved_fill_factor)
@@ -73,10 +70,7 @@ def _resolve_fill_factor_for_multiple_apply_downsampling(
     if n_ch not in supported:
         raise ValueError(
             "Deterministic `multiple` downsampling is not implemented for "
-            f"`downsamp_factor={downsamp}` and `n_ch={n_ch}`. "
-            "Choose a different `apply.fill_factor`, a different `apply.downsamp`, "
-            "or set `apply.fill_factor: null` to use legacy stride downsampling."
-        )
+            f"`downsamp_factor={downsamp}` and `n_ch={n_ch}`. ")
     return resolved_fill_factor
 
 
@@ -207,13 +201,13 @@ def run_apply_model(model_dataset: str,
             )
 
         if options["downsamp"] is not None:
+            img = _ensure_shape(img, options["downsamp"])
             if options["fill_factor"] is None:
                 img = img[..., :: options["downsamp"], :: options["downsamp"]]
             else:
                 resolved_fill_factor = _resolve_fill_factor_for_multiple_apply_downsampling(
                     downsamp=options["downsamp"],
                     fill_factor=options["fill_factor"],
-                    img=img,
                 )
                 downsampling_prm = {
                     "downsamp_factor": int(options["downsamp"]),
@@ -224,8 +218,6 @@ def run_apply_model(model_dataset: str,
                     },
                 }
                 img, _ = generate_downsamp_inp(img, downsampling_prm)
-                print(img.shape)
-                # exit()
 
         resolved_ch_out = None
         if img.ndim >= 4 and img.shape[1] > 1:
