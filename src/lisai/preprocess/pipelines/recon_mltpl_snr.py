@@ -153,18 +153,16 @@ class ReconMltplSnrPipeline(BasePipeline[ReconMltplSnrConfig]):
             outputs["inp_single"] = stack[0]
             outputs["inp_mltpl_snr"] = stack[1:]
             snr0_idx = 1
-            gt_stack = stack[1:]
         else:
             outputs["inp_mltpl_snr"] = stack
             snr0_idx = 0
-            gt_stack = stack
 
         gt_types = self.cfg.gt_types or []
         if "snr0" in gt_types:
             gt = stack[snr0_idx].copy()
             outputs["gt_snr0"] = gt
         if "avg" in gt_types:
-            outputs["gt_avg"] = compute_gt_avg(gt_stack, n_frames=self.cfg.gt_avg_n_frames).copy()
+            outputs["gt_avg"] = compute_gt_avg(stack, n_frames=self.cfg.gt_avg_n_frames).copy()
 
         # GT post-processing
         for key in ("gt_snr0", "gt_avg"):
