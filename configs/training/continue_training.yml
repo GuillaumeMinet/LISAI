@@ -15,9 +15,9 @@ experiment:
 # ========================================================
 load_model:
   canonical_load: true
-  dataset_name: Gag_timelapses
+  dataset_name: Vim_live
   subfolder: Upsamp
-  exp_name: CL1_Upsamp05_biggerNet_00
+  exp_name: reducedDataset_Upsamp2_CL1_5FramesMax_00
   load_method: state_dict
   best_or_last: last
 
@@ -26,7 +26,9 @@ load_model:
 # Only include values you want to change for the resumed run.
 # ========================================================
 training:
-  n_epochs: 200
+  n_epochs: 300
+  auto_stop:
+    enabled: false
   # learning_rate: 1e-8
   # debug_stop: false
   # warmup:

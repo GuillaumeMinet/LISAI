@@ -1,5 +1,5 @@
 
-from lisai.evaluation.helpers.windowed_metrics import windowed_psnr_2d,windowed_ssim_2d,windowed_mse_2d
+from lisai.evaluation.metrics import windowed_psnr_2d,windowed_ssim_2d,windowed_mse_2d
 from skimage.metrics import peak_signal_noise_ratio as psnr, structural_similarity as ssim, mean_squared_error as mse
 
 def calculate_metrics(gt, pred,data_range=None,use_windowed=True,window_size=None,

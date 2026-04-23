@@ -4,7 +4,7 @@ import warnings
 from typing import Optional
 
 import numpy as np
-
+from tifffile import imwrite
 
 def extract_patches(image: np.ndarray, patch_size, step=None, max_patches=None) -> np.ndarray:
     """
@@ -47,6 +47,7 @@ def select_patches(
     threshold: float = 0.2,
     verbose: bool = False,
     select_on_gt: bool = False,
+    save_selected_and_removed: bool = False
 ):
     """
     Select patches based on norm threshold (computed on frame 0).
@@ -65,9 +66,17 @@ def select_patches(
     norms = norms / (norms.max() if norms.max() != 0 else 1.0)
     idx = np.where(norms > threshold)[0]
 
+    if save_selected_and_removed:
+        removed_idxs = np.where(norms <= threshold)[0]
+        removed_patches = inp_patches[removed_idxs, ...]
+        imwrite("removed_patches.tiff",removed_patches)
+        kept_patches = inp_patches[idx, ...]
+        imwrite("kept.tiff", kept_patches)
+
     if verbose:
         print(f"Patch selection: {inp_patches.shape[0] - len(idx)} removed out of {inp_patches.shape[0]}.")
 
     if gt_patches is not None:
         return inp_patches[idx, ...], gt_patches[idx, ...], inp_patches.shape[0] - len(idx)
+    
     return inp_patches[idx, ...], None, inp_patches.shape[0] - len(idx)

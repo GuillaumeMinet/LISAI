@@ -387,15 +387,13 @@ def load_image(
                     inp_img = inp_img[idx]
                 else:
                     inp_img = inp_img[:nFrames]
-
+        
         if prm.context_length is None:
             inp_img = np.expand_dims(inp_img, axis=1)  # [time,1,h,w] => considered as [snr,1,h,w]
             return inp_img, None
 
-        context_length = prm.context_length
-        if context_length == 1:
-            return inp_img, gt_img
 
+        context_length = prm.context_length
         if inp_img.shape[0] < context_length:
             name_file = Path(inp_file).name
             print(

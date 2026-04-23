@@ -1,11 +1,19 @@
-import os,sys
-sys.path.append(os.getcwd())
+import os
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = PROJECT_ROOT / "src"
+for path in (PROJECT_ROOT, SRC_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.metrics import peak_signal_noise_ratio as psnr, structural_similarity as ssim, mean_squared_error as mse
 from tifffile import imread
 from matplotlib.lines import Line2D
-from evaluation.helpers.windowed_metrics import windowed_psnr_2d,windowed_ssim_2d,windowed_mse_2d
+from lisai.evaluation.metrics import windowed_psnr_2d,windowed_ssim_2d,windowed_mse_2d
 from scipy.ndimage import gaussian_filter
 
 

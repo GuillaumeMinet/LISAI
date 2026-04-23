@@ -1042,6 +1042,12 @@
           ],
           "title": "Upsampling Method",
           "type": "string"
+        },
+        "collapse_ch_before_upsamp": {
+          "default": true,
+          "description": "Whether RCAN should collapse features to out_channels before running the upsampling head.",
+          "title": "Collapse Ch Before Upsamp",
+          "type": "boolean"
         }
       },
       "title": "RCANBackboneParams",
@@ -1126,6 +1132,12 @@
           ],
           "title": "Upsampling Method",
           "type": "string"
+        },
+        "collapse_ch_before_upsamp": {
+          "default": true,
+          "description": "Whether RCAN should collapse features to out_channels before running the upsampling head.",
+          "title": "Collapse Ch Before Upsamp",
+          "type": "boolean"
         },
         "upsamp": {
           "anyOf": [

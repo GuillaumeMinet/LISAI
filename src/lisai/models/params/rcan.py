@@ -28,6 +28,11 @@ class RCANBackboneParams(BaseModel):
         default="conv",
         description="RCAN upsampling method when standalone or when UNet-RCAN delegates upsampling to RCAN.",
     )
+    collapse_ch_before_upsamp: bool = Field(
+        default=True,
+        strict=True,
+        description="Whether RCAN should collapse features to out_channels before running the upsampling head.",
+    )
 
     @field_validator("out_channels", "num_features", "num_rg", "num_rcab", "reduction", "upsamp_kernel_factor")
     @classmethod

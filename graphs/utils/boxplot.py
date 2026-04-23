@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 
 def box_plot(datasets,labels,fig=None,ax=None,mltpl_plots=False,n_plots=None,plot_idx=None,figsize=(6.4,4.8),
-             use_mean=False,colors=None,showfliers=False,showMeanAndStd=False,reverse_dataset_order=False,
+             use_mean=False,colors=None,showfliers=False,showMeanAndStd=False,reverse_dataset_order=False,custom_order=None,
              showMeanAndStd_pos="inside",positions=None,widths=0.3,mltpl_displacements=0.4,
              ylim=None,xlabel=None, ylabel=None,title=None,labels_angle=0,dashed_whiskers=False,linewidth=2,
              labels_fontSize=None,showMeanAndStd_fontsize=None,ticks_prms=None,
@@ -18,6 +18,9 @@ def box_plot(datasets,labels,fig=None,ax=None,mltpl_plots=False,n_plots=None,plo
     if reverse_dataset_order:
         datasets = datasets[::-1]
         labels = labels[::-1]
+    elif custom_order is not None:
+        datasets = [datasets[i] for i in custom_order]
+        labels = [labels[i] for i in custom_order]
 
     if positions is None:
         positions = np.arange(1, len(datasets) + 1)

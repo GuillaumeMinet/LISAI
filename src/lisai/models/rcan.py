@@ -23,7 +23,13 @@ class RCAN(nn.Module):
             *[RG(params.num_features, params.num_rcab, params.reduction, params.dropout) for _ in range(params.num_rg)]
         )
         self.conv1 = nn.Conv2d(params.num_features, params.num_features, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(params.num_features, params.out_channels, kernel_size=3, padding=1)
+
+        if params.collapse_ch_before_upsamp:
+            self.conv2 = nn.Conv2d(params.num_features, params.out_channels, kernel_size=3, padding=1)
+            upsamp_ch = params.out_channels
+        else:
+            self.conv2 = nn.Conv2d(params.num_features, params.num_features, kernel_size=3, padding=1)
+            upsamp_ch = params.num_features
 
         if self.upsamp is not None:
             if params.upsampling_method == "pixelshuffle":
@@ -36,15 +42,15 @@ class RCAN(nn.Module):
                 upsamp_pad = params.upsamp_kernel_factor - 1
                 self.upsamp_block = nn.Sequential(
                     upsamp_block(
-                        1,
-                        1,
+                        upsamp_ch,
+                        upsamp_ch,
                         kernel_size=kernel_size,
                         stride=self.upsamp,
                         padding=upsamp_pad,
                         norm=None,
                         dropout=0,
                     ),
-                    conv_block(1, 1, norm=None, dropout=0),
+                    conv_block(upsamp_ch, params.out_channels, norm=None, dropout=0),
                 )
             else:
                 raise ValueError(

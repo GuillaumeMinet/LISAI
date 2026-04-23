@@ -100,6 +100,27 @@ def test_model_section_resolves_architecture_specific_parameter_model():
     assert cfg.model.parameters.upsampling_factor == 2
     assert cfg.model.parameters.UNet_prm.in_channels == 3
     assert cfg.model.parameters.RCAN_prm.num_features == 32
+    assert cfg.model.parameters.RCAN_prm.collapse_ch_before_upsamp is True
+
+
+def test_unet_rcan_rejects_non_boolean_collapse_ch_before_upsamp():
+    with pytest.raises(ValidationError, match="collapse_ch_before_upsamp"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "timelapse_prm": {"context_length": 3},
+                },
+                "model": {
+                    "architecture": "unet_rcan",
+                    "parameters": {
+                        "upsampling_net": "rcan",
+                        "upsampling_factor": 2,
+                        "UNet_prm": {"in_channels": 3, "out_channels": 3},
+                        "RCAN_prm": {"collapse_ch_before_upsamp": 1},
+                    },
+                },
+            }
+        )
 
 
 

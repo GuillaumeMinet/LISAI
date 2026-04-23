@@ -7,7 +7,7 @@
 # ========================================================
 experiment:
   mode: retrain
-  exp_name: CL1_Upsamp2_transfer
+  exp_name: ContinueFromFixed
   overwrite: false
   post_training_inference: true
 
@@ -17,9 +17,9 @@ experiment:
 # ========================================================
 load_model:
   canonical_load: true
-  dataset_name: Gag
+  dataset_name: vim_fixed
   subfolder: Upsamp
-  exp_name: CL1_Upsamp2_Mltpl075
+  exp_name: Snr0_Upsamp2_05
   load_method: state_dict
   best_or_last: best
 
@@ -27,7 +27,7 @@ load_model:
 # Paths
 # ========================================================
 routing:
-  data_subfolder: preprocess/recon
+  data_subfolder: preprocess/recon_smaller
   models_subfolder: Upsamp
 
 # ========================================================
@@ -35,68 +35,74 @@ routing:
 # Optional: override this section when transferring to a new dataset.
 # ========================================================
 data:
-  dataset_name: Gag_transfer
+  dataset_name: vim_live
+  data_format: timelapse
   canonical_load: true
   prep_before: true
   already_split: true
   filters:
     - tiff
     - tif
+
   paired: false
+  target: null # for paired datasets
+  input: ""
+  timelapse_prm:
+    timelapse_max_frames: 3
+    shuffle: false
+
   patch_size: 96
   val_patch_size: 240
   batch_size: 64
-  downsampling:
-    downsamp_factor: 2
-    downsamp_method: random
 
 # ========================================================
 # Normalization / Noise
 # Optional: useful when the retrain target dataset changes.
 # ========================================================
-normalization:
-  load_from_noise_model: false
-  norm_prm: null
+# normalization:
+#   load_from_noise_model: true
+#   norm_prm: null
 
-noise_model:
-  name: null
+# noise_model:
+#   name: null
 
 # ========================================================
 # Training configuration
 # ========================================================
 training:
-  n_epochs: 100
-  learning_rate: 0.0001
-  optimizer: Adam
-  debug_stop: false
-  warmup:
-    enabled: false
-    steps: 500
-    start_factor: 0.1
-  auto_stop:
-    enabled: false
-    metrics: val_loss
-    patience: 30
+  n_epochs: 500
+  # betaKL: 0.4
+#   learning_rate: 0.0001
+#   optimizer: Adam
+#   debug_stop: false
+#   warmup:
+#     enabled: false
+#     steps: 500
+#     start_factor: 0.1
+#   auto_stop:
+#     enabled: false
+#     metrics: val_loss
+#     patience: 30
 
 # ========================================================
 # Loss configuration
 # ========================================================
-loss_function:
-  name: CharEdge_loss
-  CharEdge_loss_prm:
-    alpha: 0.05
+# loss_function:
+#   name: CharEdge_loss
+#   CharEdge_loss_prm:
+#     alpha: 0.05
 
 # ========================================================
 # Saving configuration
 # ========================================================
-saving:
-  enabled: true
-  canonical_save: true
-  state_dict: true
-  entire_model: true
+# saving:
+#   enabled: true
+#   canonical_save: true
+#   state_dict: true
+#   entire_model: true
 
 # ========================================================
 # Tensorboard configuration
 # ========================================================
-tensorboard:
-  enabled: false
+# tensorboard:
+#   enabled: false

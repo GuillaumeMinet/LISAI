@@ -562,8 +562,8 @@ class BaseTrainer(ABC):
     def _backward_virtual_batch(self, raw_loss: torch.Tensor, num_virtual_batches: int) -> None:
         if num_virtual_batches <= 0:
             raise ValueError(f"num_virtual_batches must be >= 1, got {num_virtual_batches}")
-        # (raw_loss / num_virtual_batches).backward()
-        raw_loss.backward()
+        (raw_loss / num_virtual_batches).backward()
+        # raw_loss.backward()
 
     def _optimizer_step(self) -> float | None:
         grad_norm = None

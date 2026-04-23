@@ -1,8 +1,16 @@
-import os,sys
-sys.path.append(os.getcwd())
-from lisai.graphs.utils.calculate_metrics import calculate_metrics
-from lisai.graphs.utils.boxplot import box_plot as new_box_plot
-from lisai.data.utils import crop_center, extract_patches
+import os
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = PROJECT_ROOT / "src"
+for path in (PROJECT_ROOT, SRC_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+
+from lisai.data.utils import extract_patches
+from scipy.ndimage import gaussian_filter
 
 import frc
 import numpy as np
@@ -35,12 +43,14 @@ n_imgs = 100
 random_imgs = True
 patch_size = 300
 show_figure = False
-plot_gt = False
+plot_gt = True
+smooth_gt = True
 
 # saving parameters
 save_figure = True
-save_legend = True
-save_folder = os.path.join(os.getcwd(), r"src/graphs/saved_graphs")
+save_legend = False
+
+save_folder = PROJECT_ROOT / "graphs" / "saved_graphs"
 save_title = "Upsamp_FRC_vs_ContextLength_Mito.svg"
 legend_save_title = f"{save_title.split('.')[0]}_legend.svg"
 save_legend = True
@@ -80,11 +90,14 @@ for i in idxs:
     print(f"GT {count}/{len(idxs)}")
     count+=1
     gt = imread(eval_folder/f"img_{i}_gt.tif")
-    gt[gt<0]=0
+    if smooth_gt:
+            gt = gaussian_filter (gt,sigma = 0.4,radius = 3)
+    gt = (gt - np.mean(gt)) / (np.std(gt))
+    gt = gt - np.min(gt)
     patches_gt = extract_patches(gt,patch_size)
     for i in range(patches_gt.shape[0]):
         patch_gt = frc.util.apply_tukey(patches_gt[i])
-        frc_curve,_,_ = frc.one_frc(patch_gt)
+        frc_curve = frc.one_frc(patch_gt)
         if np.isnan(frc_curve).any():
             print(f"Skipping a patch in gt {i} due to NaN values in FRC curve.")
         else:
@@ -100,12 +113,13 @@ for folder_idx,cl in  enumerate(cl_list):
         print(f"Predictino {count}/{len(idxs)} in {cl} context length")
         count+=1
         pred = imread(eval_folder/f"img_{i}_pred.tif")
+        pred = (pred - np.mean(pred)) / np.std(pred)
         pred = pred - np.min(pred)
         patches = extract_patches(pred,patch_size)
 
         for i in range(patches.shape[0]):
             patch = frc.util.apply_tukey(patches[i])
-            frc_curve,_,_ = frc.one_frc(patch)
+            frc_curve = frc.one_frc(patch)
             if np.isnan(frc_curve).any():
                 print(f"Skipping a patch in image {i} due to NaN values in FRC curve.")
             else:
@@ -123,19 +137,11 @@ for cl in cl_list:
     
 
 colors_list = ['mediumblue', "#0d9188ff"] #'darkred','forestgreen','pink']
+linewidth = 0.7
 
-# Plot 1frc 
 scale = 1/30*1e3
 img_size = pred.shape
-fig,ax = plt.subplots(1, 1, figsize=(5, 5))
-for cl in cl_list:
-    frc_curve = avg_frc_curves[cl]
-    std_curve = std_frc_curves[cl]
-    xs_pix = np.arange(len(frc_curve)) / img_size[0]
-    xs_nm_freq = xs_pix * scale
-    ax.plot(xs_nm_freq, frc_curve,label=cl,linewidth=2,color=colors_list[cl_list.index(cl)])
-    ax.fill_between(xs_nm_freq, frc_curve - std_curve, frc_curve + std_curve, alpha=0.3,color=colors_list[cl_list.index(cl)],
-                    linewidth=0)
+fig,ax = plt.subplots(1, 1, figsize=(1.4, 1.4))
 
 # gt plot
 if plot_gt:
@@ -143,14 +149,27 @@ if plot_gt:
     std_curve = std_frc_curves["gt"]
     xs_pix = np.arange(len(frc_curve)) / img_size[0]
     xs_nm_freq = xs_pix * scale
-    ax.plot(xs_nm_freq, frc_curve,label="gt",linewidth=0.5,color="black")
-    ax.fill_between(xs_nm_freq, frc_curve - std_curve, frc_curve + std_curve, alpha=0.5)
+    ax.plot(xs_nm_freq, frc_curve,label="gt",linewidth=linewidth*0.6,color="black")
+    ax.fill_between(xs_nm_freq, frc_curve - std_curve, frc_curve + std_curve, alpha=0.2,
+                    color="black",linewidth=0)
 
 
 
-labels_fontSize=20
-ticks_prms={"labelsize":20, "width":2,"length":8}
-ticks_positions=[0,5,10,15]
+# Plot 1frc 
+for cl in cl_list:
+    frc_curve = avg_frc_curves[cl]
+    std_curve = std_frc_curves[cl]
+    xs_pix = np.arange(len(frc_curve)) / img_size[0]
+    xs_nm_freq = xs_pix * scale
+    ax.plot(xs_nm_freq, frc_curve,label=cl,linewidth=linewidth,color=colors_list[cl_list.index(cl)])
+    ax.fill_between(xs_nm_freq, frc_curve - std_curve, frc_curve + std_curve, alpha=0.3,
+                    color=colors_list[cl_list.index(cl)],
+                    linewidth=0)
+
+
+
+labels_fontSize=8
+ticks_prms={"labelsize":10, "width":linewidth,"length":3*linewidth}
 # ax.set_title("1FRC")
 ax.set_xlabel("Spatial frequency (µm$^{-1}$)",fontsize=labels_fontSize)
 ax.set_ylabel("Correlation",fontsize=labels_fontSize)
@@ -158,13 +177,14 @@ ax.set_xlim(0, 15)
 ax.set_ylim(0, 1)
 # ax.legend()
 
-ax.set_xticks(ticks_positions)
+ax.set_xticks([0,5,10,15])
+ax.set_yticks([0,0.5,1])
 ax.tick_params(axis='x',which='major',**ticks_prms)
 ax.tick_params(axis='y',which='major',**ticks_prms)
 plt.gca().spines['top'].set_visible(False)
 plt.gca().spines['right'].set_visible(False)
-plt.gca().spines['left'].set_linewidth(2)
-plt.gca().spines['bottom'].set_linewidth(2)
+plt.gca().spines['left'].set_linewidth(linewidth)
+plt.gca().spines['bottom'].set_linewidth(linewidth)
 
 
 if show_figure:
@@ -175,24 +195,24 @@ if save_figure:
     fig.savefig(os.path.join(save_folder, save_title), bbox_inches='tight')
 
 
-save_path = folders_path/ "Upsamp_Mitoch_Metrics_vs_CL.svg"
-fig.savefig(save_path, format="svg", bbox_inches='tight')
+# save_path = folders_path/ "Upsamp_Mitoch_Metrics_vs_CL.svg"
+# fig.savefig(save_path, format="svg", bbox_inches='tight')
 
-labels_list = [
-    "N=1",
-    "N=5"
-]
+# labels_list = [
+#     "N=1",
+#     "N=5"
+# ]
 
-if save_legend:
-    custom_lines = [
-        Line2D([0], [0], color=colors_list[i], lw=4, solid_capstyle='butt', label=labels_list[i])
-        for i in range(len(labels_list))
-    ]
+# if save_legend:
+#     custom_lines = [
+#         Line2D([0], [0], color=colors_list[i], lw=4, solid_capstyle='butt', label=labels_list[i])
+#         for i in range(len(labels_list))
+#     ]
 
-    legend_fig = plt.figure(figsize=(2, 2))
-    legend_ax = legend_fig.add_subplot(111)
-    legend_ax.axis('off')
-    legend = Legend(legend_ax, custom_lines, labels_list, loc='center', frameon=False, fontsize=16, handlelength=1.5, handleheight=1.0)
-    legend_ax.add_artist(legend)
+#     legend_fig = plt.figure(figsize=(2, 2))
+#     legend_ax = legend_fig.add_subplot(111)
+#     legend_ax.axis('off')
+#     legend = Legend(legend_ax, custom_lines, labels_list, loc='center', frameon=False, fontsize=16, handlelength=1.5, handleheight=1.0)
+#     legend_ax.add_artist(legend)
 
-    legend_fig.savefig(os.path.join(save_folder, legend_save_title), bbox_inches='tight')
+#     legend_fig.savefig(os.path.join(save_folder, legend_save_title), bbox_inches='tight')

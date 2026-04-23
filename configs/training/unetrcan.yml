@@ -4,7 +4,7 @@
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: CARE_noclip_charedge
+  exp_name: UnetRcan_clip_charEdge_recon2_CABskipcon
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
 
@@ -12,7 +12,7 @@ experiment:
 # Paths
 # ========================================================
 routing:
-  data_subfolder: "preprocess/recon"
+  data_subfolder: "preprocess/recon_2"
   models_subfolder: "Denoising"
   tensorboard_subfolder: ""
   # used only for non-canonical loads => full path is used directly
@@ -35,48 +35,59 @@ data:
   target: "gt_avg" # for paired datasets
   input: "inp_single"
 
-  patch_size: 128
-  val_patch_size: 512
+  patch_size: 64
+  val_patch_size: 256
   batch_size: 64
 
   # options
   initial_crop: null
   augmentation: false
-  patch_thresh: 0.15 # None or float [0,1]
+  patch_thresh: 0.1 # None or float [0,1]
   select_on_gt: false
 
 normalization:
   norm_prm:
-    clip: false
+    clip: 0
 
 # ========================================================
 # Model configuration
 # ========================================================
 model:
-  architecture: unet
+  architecture: unet_rcan
   parameters:
-    feat: 64
-    depth: 4
-    in_channels: 1
-    out_channels: 1
-    activation: swish
-    norm: group
-    gr_norm: 8
-    dropout: 0.1
+    upsampling_factor: 1
+    UNet_prm:
+      feat: 64
+      depth: 3
+      in_channels: 1
+      out_channels: 1
+      activation: swish
+      norm: group
+      gr_norm: 8
+      dropout: 0.1
+      cab_skip_con: true
+      remove_skip_con: 1
+    RCAN_prm:
+      in_channels: 2
+      num_features: 64
+      num_rg: 8
+      num_rcab: 12
+      reduction: 16
+      dropout: 0.1
 
 # ========================================================
 # Training configuration
 # ========================================================
 training:
   n_epochs: 100
-  batch_size: 8
+  batch_size: 16
   learning_rate: 0.0001
   optimizer: Adam
-  scheduler: ReduceLROnPlateau
+  scheduler: null
   progress_bar: true
   debug_stop: false
   warmup:
-    enabled: true
+    enabled: false
     steps: 500
     start_factor: 0.1
   auto_stop:
@@ -85,10 +96,10 @@ training:
     patience: 30
 
 loss_function:
-  name: CharEdge_loss
+  name: CharEdge
   CharEdge_loss_prm:
     alpha: 0.05
-
+  
 # ========================================================
 # Saving configuration
 # ========================================================

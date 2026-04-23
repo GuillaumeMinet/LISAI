@@ -1,17 +1,13 @@
-﻿# yaml-language-server: $schema=../schema/preprocess.schema.json
-dataset_name: "vim_fixed"
-pipeline: "recon_mltpl_snr"
+# yaml-language-server: $schema=../schema/preprocess.schema.json
+dataset_name: "Gag_noisy_single"
+pipeline: "single_recon"
 data_type: "recon"
-fmt: "mltpl_snr"
+fmt: "single"
 
 pipeline_cfg:
-  dump_subfolder: "timelapses_gathered"
+  dump_subfolder: ""
   combine_subfolders: false
   crop_size: 1200
-  gt_types: ["snr0","avg"]
-  first_low_inp: true
-  registration: true
-  gt_avg_n_frames: 3
 
 log:
   enabled: true
@@ -21,10 +17,10 @@ split:
   mode: "manual"
   random:
     seed: 0
-    val_fraction: 0.1
-    test_fraction: 0.1
+    val_fraction: 0.2
+    test_fraction: 0.2
   manual:
-    match_by: "sample_id"
-    val: ["c16"]
-    test: ["c01","c14","c23"]
+    match_by: "source_name"
+    val: ["Stack4","Stack5"]
+    test: []
   reuse: null

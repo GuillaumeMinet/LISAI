@@ -28,6 +28,7 @@ apply:
   dark_frame_context_length: false
 
 evaluate:
+  split: test
   best_or_last: best
   epoch_number: null
   tiling_size: null
@@ -41,8 +42,5 @@ evaluate:
     timelapse_prm:
       timelapse_max_frames: null
       shuffle: false
-      
-  # Keep one predicted channel by default; context windows are input-only.
-  ch_out: 1
-  split: test
+  ch_out: 1 # Keep one predicted channel by default; context windows are input-only.
   limit_n_imgs: null

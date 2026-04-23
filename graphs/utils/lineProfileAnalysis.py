@@ -5,13 +5,24 @@ import matplotlib.pyplot as plt
 from scipy.optimize import leastsq
 import math
 
-def lineProfileAnalysis(file_path, pxSize, do_plots=False,show_plots=False,
+def lineProfileAnalysis(file_path, pxSize, do_plots=False,show_plots=False,calculate_snr=True,
                         fig=None, axes=None, start_index=0,min_fwhm=40,max_snr=20,
-                        replace_empty_with_zeros=True,header=True,titles_list=None):
+                        replace_empty_with_zeros=True,header=True,titles_list=None, 
+                        fit_method="gaussian"):
     
     x,y = readLineProfileFile(file_path, pxSize,header,replace_empty_with_zeros)
     num_profiles = y.shape[0]
 
+    if fit_method == "gaussian":
+        fwhm_coeff = 2.35
+        fit_func = single_gaussian_fit
+        plot_func = single_gaussian
+    elif fit_method == "lorentzian":
+        fwhm_coeff = 2
+        fit_func = single_lorentzian_fit
+        plot_func = single_lorentzian
+    else:
+        raise ValueError(f"Unknown fit method {fit_method}")
     
     # Prepare (optional) subplot grid
     if do_plots and axes is None:
@@ -40,53 +51,59 @@ def lineProfileAnalysis(file_path, pxSize, do_plots=False,show_plots=False,
         max_value = np.max(y2)
 
         # Fit Gaussian
-        fit = leastsq(single_gaussian_fit, [max_value, peak_pos, 0.080, 0], args=(x2, y2))
+        fit = leastsq(fit_func, [max_value, peak_pos, 70, 0], args=(x2, y2))
         params = fit[0][:4]  # [c1, mu1, sigma1, cste]
 
         # FWHM and SNR calculation
-        sigma = params[2]
-        fwhm = 2.35 * sigma
+        sigma = np.abs(params[2])
+        fwhm = fwhm_coeff * sigma
 
-        bg_mask = (x2 < peak_pos - 3 * sigma) | (x2 > peak_pos + 3 * sigma)
-        bg_y = y2[bg_mask]
-        bg = np.std(bg_y) if len(bg_y) > 0 else np.nan  # avoid div by 0
-        snr = params[0] / (bg) if bg != 0 and not np.isnan(bg) else np.nan
+        if calculate_snr:
+            bg_mask = (x2 < peak_pos - 3 * sigma) | (x2 > peak_pos + 3 * sigma)
+            bg_y = y2[bg_mask]
+            bg = np.std(bg_y) if len(bg_y) > 0 else np.nan  # avoid div by 0
+            snr = params[0] / (bg) if bg != 0 and not np.isnan(bg) else np.nan
 
         
-        if fwhm < min_fwhm or snr > max_snr:
-            print(f"Profile {i + 1}: FWHM or SNR out of bounds. FWHM: {fwhm}, SNR: {snr}")
+        if fwhm < min_fwhm: 
+            print(f"Profile {i + 1}: FWHM out of bounds {fwhm}")
             fwhm = np.nan
+        if (calculate_snr and snr > max_snr):
+            print(f"Profile {i + 1}: SNR out of bounds: {snr}")
             snr = np.nan
+        
         fwhms.append(fwhm)
-        snrs.append(snr)
-
+        if calculate_snr:
+            snrs.append(snr)
 
         # optional plotting
         if do_plots:
             # Plot data and fit
             ax.plot(x2, y2, 'ko', markersize=4, label='Data')
             x_fit = np.linspace(x.min(),x.max(),1000)
-            ax.plot(x_fit, single_gaussian(x_fit, params), color='orange', label='Fit')
+            ax.plot(x_fit, plot_func(x_fit, params), color='orange', label='Fit')
 
             # Plot background regions
-            bg_left = peak_pos - 3 * sigma
-            bg_right = peak_pos + 3 * sigma
-            ax.axvline(bg_left, color='k', linestyle='--', linewidth=1)
-            ax.axvline(bg_right, color='k', linestyle='--', linewidth=1)
-            # ax.axhline(bg,color='k', linestyle='--', linewidth=1)
-            # ax.axhline(-bg,color='k', linestyle='--', linewidth=1)
-            ax.hlines(y=bg, xmin=x.min(), xmax=bg_left, color='k', linestyle='--', linewidth=1)
-            ax.hlines(y=bg, xmin=bg_right, xmax=x.max(), color='k', linestyle='--', linewidth=1)
-            ax.hlines(y=-bg, xmin=x.min(), xmax=bg_left, color='k', linestyle='--', linewidth=1)
-            ax.hlines(y=-bg, xmin=bg_right, xmax=x.max(), color='k', linestyle='--', linewidth=1)
-            # ax.axhspan(-bg, bg, facecolor='gray', alpha=0.3)
+            if calculate_snr:
+                bg_left = peak_pos - 3 * sigma
+                bg_right = peak_pos + 3 * sigma
+                ax.axvline(bg_left, color='k', linestyle='--', linewidth=1)
+                ax.axvline(bg_right, color='k', linestyle='--', linewidth=1)
+                # ax.axhline(bg,color='k', linestyle='--', linewidth=1)
+                # ax.axhline(-bg,color='k', linestyle='--', linewidth=1)
+                ax.hlines(y=bg, xmin=x.min(), xmax=bg_left, color='k', linestyle='--', linewidth=1)
+                ax.hlines(y=bg, xmin=bg_right, xmax=x.max(), color='k', linestyle='--', linewidth=1)
+                ax.hlines(y=-bg, xmin=x.min(), xmax=bg_left, color='k', linestyle='--', linewidth=1)
+                ax.hlines(y=-bg, xmin=bg_right, xmax=x.max(), color='k', linestyle='--', linewidth=1)
+                # ax.axhspan(-bg, bg, facecolor='gray', alpha=0.3)
 
-            ax.fill_betweenx(y=[-bg, bg], x1=ax.get_xlim()[0], x2=bg_left, color='gray', alpha=0.2)
-            ax.fill_betweenx(y=[-bg, bg], x1=bg_right, x2=ax.get_xlim()[1], color='gray', alpha=0.2)
+                ax.fill_betweenx(y=[-bg, bg], x1=ax.get_xlim()[0], x2=bg_left, color='gray', alpha=0.2)
+                ax.fill_betweenx(y=[-bg, bg], x1=bg_right, x2=ax.get_xlim()[1], color='gray', alpha=0.2)
 
             # Annotate SNR and FWHM
-            ax.text(0.95, 0.95, f"SNR: {snr:.2f}", ha='right', va='top', transform=ax.transAxes, fontsize=10)
-            ax.text(0.95, 0.75, f"FWHM: {fwhm*1e3:.2f} nm", ha='right', va='top', transform=ax.transAxes, fontsize=10)
+            if calculate_snr:
+                ax.text(0.95, 0.95, f"SNR: {snr:.2f}", ha='right', va='top', transform=ax.transAxes, fontsize=10)
+            ax.text(0.95, 0.75, f"FWHM: {fwhm:.2f} nm", ha='right', va='top', transform=ax.transAxes, fontsize=10)
 
             if titles_list is not None:
                 try:
@@ -143,6 +160,15 @@ def single_gaussian_fit(params, x, y):
     """ Single Gaussian fit."""
     fit = single_gaussian(x, params)
     return fit - y
+
+def single_lorentzian(x, params):
+    (c1, mu1, gamma1, cste) = params
+    res =c1 * (gamma1**2.0 / ((x - mu1)**2.0 + gamma1**2.0)) + cste
+    return res
+
+def single_lorentzian_fit(params, x, y):
+    fit = single_lorentzian(x, params)
+    return (fit - y)
 
 
 

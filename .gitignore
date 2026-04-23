@@ -1,6 +1,8 @@
 # Local machine config
 configs/local_config.yml
 
+.lisai/
+
 # Python bytecode and caches
 __pycache__/
 *.py[cod]

@@ -1,7 +1,15 @@
-import os,sys
-sys.path.append(os.getcwd())
-from lisai.graphs.utils.calculate_metrics import calculate_metrics
-from lisai.graphs.utils.boxplot import box_plot as new_box_plot
+import os
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = PROJECT_ROOT / "src"
+for path in (PROJECT_ROOT, SRC_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+from graphs.utils.calculate_metrics import calculate_metrics
+from graphs.utils.boxplot import box_plot as new_box_plot
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,8 +26,8 @@ snr_names = [f"High\nSNR", f"Medium\nSNR", "Low\nSNR"]
 sampling_ratios = [0.25, 0.5, 0.75]
 
 # metrics calculation parameters
-smooth_gt = True
-use_windowed = True
+smooth_gt = False
+use_windowed = False
 window_size = 600
 range_invariant = False
 patch_selection = False
@@ -48,11 +56,11 @@ box_plot_parameters = {
 }
 
 
-show_figure = False
+show_figure = True
 
 # saving parameters
-save_figure = True
-save_folder = os.path.join(os.getcwd(), r"src/graphs/saved_graphs")
+save_figure = False
+save_folder = PROJECT_ROOT / "graphs" / "saved_graphs"
 save_title = "Upsamp_PSNR_SSIM_MSE_vsSNRandSampling.svg"
 
 
@@ -91,8 +99,8 @@ for file_name in os.listdir(folder_path):
 
 # do plots
 
-fig,axs = plt.subplots(2,1,figsize=(1.2, 3))
-fig.subplots_adjust(hspace=0.4,left=0,right=0.9)
+fig,axs = plt.subplots(2,1,figsize=(5, 5))
+# fig.subplots_adjust(hspace=0.4,left=0,right=0.9)
 
 for plot_idx,sampling in enumerate(sampling_ratios,start=0):
     psnrs = [psnr_values[snr][sampling] for snr in snr_names]

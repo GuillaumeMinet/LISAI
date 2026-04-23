@@ -85,7 +85,7 @@ def windowed_psnr_2d(ref,test_image,size=128,patch_selection=None,range_invarian
         test_patches,ref_patches,num_removed= select_patches(inp_patches=test_patches,
                                                  gt_patches=ref_patches,
                                                  threshold=patch_selection,
-                                                 select_on_gt=True)
+                                                 select_on_gt=True,verbose=True)
         test_patches=np.squeeze(test_patches,axis=1)
         ref_patches=np.squeeze(ref_patches,axis=1)
 
@@ -99,7 +99,6 @@ def windowed_psnr_2d(ref,test_image,size=128,patch_selection=None,range_invarian
             list_psnrs.append(ra_psnr(gt,pred))
         else:
             list_psnrs.append(psnr(gt,pred,data_range=dyn_range))
-
     return list_psnrs
 
 
