@@ -959,8 +959,9 @@ def _add_queue_commands(subparsers: argparse._SubParsersAction[argparse.Argument
         "--file",
         required=True,
         help=(
-            "Sweep YAML path or short name. "
-            "When a short name is used, lisai searches configs/training."
+            "Sweep YAML path or training-config-relative path. "
+            "Use --file sweeps/<name>.yaml for files under configs/training/sweeps; "
+            "base_config may use a short training config name such as hdn.yml."
         ),
     )
     submit_sweep_parser.add_argument(

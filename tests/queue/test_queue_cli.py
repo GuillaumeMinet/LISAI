@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import lisai.queue.cli as queue_cli
+import lisai.training.cli as training_cli
 from lisai.cli import main as root_main
 from lisai.config import load_yaml
 from lisai.queue.history import SchedulingContext
@@ -543,12 +544,13 @@ def test_queue_submit_sweep_creates_multiple_jobs_with_overrides(monkeypatch, tm
     assert sorted(generated_values) == [0.3, 0.5, 0.7]
 
 
-def test_queue_submit_sweep_resolves_file_from_default_training_dir(monkeypatch, tmp_path):
+def test_queue_submit_sweep_resolves_file_from_training_sweeps_dir(monkeypatch, tmp_path):
     queue_root = tmp_path / ".lisai" / "queue"
     monkeypatch.setenv("LISAI_QUEUE_ROOT", str(queue_root))
 
     training_dir = tmp_path / "configs" / "training"
-    training_dir.mkdir(parents=True, exist_ok=True)
+    sweep_dir = training_dir / "sweeps"
+    sweep_dir.mkdir(parents=True, exist_ok=True)
     base_config = training_dir / "hdn.yml"
     base_config.write_text(
         "\n".join(
@@ -566,7 +568,7 @@ def test_queue_submit_sweep_resolves_file_from_default_training_dir(monkeypatch,
         + "\n",
         encoding="utf-8",
     )
-    sweep_file = training_dir / "hdn_learning_rate.yaml"
+    sweep_file = sweep_dir / "hdn_learning_rate.yaml"
     sweep_file.write_text(
         "\n".join(
             [
@@ -594,11 +596,11 @@ def test_queue_submit_sweep_resolves_file_from_default_training_dir(monkeypatch,
             training_signature=TrainingSignature(architecture="unet", batch_size=8, patch_size=128),
         )
 
+    monkeypatch.setattr(training_cli, "config_dir", training_dir)
     monkeypatch.setattr(queue_cli, "load_scheduling_context", fake_context)
-    monkeypatch.chdir(tmp_path)
 
     exit_code = queue_cli.submit_sweep(
-        file="hdn_learning_rate.yaml",
+        file="sweeps/hdn_learning_rate.yaml",
         resource_class="light",
         device="cuda:0",
         priority="normal",
