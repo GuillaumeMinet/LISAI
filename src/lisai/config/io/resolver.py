@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 
 def _dget(d: dict, path: str, default=None):
+    " Small helper to get nested dict values from dotted path."
     cur = d
     for k in path.split("."):
         if not isinstance(cur, dict) or k not in cur:
@@ -24,6 +25,15 @@ def _dget(d: dict, path: str, default=None):
 
 
 def _dset(d: dict, path: str, value):
+    """ Small helper to set nested dict value by dotted path.
+    Example:
+        _dset(cfg, "experiment.mode", "train") will ensure 
+            {
+            "experiment": {
+                "mode": "train"
+                }
+            }
+    """
     cur = d
     keys = path.split(".")
     for k in keys[:-1]:
@@ -36,6 +46,9 @@ def _dset(d: dict, path: str, value):
 
 
 def _normalize_mode(cfg: dict) -> str:
+    """ Ensure mode is known, and that it is found in 
+    cfg under {experiment: {"mode": mode}}"""
+    
     mode = _dget(cfg, "experiment.mode", None) or cfg.get("mode") or "train"
     if mode == "resume":
         mode = "continue_training"
@@ -57,6 +70,18 @@ def _authoring_model_for_mode(mode: str):
 
 
 def _normalize_load_model(mode: str, cfg: dict, paths: Paths) -> dict:
+    """Canonicalize ``cfg["load_model"]`` for config resolution.
+
+    This does not load checkpoint weights. It converts user-authored
+    ``load_model`` settings into the runtime shape expected downstream:
+    ``enabled``, ``source``, ``run_dir``, and a ``checkpoint`` mapping with
+    ``method``, ``selector``, ``epoch``, and ``filename``.
+
+    Fresh ``train`` runs always get loading disabled. Continue/retrain modes
+    accept both current and legacy checkpoint option names, resolve the source
+    run directory from either canonical dataset/experiment fields or a direct
+    path, write the normalized mapping back into ``cfg``, and return it.
+    """
     if mode == "train":
         enabled = False
         raw = {}
@@ -66,6 +91,7 @@ def _normalize_load_model(mode: str, cfg: dict, paths: Paths) -> dict:
 
     checkpoint = raw.get("checkpoint") or {}
 
+    # canonical runtime shape of load_model
     out = {
         "enabled": enabled,
         "source": raw.get("source"),
@@ -82,6 +108,7 @@ def _normalize_load_model(mode: str, cfg: dict, paths: Paths) -> dict:
         cfg["load_model"] = out
         return out
 
+    # if run_dir already available (e.g. config already previously normalized)
     if out["run_dir"]:
         out["run_dir"] = str(Path(out["run_dir"]).resolve())
         if out["source"] is None:
@@ -89,6 +116,7 @@ def _normalize_load_model(mode: str, cfg: dict, paths: Paths) -> dict:
         cfg["load_model"] = out
         return out
 
+    # canonical loading with dataset name, model subfolder and experiment name
     canonical = raw.get("canonical_load", True)
     if canonical:
         ds_name = raw.get("dataset_name", _dget(cfg, "data.dataset_name"))
@@ -103,6 +131,8 @@ def _normalize_load_model(mode: str, cfg: dict, paths: Paths) -> dict:
         run_dir = paths.run_dir(dataset_name=ds_name, models_subfolder=models_subfolder, exp_name=exp_name)
         out["source"] = "canonical"
         out["run_dir"] = str(run_dir.resolve())
+    
+    # loading with full path (= source run directory path)
     else:
         full_path = raw.get("model_full_path") or raw.get("run_dir") or raw.get("path")
         if not full_path:
@@ -132,12 +162,18 @@ def _merge_root_override(origin_cfg: dict, user_cfg: dict, root: str) -> None:
 
 
 def _apply_mode_resolution(user_cfg: dict, mode: str, paths: Paths) -> dict:
-    if mode == "train":
+    """Buid effective config for retrain/continue mode.
+    Loads the origin run config, then apply only the override roots allowed for that
+    mode so the original run remains the source of truth.
+    """
+
+    if mode == "train": # safety caution
         return user_cfg
 
     origin_dir = Path(_dget(user_cfg, "experiment.origin_run_dir"))
     origin_cfg = _load_origin_cfg(origin_dir, paths)
 
+    # logic: resume mode should only change minimal things, but retrain can have major changes
     override_roots_by_mode = {
         "continue_training": ["experiment", "training", "saving", "tensorboard", "load_model", "recovery"],
         "retrain": [
@@ -223,41 +259,61 @@ def _resolve_loaded_config(
     project_cfg_path: str | Path = "configs/project_config.yml",
     data_cfg_path: str | Path = "configs/data_config.yml",
 ) -> ResolvedExperiment:
+    
+    #load project and data cfg
     project_cfg = load_yaml(project_cfg_path)
     data_cfg = load_yaml(data_cfg_path)
+
+    # save experiment config 
     exp_cfg = deepcopy(exp_cfg)
 
+    # Construct Lisai Paths objects
+    # Note: we keep imports local: settings builds the project configuration
+    # singleton at import time, so config resolution should trigger it only
+    # when path templates are actually needed.
+    from lisai.infra.paths import Paths
+    from ..settings import settings
+    paths = Paths(settings)
+    
+    # mode normalization and validation of experiment config
     mode = _normalize_mode(exp_cfg)
     _authoring_model_for_mode(mode).model_validate(exp_cfg)
 
-    from lisai.infra.paths import Paths
-    from ..settings import settings
-
-    paths = Paths(settings)
-
+    # train mode
     if mode == "train":
+        # merge configs, normalize load model config and config final validation
         cfg = deep_merge(project_cfg, data_cfg)
         cfg = deep_merge(cfg, exp_cfg)
-        _normalize_mode(cfg)
+        _normalize_mode(cfg) # safety protection of mode
         _normalize_load_model(mode, cfg, paths)
         return ResolvedExperiment.model_validate(cfg)
 
+    # other modes: continue/retrain
+
+    # 1. merge exp config with project and data cfgs
     load_resolution_cfg = deep_merge(project_cfg, data_cfg)
     load_resolution_cfg = deep_merge(load_resolution_cfg, exp_cfg)
-    _normalize_mode(load_resolution_cfg)
-    load_model = _normalize_load_model(mode, load_resolution_cfg, paths)
+    _normalize_mode(load_resolution_cfg) # safety protection of mode
 
+    
+    # 2. normalize load model config, resolving run_dir
+    load_model = _normalize_load_model(mode, load_resolution_cfg, paths)
     if not load_model.get("enabled", False):
         raise ValueError(f"Mode '{mode}' requires 'load_model' section.")
 
+    # 3. save and normalize user cfg with correct mode and load_model config
     user_cfg = deepcopy(exp_cfg)
     _normalize_mode(user_cfg)
     user_cfg["load_model"] = load_model
     if mode == "continue_training" and "recovery" in load_resolution_cfg:
+        # save recovery settings
         user_cfg["recovery"] = deepcopy(load_resolution_cfg["recovery"])
     _dset(user_cfg, "experiment.origin_run_dir", load_model["run_dir"])
 
+    # 4. merge step: load original config, and merges allowed override
     cfg = _apply_mode_resolution(user_cfg, mode, paths)
+
+    # 5. clean up and validate final config for safety
     _normalize_mode(cfg)
     _normalize_load_model(mode, cfg, paths)
     _apply_safe_resume_resolution(mode, cfg, paths)

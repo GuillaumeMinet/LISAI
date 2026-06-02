@@ -5,10 +5,16 @@ from lisai.config.settings import settings
 
 
 def run_dir_index_width() -> int:
+    """
+    Return the number of digits (aka the "width") used for run directory indexes,
+    so width=2 if we use "00, 01, 02, ...", but width=3 if we use "000, 001, 002,..."
+    """
     return int(getattr(settings.NAMING, "run_dir_index_width", 2))
 
 
 def format_run_dir_name(run_name: str, run_index: int, *, width: int | None = None) -> str:
+    """Format a run directory name from its base name and numeric index, 
+    e.g: <exp_name>_005 """
     base_name = run_name.strip()
     if not base_name:
         raise ValueError("run_name must not be empty.")
@@ -22,6 +28,7 @@ def format_run_dir_name(run_name: str, run_index: int, *, width: int | None = No
 
 
 def parse_run_dir_name(run_dir_name: str) -> tuple[str, int]:
+    """Split a run directory name into its base run name and index number."""
     name = run_dir_name.strip()
     if not name:
         raise ValueError("run_dir_name must not be empty.")
@@ -37,6 +44,7 @@ def parse_run_dir_name(run_dir_name: str) -> tuple[str, int]:
 
 
 def next_run_index(save_dir: Path, run_name: str) -> int:
+    """Return the next available index for ``run_name`` under ``save_dir``."""
     root = Path(save_dir)
     if not root.exists():
         return 0
@@ -61,17 +69,13 @@ def next_run_index(save_dir: Path, run_name: str) -> int:
 
 
 def allocate_run_dir_name(save_dir: Path, run_name: str, *, width: int | None = None) -> tuple[str, int]:
+    """Allocate the next run directory name and return it with its index."""
     run_index = next_run_index(save_dir, run_name)
     return format_run_dir_name(run_name, run_index, width=width), run_index
 
 
 def get_unique_exp_name(save_dir: Path, exp_name: str) -> str:
-    """
-    Calculates the next available exp name (e.g., 'exp1_02') by scanning save_dir.
-
-    Note: this helper is kept for non-run outputs (e.g. evaluation folders).
-    Training run directories now use explicit run_name/run_index allocation.
-    """
+    """Return a unique non-run experiment name by scanning ``save_dir``."""
     save_dir = Path(save_dir)
 
     if not save_dir.exists():

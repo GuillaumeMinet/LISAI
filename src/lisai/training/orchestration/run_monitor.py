@@ -28,7 +28,17 @@ if TYPE_CHECKING:
 
 
 class RunMonitor:
-    """Thin adapter around lisai.runs helpers for training orchestration."""
+    """
+    Convenience adapter around lisai.runs helpers to update run metadata during 
+    the training:
+        - initializes metadata 
+        - exposes api such as update_signature(), finalize(outcome), etc.
+        - constructs RunMetadataCallback and append it to runtime callbacks so that trainer
+        can update progress during training
+    
+    All metadata updates are called via _safe_call, so that update failures are logged as 
+    warnings instead of crashing training.
+    """
 
     def __init__(self, cfg, runtime):
         self.cfg = cfg

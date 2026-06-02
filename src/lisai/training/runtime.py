@@ -52,30 +52,37 @@ class TrainingRuntime:
 def initialize_runtime(cfg: ResolvedExperiment) -> TrainingRuntime:
     """Build the live runtime infrastructure needed by the training process.
 
-    The input ``cfg`` remains the declarative source of truth for experiment
-    behavior. This function derives the mutable process-side resources from it:
-    canonical paths, creation/resolution of the effective run directory and run
-    name, logger and log filters, TensorBoard writer, device selection, and
-    training callbacks.
+    From the input ``cfg``, we derive:
+        - canonical paths
+        - creation/resolution of the effective run directory 
+        - run name
+        - logger and log filters
+        - TensorBoard writer (if allowed)
+        - device selection
+        - training callbacks.
     """
     from lisai.training.setup.run_dir import prepare_run_dir
 
     paths = Paths(settings)
-    is_volumetric = cfg.model.architecture == "unet3d"
+    is_volumetric = cfg.model.architecture == "unet3d" # used for shape of val images
 
+    # initialize runtime object
     runtime = TrainingRuntime(
         paths=paths,
         run_name=cfg.experiment.exp_name,
     )
 
+    # build run_dir
     run_dir, run_name = prepare_run_dir(cfg, runtime)
     runtime.run_dir = run_dir
     runtime.run_name = run_name  # prepare_run_dir may have changed it to have a unique run name
 
+    # define log file path
     log_file = None
     if run_dir is not None:
         log_file = paths.log_file_path(run_dir=run_dir)
 
+    # construct logger
     use_tqdm = bool(getattr(cfg.training, "progress_bar", False))
     logger, console_filter, file_filter = setup_logger(
         name="lisai",
@@ -91,6 +98,7 @@ def initialize_runtime(cfg: ResolvedExperiment) -> TrainingRuntime:
     runtime.console_filter = console_filter
     runtime.file_filter = file_filter
 
+    # toggles for selectively disabling/enabling logs to the console and/or log file.
     def _enable_console(enable: bool):
         """Toggle console logging for the current training process."""
         console_filter.enable = bool(enable)
@@ -102,6 +110,7 @@ def initialize_runtime(cfg: ResolvedExperiment) -> TrainingRuntime:
     runtime.enable_console_logs = _enable_console
     runtime.enable_file_logs = _enable_file
 
+    # output first logging infos
     logger.info(f"Training Initialization: {run_name}")
     if run_dir is not None:
         logger.info(f"Saving to: {run_dir}")
@@ -110,6 +119,7 @@ def initialize_runtime(cfg: ResolvedExperiment) -> TrainingRuntime:
     if bool(getattr(cfg.training, "early_stop", False)):
         logger.warning("Training is starting with early_stop mode enabled.")
 
+    # tensorboard (if allowed)
     writer = None
     if bool(cfg.tensorboard.enabled):
         try:
@@ -128,17 +138,21 @@ def initialize_runtime(cfg: ResolvedExperiment) -> TrainingRuntime:
 
     runtime.writer = writer
 
+    # device (CPU/GPU)
     device_name = getattr(cfg.training, "device", "cuda")
     if device_name == "cuda" and not torch.cuda.is_available():
         logger.warning("CUDA requested but not available. Switching to CPU.")
         device_name = "cpu"
     runtime.device = torch.device(device_name)
 
+    # callbacks for tensorboard and validation images
     callbacks = []
 
+    # tensorboard
     if writer is not None:
         callbacks.append(TensorBoardCallback(writer, volumetric=is_volumetric))
 
+    # validation images
     images_dir = None
     if runtime.run_dir is not None:
         images_dir = runtime.paths.validation_images_dir(run_dir=runtime.run_dir)

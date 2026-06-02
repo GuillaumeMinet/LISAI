@@ -8,6 +8,8 @@ from .lifecycle import update_run_progress
 
 
 class RunMetadataCallback(Callback):
+    """ This callback is passed to trainer and used to update progress metadata such as
+    epoch, validation loss, epoch duration """
     def __init__(self, run_dir: str | Path, *, max_epoch: int | None, logger=None):
         self.run_dir = Path(run_dir)
         self.max_epoch = max_epoch
