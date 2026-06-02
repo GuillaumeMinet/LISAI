@@ -68,4 +68,4 @@ def test_load_saved_run_validates_and_extracts_fields(monkeypatch):
     assert saved_run.downsamp_factor == 2
     assert saved_run.upsampling_factor == 1
     assert saved_run.context_length == 1
-    assert saved_run.default_tiling_size == 100
+    assert saved_run.default_tiling_size == 300

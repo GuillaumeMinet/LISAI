@@ -14,12 +14,17 @@ from typing import Any, Literal, Mapping
 
 from lisai.config import load_yaml, settings
 from lisai.config.models import ResolvedExperiment
-from lisai.defaults import DEFAULT_TILING_SIZE
 from lisai.infra.paths import Paths
 from lisai.models.params import AnyModelParams
 
 CheckpointMethod = Literal["state_dict", "full_model"]
 
+_DEFAULT_TILING_SIZE_BY_ARCHITECTURE = {
+    "lvae": 300,
+    "unet": 1024,
+    "unet3d": 512,
+    "unetrcan": 512,
+}
 
 
 def resolve_run_dir(*, dataset_name: str, subfolder: str, exp_name: str) -> Path:
@@ -56,8 +61,8 @@ def _checkpoint_methods(cfg: ResolvedExperiment) -> tuple[CheckpointMethod, ...]
 def _default_tiling_size(architecture: str) -> int | None:
     """Resolve the default inference tiling size for a model architecture."""
     for key in (architecture, architecture.replace("_", "")):
-        if key in DEFAULT_TILING_SIZE:
-            return int(DEFAULT_TILING_SIZE[key])
+        if key in _DEFAULT_TILING_SIZE_BY_ARCHITECTURE:
+            return int(_DEFAULT_TILING_SIZE_BY_ARCHITECTURE[key])
     return None
 
 

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import importlib
 from types import SimpleNamespace
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-import lisai.evaluation.run_apply_model as apply_mod
+apply_mod = importlib.import_module("lisai.evaluation.run_apply_model")
 
 
 def _base_apply_options(**updates):
