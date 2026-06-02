@@ -43,10 +43,10 @@ patch_selection = False
 
 # figure parameters
 figsize = (10,5)
-spaceBetweenSubplots=0.3
+spaceBetweenSubplots=0.5
 spaceBelowSubplots=0.2
 
-colors_list = ["mediumblue","mediumblue","mediumblue","mediumblue","mediumblue"]
+colors_list = ["mediumblue","mediumblue","mediumblue","#0d9188ff","mediumblue"]
 
 
 box_plot_parameters = {
@@ -69,12 +69,12 @@ box_plot_parameters = {
     "ticks_prms": {"labelsize":20, "width":2,"length":8},
 }
 
-show_figure = True
+show_figure = False
 
 # saving parameters
-save_figure = False
+save_figure = True
 save_folder = PROJECT_ROOT / "graphs" / "saved_graphs"
-save_title = "Upsamp_PSNR_SSIM_MSE_vs_ContextLength_Mito.svg"
+save_title = "Upsamp_PSNR_SSIM_MSE_vs_ContextLength_Gag.svg"
 
 
 # get file idxs first

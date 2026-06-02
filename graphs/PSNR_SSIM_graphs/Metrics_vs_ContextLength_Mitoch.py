@@ -1,7 +1,15 @@
-import os,sys
-sys.path.append(os.getcwd())
-from lisai.graphs.utils.calculate_metrics import calculate_metrics
-from lisai.graphs.utils.boxplot import box_plot as new_box_plot
+import os
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = PROJECT_ROOT / "src"
+for path in (PROJECT_ROOT, SRC_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+from graphs.utils.calculate_metrics import calculate_metrics
+from graphs.utils.boxplot import box_plot as new_box_plot
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -27,7 +35,7 @@ cl_list = ["N=1","N=3","N=5","N=7"]
 # metrics calculation parameters
 smooth_gt = True
 use_windowed = False
-window_size = 600
+window_size = None
 range_invariant = False
 patch_selection = False
 
@@ -62,7 +70,7 @@ box_plot_parameters = {
 show_figure = True
 
 # saving parameters
-save_figure = True
+save_figure = False
 save_folder = os.path.join(os.getcwd(), r"src/graphs/saved_graphs")
 save_title = "Upsamp_PSNR_SSIM_MSE_vs_ContextLength_Mito.svg"
 
@@ -77,6 +85,9 @@ for folder_idx,cl in  enumerate(cl_list):
     folder = foder_names[folder_idx]
     eval_folder = folders_path/folder/evaluation_foder
     list_files = os.listdir(eval_folder)
+    for i,f in enumerate(list_files):
+        if f.split(".")[-1] != "tif":
+            list_files.pop(i)
     assert len(list_files) %3==0
     n = len(list_files)//3
     for i in range(n):
@@ -93,7 +104,7 @@ for folder_idx,cl in  enumerate(cl_list):
         ssim_values[cl].extend(ssim_val)
         mse_values[cl].extend(mse_val)
 
-
+exit()
 # do plots
 fig,axs = plt.subplots(1,2,figsize=figsize)
 fig.subplots_adjust(wspace=spaceBetweenSubplots)

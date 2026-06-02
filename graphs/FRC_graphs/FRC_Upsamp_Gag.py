@@ -30,13 +30,13 @@ folders_path = Path(r'E:\lisai\datasets\Gag_timelapses\models\Upsamp')
 folder_names = [
     "CL1_Upsamp2_biggerNet_02",
     "CL5_Upsamp2_biggerNet_03",
-    "CL1_Upsamp05_biggerNet_01"
+    # "CL7_Upsamp2_biggerNet_00"
 ]
 
 evaluation_folder = "evaluation_best"
 ambiguity_selector = "last_epoch"
 
-cl_list = ["1","2","3"]
+cl_list = ["1","2"]#,"3"]
 
 patch_size = 1200
 smooth_gt = True
@@ -45,9 +45,8 @@ plot_gt = True
 
 # saving parameters
 save_figure = True
-save_legend = False
-save_folder = os.path.join(os.getcwd(), r"src/graphs/saved_graphs")
-save_title = "Gag_FRC.svg"
+save_folder = PROJECT_ROOT / "graphs" / "saved_graphs"
+save_title = "Gag_FRCvsCL.svg"
 legend_save_title = f"{save_title.split('.')[0]}_legend.svg"
 
 # get file idxs first
@@ -144,20 +143,14 @@ for cl in cl_list:
     avg_frc_curves[cl] = np.mean(frc_curves[cl], axis=0)
     std_frc_curves[cl] = np.std(frc_curves[cl], axis=0)
     
-colors_list = ['mediumblue', 'darkred','forestgreen','pink',"cyan"]
+# colors_list = ['mediumblue', 'darkred','forestgreen','pink',"cyan"]
+colors_list = ['mediumblue', "#0d9188ff"]
+linewidth = 0.7
+fig,ax = plt.subplots(1, 1, figsize=(1.4, 1.4))
 
 # Plot 1frc 
 scale = 1/30*1e3
 img_size = pred.shape
-fig,ax = plt.subplots(1, 1, figsize=(5, 5))
-for cl in cl_list:
-    frc_curve = avg_frc_curves[cl]
-    std_curve = std_frc_curves[cl]
-    xs_pix = np.arange(len(frc_curve)) / img_size[0]
-    xs_nm_freq = xs_pix * scale
-    ax.plot(xs_nm_freq, frc_curve,label=cl,linewidth=2,color=colors_list[cl_list.index(cl)])
-    ax.fill_between(xs_nm_freq, frc_curve - std_curve, frc_curve + std_curve, alpha=0.3,color=colors_list[cl_list.index(cl)],
-                    linewidth=0)
 
 # gt plot
 if plot_gt:
@@ -165,57 +158,45 @@ if plot_gt:
     std_curve = std_frc_curves["gt"]
     xs_pix = np.arange(len(frc_curve)) / img_size[0]
     xs_nm_freq = xs_pix * scale
-    ax.plot(xs_nm_freq, frc_curve,label="gt",linewidth=0.5,color="black")
-    ax.fill_between(xs_nm_freq, frc_curve - std_curve, frc_curve + std_curve, alpha=0.5)
+    ax.plot(xs_nm_freq, frc_curve,label="gt",linewidth=linewidth*0.6,color="black")
+    ax.fill_between(xs_nm_freq, frc_curve - std_curve, frc_curve + std_curve, alpha=0.2,
+                    color="black",linewidth=0)
 
 
+# preds plot
+for cl in cl_list:
+    frc_curve = avg_frc_curves[cl]
+    std_curve = std_frc_curves[cl]
+    xs_pix = np.arange(len(frc_curve)) / img_size[0]
+    xs_nm_freq = xs_pix * scale
+    ax.plot(xs_nm_freq, frc_curve,label=cl,linewidth=linewidth,color=colors_list[cl_list.index(cl)])
+    ax.fill_between(xs_nm_freq, frc_curve - std_curve, frc_curve + std_curve, alpha=0.3,
+                    color=colors_list[cl_list.index(cl)],
+                    linewidth=0)
 
-labels_fontSize=20
-ticks_prms={"labelsize":20, "width":2,"length":8}
-ticks_positions=[0,5,10,15]
+labels_fontSize=8
+ticks_prms={"labelsize":10, "width":linewidth,"length":3*linewidth}
 # ax.set_title("1FRC")
 ax.set_xlabel("Spatial frequency (µm$^{-1}$)",fontsize=labels_fontSize)
 ax.set_ylabel("Correlation",fontsize=labels_fontSize)
 ax.set_xlim(0, 15)
 ax.set_ylim(0, 1)
-ax.legend()
+# ax.legend()
 
-ax.set_xticks(ticks_positions)
+ax.set_xticks([0,5,10,15])
+ax.set_yticks([0,0.5,1])
 ax.tick_params(axis='x',which='major',**ticks_prms)
 ax.tick_params(axis='y',which='major',**ticks_prms)
 plt.gca().spines['top'].set_visible(False)
 plt.gca().spines['right'].set_visible(False)
-plt.gca().spines['left'].set_linewidth(2)
-plt.gca().spines['bottom'].set_linewidth(2)
+plt.gca().spines['left'].set_linewidth(linewidth)
+plt.gca().spines['bottom'].set_linewidth(linewidth)
 
 
 if show_figure:
     plt.show()  
 
-exit()
-# Saving
+# exit()
+
 if save_figure:
     fig.savefig(os.path.join(save_folder, save_title), bbox_inches='tight')
-
-
-save_path = folders_path/ "Upsamp_Mitoch_Metrics_vs_CL.svg"
-fig.savefig(save_path, format="svg", bbox_inches='tight')
-
-labels_list = [
-    "N=1",
-    "N=5"
-]
-
-if save_legend:
-    custom_lines = [
-        Line2D([0], [0], color=colors_list[i], lw=4, solid_capstyle='butt', label=labels_list[i])
-        for i in range(len(labels_list))
-    ]
-
-    legend_fig = plt.figure(figsize=(2, 2))
-    legend_ax = legend_fig.add_subplot(111)
-    legend_ax.axis('off')
-    legend = Legend(legend_ax, custom_lines, labels_list, loc='center', frameon=False, fontsize=16, handlelength=1.5, handleheight=1.0)
-    legend_ax.add_artist(legend)
-
-    legend_fig.savefig(os.path.join(save_folder, legend_save_title), bbox_inches='tight')

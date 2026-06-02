@@ -22,15 +22,19 @@ folders = [
     "high",
     "conf",
     "Predict_HDN_HDN_betaKL04_00",
+    "SN2N",
+    "N2V",
 ]
 
 conditions = [
-    "GT", 
+    "RESOLFT 90%", 
     "Confocal", 
-    "HDN"
+    "HDN",
+    "SN2N",
+    "N2V",
     ]
 
-crop_size = 1218
+crop_size = 1200
 smooth_gt = True
 
 show_figure = True
@@ -39,7 +43,7 @@ show_figure = True
 save_figure = True
 save_legend = False
 save_folder = PROJECT_ROOT / "graphs" / "saved_graphs"
-save_title = "Gag_upsamp_highSNR_FRC.svg"
+save_title = "Gag_upsamp_highSNR_FRC_withSN2NandN2V.svg"
 legend_save_title = f"{save_title.split('.')[0]}_legend.svg"
 
 
@@ -57,13 +61,17 @@ for idx,f in enumerate(folders):
             if "pred" not in img_name:
                 continue
         arr = imread(path / img_name)
+        if cond == "N2V":
+            arr = arr[-1]
+        if cond == "SN2N":
+            arr = arr[0,0]
         if crop_size is not None:
             arr = crop_center(arr,crop_size)
             print(arr.shape)
-        if cond == "GT":
+        if cond == "RESOLFT 90%":
             if smooth_gt:
                 arr = gaussian_filter (arr,sigma = 0.5,radius = 3)
-        if cond == "GT" or cond == "Confocal":
+        if cond == "RESOLFT 90%" or cond == "Confocal":
             arr[arr<0]=0
             arr = (arr - np.mean(arr)) / np.std(arr)
             arr = arr - np.min(arr)
@@ -87,7 +95,7 @@ for cond in conditions:
     avg_frc_curves[cond] = np.mean(frc_curves[cond], axis=0)
     std_frc_curves[cond] = np.std(frc_curves[cond], axis=0)
 
-colors_list = ['black','grey',"#2e2585ff",'darkred','pink']#,'forestgreen']
+colors_list = ['black','grey',"#2e2585ff",'#48bda6ff','#337538ff']#,'forestgreen']
 
 
 # Plot 1frc 
