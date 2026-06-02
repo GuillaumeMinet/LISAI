@@ -127,7 +127,7 @@ class ReconMltplSnrPipeline(BasePipeline[ReconMltplSnrConfig]):
             data_type=run.data_type,
             additional_subfolder=self.cfg.dump_subfolder if self.cfg.dump_subfolder else "",
         )
-        exts = tuple(settings.data.data_types[run.data_type])
+        exts = tuple(settings.data_cfg.data_types[run.data_type])
         return FolderSource(root=dump_root, exts=exts, combine_subfolders=self.cfg.combine_subfolders)
 
     def process_item(self, *, item: Item) -> Dict[str, np.ndarray]:

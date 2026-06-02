@@ -256,7 +256,7 @@ def test_worker_treats_old_running_heartbeat_as_stale_not_active(monkeypatch, tm
     )
 
     monkeypatch.setattr(worker_mod, "scan_runs", lambda: ScanResults(runs=(stale_run,), invalid=()))
-    monkeypatch.setattr(settings.project.run_tracking, "active_heartbeat_timeout_minutes", 10)
+    monkeypatch.setattr(settings.project_cfg.run_tracking, "active_heartbeat_timeout_minutes", 10)
     monkeypatch.setattr(runs_listing, "utc_now", lambda: datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc))
     monkeypatch.setattr(QueueWorker, "_launch_job", lambda self, record: True)
 

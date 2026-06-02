@@ -79,14 +79,14 @@ class QueueWorker:
     ):
         self.queue_root = ensure_queue_dirs(queue_root=queue_root)
         self.poll_seconds = int(
-            settings.project.queue.poll_seconds if poll_seconds is None else poll_seconds
+            settings.project_cfg.queue.poll_seconds if poll_seconds is None else poll_seconds
         )
         # Kept for compatibility with previous worker constructor.
         self.safety_margin_mb = int(
-            settings.project.queue.safety_margin_mb if safety_margin_mb is None else safety_margin_mb
+            settings.project_cfg.queue.safety_margin_mb if safety_margin_mb is None else safety_margin_mb
         )
         self.fixed_margin_pct = float(
-            settings.project.queue.fixed_margin_pct if fixed_margin_pct is None else fixed_margin_pct
+            settings.project_cfg.queue.fixed_margin_pct if fixed_margin_pct is None else fixed_margin_pct
         )
         self.heartbeat_seconds = int(heartbeat_seconds)
         self.stdout = sys.stdout if stdout is None else stdout

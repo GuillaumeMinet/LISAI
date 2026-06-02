@@ -65,7 +65,7 @@ class SingleReconPipeline(BasePipeline[SingleReconConfig]):
             additional_subfolder=self.cfg.dump_subfolder if self.cfg.dump_subfolder else "",
         )
 
-        exts = tuple(settings.data.data_types[run.data_type])
+        exts = tuple(settings.data_cfg.data_types[run.data_type])
 
         return FolderSource(root=dump_root, exts=exts, combine_subfolders=self.cfg.combine_subfolders)
 

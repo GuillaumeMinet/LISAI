@@ -27,7 +27,7 @@ class _RunHeartbeatClassification:
 
 
 def active_heartbeat_timeout() -> timedelta:
-    minutes = settings.project.run_tracking.active_heartbeat_timeout_minutes
+    minutes = settings.project_cfg.run_tracking.active_heartbeat_timeout_minutes
     return timedelta(minutes=minutes)
 
 
@@ -179,7 +179,7 @@ def render_runs_table(
             ]
         )
     selection_width = max(2, len(str(len(runs))))
-    idx_width = int(getattr(settings.project.naming, "run_dir_index_width", 2))
+    idx_width = int(getattr(settings.project_cfg.naming, "run_dir_index_width", 2))
     rows: list[list[str]] = []
     for selection_idx, run in enumerate(runs, start=1):
         row = [

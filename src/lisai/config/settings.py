@@ -53,6 +53,7 @@ class Settings:
         self.PROJECT_ROOT = self._find_project_root(anchor="configs")
         self.CONFIGS_ROOT = self.PROJECT_ROOT / "configs"
 
+        # project config
         self._local_yaml_path = self.CONFIGS_ROOT / "local_config.yml"
         self._project_yaml_path = self.CONFIGS_ROOT / "project_config.yml"
         self._data_yaml_path = self.CONFIGS_ROOT / "data_config.yml"
@@ -62,8 +63,8 @@ class Settings:
         project_raw = self._load_required(self._project_yaml_path)
         data_raw = self._load_required(self._data_yaml_path)
 
-        self.project: ProjectConfig = ProjectConfig.model_validate(project_raw)
-        self.data: DataConfig = DataConfig.model_validate(data_raw)
+        self.project_cfg: ProjectConfig = ProjectConfig.model_validate(project_raw)
+        self.data_cfg: DataConfig = DataConfig.model_validate(data_raw)
 
         self._ctx = self._build_context()
 
@@ -114,7 +115,7 @@ class Settings:
         ctx.paths.roots.code_dir = str(code_dir)
 
         # Resolve roots (only depend on infra)
-        for key, tmpl in (self.project.paths.roots or {}).items():
+        for key, tmpl in (self.project_cfg.paths.roots or {}).items():
             if key == "run_container_dirname":
                 text = str(tmpl).strip().strip("/\\")
                 if not text:
@@ -126,7 +127,7 @@ class Settings:
             ctx.paths.roots[key] = value
 
         # Store templates as-is (experiment-dependent keys can't be resolved yet)
-        for key, tmpl in (self.project.paths.templates or {}).items():
+        for key, tmpl in (self.project_cfg.paths.templates or {}).items():
             ctx.paths.templates[key] = tmpl
 
         return ctx
@@ -139,8 +140,32 @@ class Settings:
     @property
     def NAMING(self):
         # expose naming conventions
-        return self.project.naming
+        return self.project_cfg.naming
+    
+    @property
+    def PROJECT_CONFIG_PATH(self) -> Path:
+        return self._project_yaml_path
 
+    @property
+    def DATA_CONFIG_PATH(self) -> Path:
+        return self._data_yaml_path
+        
+    @property
+    def TRAINING_CONFIG_DIR(self):
+        return self.CONFIGS_ROOT / "training"
+    
+    @property
+    def INFERENCE_CONFIG_DIR(self):
+        return self.CONFIGS_ROOT / "inference"
+    
+    @property
+    def PREPROCESS_CONFIG_DIR(self):
+        return self.CONFIGS_ROOT / "preprocess"
+    
+    @property
+    def TRAINING_CONFIG_SUFFIXES(self):
+        return (".yml", ".yaml")
+    
     def resolve_path(self, template: str, **kwargs) -> Path:
         merged = AttrDict(self._ctx)
         for k, v in kwargs.items():
@@ -155,7 +180,7 @@ class Settings:
         return self.resolve_path(tmpl, **kwargs)
 
     def get_data_filename(self, fmt: str, data_type: str, **kwargs) -> Path:
-        fmt_cfg = self.data.format.get(fmt)
+        fmt_cfg = self.data_cfg.format.get(fmt)
         if not fmt_cfg:
             raise ValueError(f"Unknown format: {fmt}")
         template = fmt_cfg.get(data_type)

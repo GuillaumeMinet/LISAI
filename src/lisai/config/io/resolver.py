@@ -256,24 +256,20 @@ def _apply_safe_resume_resolution(mode: str, cfg: dict, paths: Paths) -> None:
 def _resolve_loaded_config(
     exp_cfg: dict,
     *,
-    project_cfg_path: str | Path = "configs/project_config.yml",
-    data_cfg_path: str | Path = "configs/data_config.yml",
+    stg = None,
 ) -> ResolvedExperiment:
     
-    #load project and data cfg
-    project_cfg = load_yaml(project_cfg_path)
-    data_cfg = load_yaml(data_cfg_path)
+    # init settings and lisai Paths, and get project and data config from settings
+    if stg is None:
+        from ..settings import settings as stg
+    from lisai.infra.paths import Paths
+
+    project_cfg = stg.project_cfg.model_dump(mode="python")
+    data_cfg = stg.data_cfg.model_dump(mode="python")
+    paths = Paths(stg)
 
     # save experiment config 
     exp_cfg = deepcopy(exp_cfg)
-
-    # Construct Lisai Paths objects
-    # Note: we keep imports local: settings builds the project configuration
-    # singleton at import time, so config resolution should trigger it only
-    # when path templates are actually needed.
-    from lisai.infra.paths import Paths
-    from ..settings import settings
-    paths = Paths(settings)
     
     # mode normalization and validation of experiment config
     mode = _normalize_mode(exp_cfg)
@@ -322,32 +318,22 @@ def _resolve_loaded_config(
 
 def resolve_config(
     experiment_cfg_path: str | Path,
-    project_cfg_path: str | Path = "configs/project_config.yml",
-    data_cfg_path: str | Path = "configs/data_config.yml",
+    *,
+    stg=None,
 ) -> ResolvedExperiment:
-    experiment_cfg_path = Path(experiment_cfg_path)
-    exp_cfg = load_yaml(experiment_cfg_path)
-    return _resolve_loaded_config(
-        exp_cfg,
-        project_cfg_path=project_cfg_path,
-        data_cfg_path=data_cfg_path,
-    )
+    exp_cfg = load_yaml(Path(experiment_cfg_path))
+    return _resolve_loaded_config(exp_cfg, stg=stg)
 
 
 def resolve_config_dict(
     experiment_cfg: dict,
-    project_cfg_path: str | Path = "configs/project_config.yml",
-    data_cfg_path: str | Path = "configs/data_config.yml",
+    *,
+    stg=None,
 ) -> ResolvedExperiment:
     if not isinstance(experiment_cfg, dict):
         raise TypeError("experiment_cfg must be a dictionary")
 
-    return _resolve_loaded_config(
-        experiment_cfg,
-        project_cfg_path=project_cfg_path,
-        data_cfg_path=data_cfg_path,
-    )
-
+    return _resolve_loaded_config(experiment_cfg, stg=stg)
 
 def prune_config_for_saving(cfg: ResolvedExperiment) -> dict:
     out = cfg.model_dump(exclude_none=True)

@@ -34,10 +34,10 @@ class Paths:
 
     # Canonical template paths
     def datasets_root(self) -> Path:
-        return Path(self.settings.resolve_path(self.settings.project.paths.roots["data_dir"])).resolve()
+        return Path(self.settings.resolve_path(self.settings.project_cfg.paths.roots["data_dir"])).resolve()
 
     def run_container_dirname(self) -> str:
-        roots = self.settings.project.paths.roots or {}
+        roots = self.settings.project_cfg.paths.roots or {}
         raw = roots.get("run_container_dirname", "models")
         text = str(raw).strip().strip("/\\")
         if not text:
@@ -94,7 +94,7 @@ class Paths:
 
     # Run layout subdirectories
     def _subdir(self, run_dir: str | Path, key: str, default: str) -> Path:
-        subdirs = self.settings.project.run_layout.subdirs
+        subdirs = self.settings.project_cfg.run_layout.subdirs
         name = subdirs.get(key, default)
         return Path(run_dir) / name
 
@@ -109,7 +109,7 @@ class Paths:
 
     # Run layout artifact files
     def _artifact(self, run_dir: str | Path, key: str, default: str) -> Path:
-        artifacts = self.settings.project.run_layout.artifacts
+        artifacts = self.settings.project_cfg.run_layout.artifacts
         name = artifacts.get(key, default)
         return Path(run_dir) / name
 
@@ -127,7 +127,7 @@ class Paths:
 
     # retrain origin artifacts
     def _origin_artifact(self, run_dir: str | Path, key: str, default: str) -> Path:
-        artifacts = self.settings.project.run_layout.retrain_origin_artifacts
+        artifacts = self.settings.project_cfg.run_layout.retrain_origin_artifacts
         name = artifacts.get(key, default)
         return self.retrain_origin_dir(run_dir=run_dir) / name
 
@@ -144,18 +144,18 @@ class Paths:
     def dataset_dump_dir(self, *, dataset_name: str, data_type: str = "", additional_subfolder:str =""):
         """ dataset_dir / dump"""
         ds_path = self.dataset_dir(dataset_name=dataset_name)
-        dump_subfolder = self.settings.data.subfolders.get("dump","dump")
+        dump_subfolder = self.settings.data_cfg.subfolders.get("dump","dump")
         return ds_path / dump_subfolder / data_type / additional_subfolder
 
     def dataset_preprocess_dir(self, *, dataset_name: str, data_type: str = ""):
         """ dataset_dir / preprocess """
         ds_path = self.dataset_dir(dataset_name=dataset_name)
-        preprocess_subfolder = self.settings.data.subfolders.get("preprocess","preprocess")
+        preprocess_subfolder = self.settings.data_cfg.subfolders.get("preprocess","preprocess")
         return ds_path / preprocess_subfolder / data_type
 
     def preprocess_log_path(self, *, dataset_name: str, data_type: str) -> Path:
         key = f"{data_type}_preprocess"
-        filename = self.settings.data.logs.get(key)
+        filename = self.settings.data_cfg.logs.get(key)
         if filename is None:
             raise KeyError(f"Unknown preprocess log key '{key}' in data config.")
         return self.dataset_preprocess_dir(dataset_name=dataset_name, data_type=data_type) / filename

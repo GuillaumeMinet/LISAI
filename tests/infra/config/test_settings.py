@@ -56,21 +56,21 @@ def test_get_data_filename_matches_data_yml(
 
 
 def test_project_run_tracking_timeout_is_configured(settings_obj: Settings):
-    assert settings_obj.project.run_tracking.active_heartbeat_timeout_minutes == 10
+    assert settings_obj.project_cfg.run_tracking.active_heartbeat_timeout_minutes == 10
 
 
 def test_project_queue_resource_classes_are_configured(settings_obj: Settings):
-    defaults = settings_obj.project.queue.resource_class_vram_mb
+    defaults = settings_obj.project_cfg.queue.resource_class_vram_mb
     assert defaults.light == 3000
     assert defaults.medium == 6000
     assert defaults.heavy == 9000
-    assert settings_obj.project.queue.fixed_margin_pct == 0.20
-    assert settings_obj.project.queue.paused is False
-    assert settings_obj.project.queue.max_concurrent_runs_per_gpu == 1
+    assert settings_obj.project_cfg.queue.fixed_margin_pct == 0.20
+    assert settings_obj.project_cfg.queue.paused is False
+    assert settings_obj.project_cfg.queue.max_concurrent_runs_per_gpu == 1
 
 
 def test_project_recovery_defaults_are_configured(settings_obj: Settings):
-    safe_resume = settings_obj.project.recovery.hdn_safe_resume
+    safe_resume = settings_obj.project_cfg.recovery.hdn_safe_resume
     assert safe_resume.enabled is True
     assert safe_resume.auto_use_safe_checkpoint_on_continue is True
     assert safe_resume.drop_optimizer_scheduler_state_on_safe_resume is True

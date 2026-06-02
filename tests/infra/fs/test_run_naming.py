@@ -23,7 +23,7 @@ def test_allocate_run_dir_name_starts_at_zero_and_increments(tmp_path: Path):
 
 
 def test_format_run_dir_name_uses_configurable_width(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(settings.project.naming, "run_dir_index_width", 3)
+    monkeypatch.setattr(settings.project_cfg.naming, "run_dir_index_width", 3)
     assert format_run_dir_name("abc", 1) == "abc_001"
 
 

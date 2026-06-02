@@ -64,7 +64,7 @@ def initialize_runtime(cfg: ResolvedExperiment) -> TrainingRuntime:
     from lisai.training.setup.run_dir import prepare_run_dir
 
     paths = Paths(settings)
-    is_volumetric = cfg.model.architecture == "unet3d" # used for shape of val images
+    is_volumetric = cfg.model.architecture == "unet3d" # used for shape of val images callbacks
 
     # initialize runtime object
     runtime = TrainingRuntime(

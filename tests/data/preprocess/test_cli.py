@@ -27,7 +27,7 @@ class DummyPaths:
 
     def preprocess_log_path(self, *, dataset_name: str, data_type: str) -> Path:
         key = f"{data_type}_preprocess"
-        return self.dataset_preprocess_dir(dataset_name=dataset_name, data_type=data_type) / settings.data.logs[key]
+        return self.dataset_preprocess_dir(dataset_name=dataset_name, data_type=data_type) / settings.data_cfg.logs[key]
 
     def preprocessed_image_full_path(
         self,

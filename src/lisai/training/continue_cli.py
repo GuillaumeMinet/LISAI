@@ -85,7 +85,7 @@ def continue_run(
     write_invalid_run_warnings(scan_result.invalid, stderr=err)
 
     if is_run_likely_active(selected_run, now=now):
-        timeout_minutes = settings.project.run_tracking.active_heartbeat_timeout_minutes
+        timeout_minutes = settings.project_cfg.run_tracking.active_heartbeat_timeout_minutes
         if not force:
             print(
                 "Selected run still appears active based on a recent heartbeat. "

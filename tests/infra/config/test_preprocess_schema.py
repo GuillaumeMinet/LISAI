@@ -35,8 +35,8 @@ def test_preprocess_json_schema_exposes_described_pipeline_specific_branches():
     schema = preprocess_json_schema()
 
     assert schema["properties"]["pipeline"]["enum"] == sorted(PIPELINES_REGISTRY)
-    assert schema["properties"]["data_type"]["enum"] == sorted(settings.data.data_types)
-    assert schema["properties"]["fmt"]["enum"] == sorted(settings.data.format)
+    assert schema["properties"]["data_type"]["enum"] == sorted(settings.data_cfg.data_types)
+    assert schema["properties"]["fmt"]["enum"] == sorted(settings.data_cfg.format)
     assert "allOf" in schema
     assert len(schema["allOf"]) == len(PIPELINES_REGISTRY)
 

@@ -121,8 +121,8 @@ def preprocess_json_schema() -> dict:
 
     base_schema = PreprocessConfig.model_json_schema()
     pipeline_names = sorted(PIPELINES_REGISTRY)
-    available_data_types = sorted(settings.data.data_types)
-    available_fmts = sorted(settings.data.format)
+    available_data_types = sorted(settings.data_cfg.data_types)
+    available_fmts = sorted(settings.data_cfg.format)
     properties = copy.deepcopy(base_schema["properties"])
     pipeline_property = copy.deepcopy(base_schema["properties"]["pipeline"])
     pipeline_property["enum"] = pipeline_names

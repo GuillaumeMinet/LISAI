@@ -34,7 +34,7 @@ def load_scheduling_context(config_path: str | Path) -> SchedulingContext:
 
 
 def resource_class_defaults_mb() -> dict[ResourceClass, int]:
-    configured = settings.project.queue.resource_class_vram_mb
+    configured = settings.project_cfg.queue.resource_class_vram_mb
     return {
         "light": int(configured.light),
         "medium": int(configured.medium),

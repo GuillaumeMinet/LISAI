@@ -41,8 +41,8 @@ def queue_control_path(*, queue_root: str | Path | None = None) -> Path:
 
 def default_queue_control() -> QueueControl:
     return QueueControl(
-        paused=bool(settings.project.queue.paused),
-        max_concurrent_runs_per_gpu=int(settings.project.queue.max_concurrent_runs_per_gpu),
+        paused=bool(settings.project_cfg.queue.paused),
+        max_concurrent_runs_per_gpu=int(settings.project_cfg.queue.max_concurrent_runs_per_gpu),
     )
 
 

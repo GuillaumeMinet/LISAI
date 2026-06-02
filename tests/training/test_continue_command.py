@@ -263,7 +263,7 @@ def test_continue_blocks_recently_active_runs_without_force(monkeypatch, tmp_pat
     stderr = io.StringIO()
     monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"called": True}))
-    monkeypatch.setattr(settings.project.run_tracking, "active_heartbeat_timeout_minutes", 10)
+    monkeypatch.setattr(settings.project_cfg.run_tracking, "active_heartbeat_timeout_minutes", 10)
 
     exit_code = continue_cli.continue_run(
         run_name=run_name,
@@ -302,7 +302,7 @@ def test_continue_force_allows_recently_active_runs(monkeypatch, tmp_path):
     stderr = io.StringIO()
     monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"cfg": cfg}))
-    monkeypatch.setattr(settings.project.run_tracking, "active_heartbeat_timeout_minutes", 10)
+    monkeypatch.setattr(settings.project_cfg.run_tracking, "active_heartbeat_timeout_minutes", 10)
 
     exit_code = continue_cli.continue_run(
         run_name=run_name,
@@ -416,7 +416,7 @@ def test_continue_allows_stale_running_runs_after_confirmation(monkeypatch, tmp_
     stderr = io.StringIO()
     monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"cfg": cfg}))
-    monkeypatch.setattr(settings.project.run_tracking, "active_heartbeat_timeout_minutes", 10)
+    monkeypatch.setattr(settings.project_cfg.run_tracking, "active_heartbeat_timeout_minutes", 10)
 
     exit_code = continue_cli.continue_run(
         run_name=run_name,

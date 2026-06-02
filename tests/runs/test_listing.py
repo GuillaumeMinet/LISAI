@@ -68,7 +68,7 @@ def test_listing_fallback_uses_config_timeout_when_live_stats_missing(monkeypatc
         heartbeat=now - timedelta(minutes=10),
         live_runtime_stats=None,
     )
-    monkeypatch.setattr(settings.project.run_tracking, "active_heartbeat_timeout_minutes", 10)
+    monkeypatch.setattr(settings.project_cfg.run_tracking, "active_heartbeat_timeout_minutes", 10)
 
     assert is_run_likely_active(run, now=now) is False
     assert is_run_likely_stale(run, now=now) is True
@@ -116,7 +116,7 @@ def test_listing_stale_and_crash_labels_follow_multiplier_rule(monkeypatch, dela
         heartbeat=now - timedelta(seconds=delay_seconds),
         live_runtime_stats=None,
     )
-    monkeypatch.setattr(settings.project.run_tracking, "active_heartbeat_timeout_minutes", 10)
+    monkeypatch.setattr(settings.project_cfg.run_tracking, "active_heartbeat_timeout_minutes", 10)
 
     assert display_run_status(run, now=now) == expected
 

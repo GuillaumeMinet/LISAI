@@ -27,7 +27,7 @@ class DummyPaths:
 
     def preprocess_log_path(self, *, dataset_name: str, data_type: str) -> Path:
         key = f"{data_type}_preprocess"
-        return self.dataset_preprocess_dir(dataset_name=dataset_name, data_type=data_type) / settings.data.logs[key]
+        return self.dataset_preprocess_dir(dataset_name=dataset_name, data_type=data_type) / settings.data_cfg.logs[key]
 
     def preprocessed_image_full_path(
         self,
@@ -98,7 +98,7 @@ def test_preprocess_run_writes_yaml_manifest_and_manual_split(tmp_path: Path):
     assert (tmp_path / dataset_name / "preprocess" / "recon" / "val" / "c01.tif").exists()
     assert (tmp_path / dataset_name / "preprocess" / "recon" / "test" / "c02.tif").exists()
 
-    log_path = tmp_path / dataset_name / "preprocess" / "recon" / settings.data.logs["recon_preprocess"]
+    log_path = tmp_path / dataset_name / "preprocess" / "recon" / settings.data_cfg.logs["recon_preprocess"]
     manifest = load_yaml(log_path)
     assert manifest["status"] == "success"
     assert manifest["items"][0]["split"] == "train"
@@ -188,7 +188,7 @@ def test_preprocess_run_progress_uses_full_timelapse_output_name(tmp_path: Path)
     output = stream.getvalue()
     assert "[1] 17h23m11s_rec_scan00_CAM.hdf5_multi.0.reconstruction.tiff -> c00_t31.tif (split=train)" in output
 
-    manifest_path = tmp_path / dataset_name / "preprocess" / "recon" / settings.data.logs["recon_preprocess"]
+    manifest_path = tmp_path / dataset_name / "preprocess" / "recon" / settings.data_cfg.logs["recon_preprocess"]
     manifest = load_yaml(manifest_path)
     assert manifest["summary"]["split"]["train"] == {
         "count": 1,
@@ -246,7 +246,7 @@ def test_preprocess_failure_summary_tracks_only_processed_items(tmp_path: Path):
     with pytest.raises(ValueError, match="expects 2D images"):
         run.execute(reporter=reporter)
 
-    manifest_path = tmp_path / dataset_name / "preprocess" / "recon" / settings.data.logs["recon_preprocess"]
+    manifest_path = tmp_path / dataset_name / "preprocess" / "recon" / settings.data_cfg.logs["recon_preprocess"]
     manifest = load_yaml(manifest_path)
     assert manifest["status"] == "failed"
     assert manifest["summary"]["split"]["counts"] == {"train": 1, "val": 0, "test": 0}

@@ -5,18 +5,16 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from .run_training import run_training
+from lisai.config import settings
 
-TRAINING_CONFIG_SUFFIXES = (".yml", ".yaml")
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
+config_dir = settings.TRAINING_CONFIG_DIR
+config_suffix = settings.TRAINING_CONFIG_SUFFIXES
 
 
 def _candidate_paths(path: Path) -> tuple[Path, ...]:
     candidates = [path]
     if not path.suffix:
-        candidates.extend(path.with_suffix(suffix) for suffix in TRAINING_CONFIG_SUFFIXES)
+        candidates.extend(path.with_suffix(suffix) for suffix in config_suffix)
     return tuple(candidates)
 
 
@@ -27,53 +25,39 @@ def _first_existing_path(candidates: Iterable[Path]) -> Path | None:
     return None
 
 
-def _search_roots(*, cwd: Path) -> tuple[Path, ...]:
-    roots = [cwd / "configs" / "training"]
-
-    repo_training = _repo_root() / "configs" / "training"
-    if repo_training not in roots:
-        roots.append(repo_training)
-
-    return tuple(roots)
-
-
-def _available_training_configs(search_roots: Iterable[Path]) -> list[str]:
+def _available_training_configs() -> list[str]:
     available: set[str] = set()
-    for root in search_roots:
-        if not root.is_dir():
-            continue
-        for suffix in TRAINING_CONFIG_SUFFIXES:
-            available.update(path.name for path in root.glob(f"*{suffix}") if path.is_file())
+    for suffix in config_suffix:
+        available.update(path.name for path in config_dir.glob(f"*{suffix}") if path.is_file())
     return sorted(available)
 
 
-def _missing_config_error(config_arg: str, *, search_roots: Iterable[Path]) -> FileNotFoundError:
-    available = _available_training_configs(search_roots)
+def _missing_config_error(config_arg: str) -> FileNotFoundError:
+    available = _available_training_configs()
     lines = [f"Training config not found: {config_arg}"]
     if available:
         lines.append("Available configs:")
         lines.extend(f"  - {config_name}" for config_name in available)
     else:
-        lines.append("No training configs were found under configs/trainings.")
+        lines.append(f"No training configs were found under {config_dir}.")
     return FileNotFoundError("\n".join(lines))
 
 
-def resolve_config_path(config_arg: str, *, cwd: Path | None = None) -> Path:
+def resolve_config_path(config_arg: str) -> Path:
+
+    # first case: user gave full path
     config_path = Path(config_arg).expanduser()
     resolved = _first_existing_path(_candidate_paths(config_path))
     if resolved is not None:
         return resolved
 
-    base_cwd = Path.cwd() if cwd is None else Path(cwd)
-    search_roots = _search_roots(cwd=base_cwd)
-
+    # second case, user gave direct config name
     if not config_path.is_absolute():
-        for root in search_roots:
-            resolved = _first_existing_path(_candidate_paths(root / config_path))
-            if resolved is not None:
-                return resolved
+        resolved = _first_existing_path(_candidate_paths(config_dir / config_path))
+        if resolved is not None:
+            return resolved
 
-    raise _missing_config_error(config_arg, search_roots=search_roots)
+    raise _missing_config_error(config_arg)
 
 
 def _get_config_arg(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
@@ -101,13 +85,13 @@ def add_train_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPar
     parser.add_argument(
         "config",
         nargs="?",
-        help="Path to a YAML config file, or a config name from configs/trainings with or without .yml/.yaml.",
+        help=f"Path to a YAML config file, or a config name from {config_dir} with or without .yml/.yaml.",
     )
     parser.add_argument(
         "-c",
         "--config",
         dest="config_option",
-        help="Path to a YAML config file, or a config name from configs/trainings with or without .yml/.yaml.",
+        help=f"Path to a YAML config file, or a config name from {config_dir} with or without .yml/.yaml.",
     )
     return parser
 

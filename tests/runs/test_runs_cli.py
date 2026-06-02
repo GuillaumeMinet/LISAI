@@ -197,7 +197,7 @@ def test_runs_list_marks_old_running_heartbeats_as_stale(monkeypatch, tmp_path, 
 
     monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(runs_listing, "utc_now", lambda: datetime(2026, 3, 20, 11, 0, tzinfo=timezone.utc))
-    monkeypatch.setattr(settings.project.run_tracking, "active_heartbeat_timeout_minutes", 10)
+    monkeypatch.setattr(settings.project_cfg.run_tracking, "active_heartbeat_timeout_minutes", 10)
 
     exit_code = root_main(["runs", "list", "--dataset", "Gag", "--status", "running"])
     captured = capsys.readouterr()
