@@ -8,7 +8,7 @@ from .run_training import run_training
 from lisai.config import settings
 
 config_dir = settings.TRAINING_CONFIG_DIR
-config_suffix = settings.TRAINING_CONFIG_SUFFIXES
+config_suffix = settings.CONFIG_SUFFIXES
 
 
 def _candidate_paths(path: Path) -> tuple[Path, ...]:
