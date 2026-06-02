@@ -3,69 +3,25 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Sequence
 
 from lisai.config import load_yaml, settings
+from lisai.config.io.config_paths import ConfigPathResolver
 from lisai.infra.paths import Paths
 
 from .reporting import ConsolePreprocessReporter, PreprocessReporter
 from .run_preprocess import ExistingPreprocessOutput, PreprocessRun
 
-config_dir = settings.PREPROCESS_CONFIG_DIR
-config_suffix = settings.CONFIG_SUFFIXES
+preprocess_config_paths = ConfigPathResolver("preprocess")
 
 
 class PreprocessAbortedError(RuntimeError):
     pass
 
-def _candidate_paths(path: Path) -> tuple[Path, ...]:
-    candidates = [path]
-    if not path.suffix:
-        candidates.extend(path.with_suffix(suffix) for suffix in config_suffix)
-    return tuple(candidates)
-
-
-def _first_existing_path(candidates: Iterable[Path]) -> Path | None:
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-    return None
-
-
-def _available_preprocess_configs() -> list[str]:
-    available: set[str] = set()
-    for suffix in config_suffix:
-        available.update(path.name for path in config_dir.glob(f"*{suffix}") if path.is_file())
-    return sorted(available)
-
-
-def _missing_config_error(config_arg: str) -> FileNotFoundError:
-    available = _available_preprocess_configs()
-    lines = [f"Preprocess config not found: {config_arg}"]
-    if available:
-        lines.append("Available configs:")
-        lines.extend(f"  - {config_name}" for config_name in available)
-    else:
-        lines.append(f"No preprocess configs were found under {config_dir}.")
-    return FileNotFoundError("\n".join(lines))
-
-
 def resolve_config_path(config_arg: str) -> Path:
-
-    # first case: user gave full path
-    config_path = Path(config_arg).expanduser()
-    resolved = _first_existing_path(_candidate_paths(config_path))
-    if resolved is not None:
-        return resolved
-
-    # second case, user gave direct config name
-    if not config_path.is_absolute():
-        resolved = _first_existing_path(_candidate_paths(config_dir / config_path))
-        if resolved is not None:
-            return resolved
-
-    raise _missing_config_error(config_arg)
-
+    resolved = preprocess_config_paths.resolve(config_arg)
+    assert resolved is not None
+    return resolved
 
 def _get_config_arg(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
     positional = getattr(args, "config", None)
@@ -135,13 +91,13 @@ def add_preprocess_arguments(parser: argparse.ArgumentParser) -> argparse.Argume
     parser.add_argument(
         "config",
         nargs="?",
-        help="Path to a YAML config file, or a config name from configs/preprocess with or without .yml/.yaml.",
+        help=f"Path to a YAML config file, or a config name from {preprocess_config_paths.root} with or without .yml/.yaml.",
     )
     parser.add_argument(
         "-c",
         "--config",
         dest="config_option",
-        help="Path to a YAML config file, or a config name from configs/preprocess with or without .yml/.yaml.",
+        help=f"Path to a YAML config file, or a config name from {preprocess_config_paths.root} with or without .yml/.yaml.",
     )
     return parser
 

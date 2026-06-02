@@ -4,84 +4,30 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Literal, Mapping
 
-from lisai.config import load_yaml, settings
+from lisai.config import load_yaml
 from lisai.config.io import deep_merge
+from lisai.config.io.config_paths import ConfigPathResolver
 from lisai.config.models.inference import (
     InferenceOverrides,
     ResolvedInferenceConfig,
 )
 
+inference_config_paths = ConfigPathResolver("inference")
+
 # Backward-compatible aliases kept while the clearer inference model names settle in.
 InferenceConfig = InferenceOverrides
 InferenceDefaults = ResolvedInferenceConfig
-INFERENCE_CONFIG_SUFFIXES = settings.CONFIG_SUFFIXES
 
 
 class UnsetType:
     def __repr__(self) -> str:
         return "UNSET"
 
-
 UNSET = UnsetType()
-
-config_dir = settings.INFERENCE_CONFIG_DIR
-config_default_name = settings.INFERENCE_DEFAULT_CONFIG_NAME
-config_suffix = INFERENCE_CONFIG_SUFFIXES
-
-
-def _candidate_paths(path: Path) -> tuple[Path, ...]:
-    candidates = [path]
-    if not path.suffix:
-        candidates.extend(path.with_suffix(suffix) for suffix in config_suffix)
-    return tuple(candidates)
-
-
-def _first_existing_path(candidates: list[Path] | tuple[Path, ...]) -> Path | None:
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-    return None
-
-
-def _available_inference_configs() -> list[str]:
-    available: set[str] = set()
-    for suffix in config_suffix:
-        available.update(path.name for path in config_dir.glob(f"*{suffix}") if path.is_file())
-    return sorted(available)
-
-
-def _missing_config_error(config_arg: str) -> FileNotFoundError:
-    available = _available_inference_configs()
-    lines = [f"Inference config not found: {config_arg}"]
-    if available:
-        lines.append("Available configs:")
-        lines.extend(f"  - {config_name}" for config_name in available)
-    else:
-        lines.append(f"No inference configs were found under {config_dir}.")
-    return FileNotFoundError("\n".join(lines))
 
 
 def resolve_inference_config_path(config_arg: str | Path | None) -> Path | None:
-    # first case: no config given, falling back to default config
-    if config_arg is None:
-        resolved = _first_existing_path(_candidate_paths(config_dir / config_default_name))
-        if resolved is not None:
-            return resolved
-        return None
-
-    # second case: user gave full path
-    config_path = Path(config_arg).expanduser()
-    resolved = _first_existing_path(_candidate_paths(config_path))
-    if resolved is not None:
-        return resolved
-
-    # third case, user gave direct config name
-    if not config_path.is_absolute():
-        resolved = _first_existing_path(_candidate_paths(config_dir / config_path))
-        if resolved is not None:
-            return resolved
-    raise _missing_config_error(str(config_arg))
-
+    return inference_config_paths.resolve(config_arg)
 
 def load_inference_config(
     config_arg: str | Path | None = None,
@@ -169,7 +115,6 @@ def load_inference_defaults(path: str | Path | None = None) -> ResolvedInference
 
 
 __all__ = [
-    "INFERENCE_CONFIG_SUFFIXES",
     "UNSET",
     "UnsetType",
     "InferenceConfig",

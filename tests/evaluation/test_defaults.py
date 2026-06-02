@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from lisai.config.io.config_paths import ConfigPathResolver
 import lisai.evaluation.defaults as defaults_mod
 from lisai.evaluation.defaults import (
     resolve_apply_options,
@@ -20,7 +22,16 @@ def _write(path: Path, content: str) -> None:
 @pytest.fixture
 def inference_config_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     config_dir = tmp_path / "configs" / "inference"
-    monkeypatch.setattr(defaults_mod, "config_dir", config_dir)
+    fake_settings = SimpleNamespace(
+        INFERENCE_CONFIG_DIR=config_dir,
+        INFERENCE_DEFAULT_CONFIG_NAME="defaults",
+        CONFIG_SUFFIXES=(".yml", ".yaml"),
+    )
+    monkeypatch.setattr(
+        defaults_mod,
+        "inference_config_paths",
+        ConfigPathResolver("inference", stg=fake_settings),
+    )
     return config_dir
 
 
