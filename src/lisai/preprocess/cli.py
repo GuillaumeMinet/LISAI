@@ -11,21 +11,17 @@ from lisai.infra.paths import Paths
 from .reporting import ConsolePreprocessReporter, PreprocessReporter
 from .run_preprocess import ExistingPreprocessOutput, PreprocessRun
 
-PREPROCESS_CONFIG_SUFFIXES = (".yml", ".yaml")
+config_dir = settings.PREPROCESS_CONFIG_DIR
+config_suffix = settings.CONFIG_SUFFIXES
 
 
 class PreprocessAbortedError(RuntimeError):
     pass
 
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[4]
-
-
 def _candidate_paths(path: Path) -> tuple[Path, ...]:
     candidates = [path]
     if not path.suffix:
-        candidates.extend(path.with_suffix(suffix) for suffix in PREPROCESS_CONFIG_SUFFIXES)
+        candidates.extend(path.with_suffix(suffix) for suffix in config_suffix)
     return tuple(candidates)
 
 
@@ -36,53 +32,39 @@ def _first_existing_path(candidates: Iterable[Path]) -> Path | None:
     return None
 
 
-def _search_roots(*, cwd: Path) -> tuple[Path, ...]:
-    roots = [cwd / "configs" / "preprocess"]
-
-    repo_preprocess = _repo_root() / "configs" / "preprocess"
-    if repo_preprocess not in roots:
-        roots.append(repo_preprocess)
-
-    return tuple(roots)
-
-
-def _available_preprocess_configs(search_roots: Iterable[Path]) -> list[str]:
+def _available_preprocess_configs() -> list[str]:
     available: set[str] = set()
-    for root in search_roots:
-        if not root.is_dir():
-            continue
-        for suffix in PREPROCESS_CONFIG_SUFFIXES:
-            available.update(path.name for path in root.glob(f"*{suffix}") if path.is_file())
+    for suffix in config_suffix:
+        available.update(path.name for path in config_dir.glob(f"*{suffix}") if path.is_file())
     return sorted(available)
 
 
-def _missing_config_error(config_arg: str, *, search_roots: Iterable[Path]) -> FileNotFoundError:
-    available = _available_preprocess_configs(search_roots)
+def _missing_config_error(config_arg: str) -> FileNotFoundError:
+    available = _available_preprocess_configs()
     lines = [f"Preprocess config not found: {config_arg}"]
     if available:
         lines.append("Available configs:")
         lines.extend(f"  - {config_name}" for config_name in available)
     else:
-        lines.append("No preprocess configs were found under configs/preprocess.")
+        lines.append(f"No preprocess configs were found under {config_dir}.")
     return FileNotFoundError("\n".join(lines))
 
 
-def resolve_config_path(config_arg: str, *, cwd: Path | None = None) -> Path:
+def resolve_config_path(config_arg: str) -> Path:
+
+    # first case: user gave full path
     config_path = Path(config_arg).expanduser()
     resolved = _first_existing_path(_candidate_paths(config_path))
     if resolved is not None:
         return resolved
 
-    base_cwd = Path.cwd() if cwd is None else Path(cwd)
-    search_roots = _search_roots(cwd=base_cwd)
-
+    # second case, user gave direct config name
     if not config_path.is_absolute():
-        for root in search_roots:
-            resolved = _first_existing_path(_candidate_paths(root / config_path))
-            if resolved is not None:
-                return resolved
+        resolved = _first_existing_path(_candidate_paths(config_dir / config_path))
+        if resolved is not None:
+            return resolved
 
-    raise _missing_config_error(config_arg, search_roots=search_roots)
+    raise _missing_config_error(config_arg)
 
 
 def _get_config_arg(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:

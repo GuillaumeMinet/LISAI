@@ -163,7 +163,7 @@ class Settings:
         return self.CONFIGS_ROOT / "preprocess"
     
     @property
-    def TRAINING_CONFIG_SUFFIXES(self):
+    def CONFIG_SUFFIXES(self):
         return (".yml", ".yaml")
     
     def resolve_path(self, template: str, **kwargs) -> Path:
