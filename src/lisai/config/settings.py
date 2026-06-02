@@ -159,6 +159,10 @@ class Settings:
         return self.CONFIGS_ROOT / "inference"
     
     @property
+    def INFERENCE_DEFAULT_CONFIG_NAME(self):
+        return "defaults"
+    
+    @property
     def PREPROCESS_CONFIG_DIR(self):
         return self.CONFIGS_ROOT / "preprocess"
     

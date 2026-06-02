@@ -14,8 +14,7 @@ from lisai.config.models.inference import (
 # Backward-compatible aliases kept while the clearer inference model names settle in.
 InferenceConfig = InferenceOverrides
 InferenceDefaults = ResolvedInferenceConfig
-
-INFERENCE_CONFIG_SUFFIXES = (".yml", ".yaml")
+INFERENCE_CONFIG_SUFFIXES = settings.CONFIG_SUFFIXES
 
 
 class UnsetType:
@@ -25,15 +24,15 @@ class UnsetType:
 
 UNSET = UnsetType()
 
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
+config_dir = settings.INFERENCE_CONFIG_DIR
+config_default_name = settings.INFERENCE_DEFAULT_CONFIG_NAME
+config_suffix = INFERENCE_CONFIG_SUFFIXES
 
 
 def _candidate_paths(path: Path) -> tuple[Path, ...]:
     candidates = [path]
     if not path.suffix:
-        candidates.extend(path.with_suffix(suffix) for suffix in INFERENCE_CONFIG_SUFFIXES)
+        candidates.extend(path.with_suffix(suffix) for suffix in config_suffix)
     return tuple(candidates)
 
 
@@ -44,66 +43,50 @@ def _first_existing_path(candidates: list[Path] | tuple[Path, ...]) -> Path | No
     return None
 
 
-def _search_roots(*, cwd: Path) -> tuple[Path, ...]:
-    roots = [cwd / "configs" / "inference"]
-    repo_inference = _repo_root() / "configs" / "inference"
-    if repo_inference not in roots:
-        roots.append(repo_inference)
-    return tuple(roots)
-
-
-def _available_inference_configs(search_roots: tuple[Path, ...]) -> list[str]:
+def _available_inference_configs() -> list[str]:
     available: set[str] = set()
-    for root in search_roots:
-        if not root.is_dir():
-            continue
-        for suffix in INFERENCE_CONFIG_SUFFIXES:
-            available.update(path.name for path in root.glob(f"*{suffix}") if path.is_file())
+    for suffix in config_suffix:
+        available.update(path.name for path in config_dir.glob(f"*{suffix}") if path.is_file())
     return sorted(available)
 
 
-def _missing_config_error(config_arg: str, *, search_roots: tuple[Path, ...]) -> FileNotFoundError:
-    available = _available_inference_configs(search_roots)
+def _missing_config_error(config_arg: str) -> FileNotFoundError:
+    available = _available_inference_configs()
     lines = [f"Inference config not found: {config_arg}"]
     if available:
         lines.append("Available configs:")
         lines.extend(f"  - {config_name}" for config_name in available)
     else:
-        lines.append("No inference configs were found under configs/inference.")
+        lines.append(f"No inference configs were found under {config_dir}.")
     return FileNotFoundError("\n".join(lines))
 
 
-def resolve_inference_config_path(config_arg: str | Path | None, *, cwd: Path | None = None) -> Path | None:
-    base_cwd = Path.cwd() if cwd is None else Path(cwd)
-    search_roots = _search_roots(cwd=base_cwd)
-
+def resolve_inference_config_path(config_arg: str | Path | None) -> Path | None:
+    # first case: no config given, falling back to default config
     if config_arg is None:
-        for root in search_roots:
-            resolved = _first_existing_path(_candidate_paths(root / "defaults"))
-            if resolved is not None:
-                return resolved
+        resolved = _first_existing_path(_candidate_paths(config_dir / config_default_name))
+        if resolved is not None:
+            return resolved
         return None
 
+    # second case: user gave full path
     config_path = Path(config_arg).expanduser()
     resolved = _first_existing_path(_candidate_paths(config_path))
     if resolved is not None:
         return resolved
 
+    # third case, user gave direct config name
     if not config_path.is_absolute():
-        for root in search_roots:
-            resolved = _first_existing_path(_candidate_paths(root / config_path))
-            if resolved is not None:
-                return resolved
-
-    raise _missing_config_error(str(config_arg), search_roots=search_roots)
+        resolved = _first_existing_path(_candidate_paths(config_dir / config_path))
+        if resolved is not None:
+            return resolved
+    raise _missing_config_error(str(config_arg))
 
 
 def load_inference_config(
     config_arg: str | Path | None = None,
-    *,
-    cwd: Path | None = None,
 ) -> tuple[InferenceOverrides, Path | None]:
-    cfg_path = resolve_inference_config_path(config_arg, cwd=cwd)
+    cfg_path = resolve_inference_config_path(config_arg)
     if cfg_path is None:
         return InferenceOverrides(), None
     return InferenceOverrides.model_validate(load_yaml(cfg_path)), cfg_path
@@ -128,16 +111,15 @@ def _resolve_section_defaults(
     section: Literal["apply", "evaluate"],
     *,
     config: str | Path | None = None,
-    cwd: Path | None = None,
 ) -> dict[str, Any]:
     resolved = ResolvedInferenceConfig().model_dump()
-    defaults_cfg, _ = load_inference_config(None, cwd=cwd)
+    defaults_cfg, _ = load_inference_config(None)
     resolved = deep_merge(resolved, defaults_cfg.model_dump(exclude_unset=True))
 
     if config is None:
         return dict(resolved[section])
 
-    named_cfg, cfg_path = load_inference_config(config, cwd=cwd)
+    named_cfg, cfg_path = load_inference_config(config)
     named_cfg_dict = named_cfg.model_dump(exclude_unset=True)
     if section not in named_cfg_dict:
         raise ValueError(
@@ -152,14 +134,13 @@ def resolve_apply_options(
     defaults: ResolvedInferenceConfig | None = None,
     defaults_path: str | Path | None = None,
     config: str | Path | None = None,
-    cwd: Path | None = None,
     **overrides: Any,
 ) -> dict[str, Any]:
     if defaults is not None or defaults_path is not None:
         loaded_defaults = load_inference_defaults(defaults_path) if defaults is None else defaults
         section_defaults = loaded_defaults.apply.model_dump()
     else:
-        section_defaults = _resolve_section_defaults("apply", config=config, cwd=cwd)
+        section_defaults = _resolve_section_defaults("apply", config=config)
     return _resolve_task_options(section_defaults, overrides)
 
 
@@ -168,14 +149,13 @@ def resolve_evaluate_options(
     defaults: ResolvedInferenceConfig | None = None,
     defaults_path: str | Path | None = None,
     config: str | Path | None = None,
-    cwd: Path | None = None,
     **overrides: Any,
 ) -> dict[str, Any]:
     if defaults is not None or defaults_path is not None:
         loaded_defaults = load_inference_defaults(defaults_path) if defaults is None else defaults
         section_defaults = loaded_defaults.evaluate.model_dump()
     else:
-        section_defaults = _resolve_section_defaults("evaluate", config=config, cwd=cwd)
+        section_defaults = _resolve_section_defaults("evaluate", config=config)
     return _resolve_task_options(section_defaults, overrides)
 
 

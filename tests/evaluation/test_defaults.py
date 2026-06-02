@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+import lisai.evaluation.defaults as defaults_mod
 from lisai.evaluation.defaults import (
     resolve_apply_options,
     resolve_evaluate_options,
@@ -16,18 +17,25 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def test_resolve_inference_config_path_defaults_to_configs_inference_defaults(tmp_path: Path):
-    defaults_path = tmp_path / "configs" / "inference" / "defaults.yml"
+@pytest.fixture
+def inference_config_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    config_dir = tmp_path / "configs" / "inference"
+    monkeypatch.setattr(defaults_mod, "config_dir", config_dir)
+    return config_dir
+
+
+def test_resolve_inference_config_path_defaults_to_configs_inference_defaults(inference_config_dir: Path):
+    defaults_path = inference_config_dir / "defaults.yml"
     _write(defaults_path, "apply:\n  tiling_size: 256\n")
 
-    resolved = resolve_inference_config_path(None, cwd=tmp_path)
+    resolved = resolve_inference_config_path(None)
 
     assert resolved == defaults_path.resolve()
 
 
-def test_resolve_apply_options_merges_defaults_then_named_config_then_cli(tmp_path: Path):
-    defaults_path = tmp_path / "configs" / "inference" / "defaults.yml"
-    fast_path = tmp_path / "configs" / "inference" / "fast_upsamp.yml"
+def test_resolve_apply_options_merges_defaults_then_named_config_then_cli(inference_config_dir: Path):
+    defaults_path = inference_config_dir / "defaults.yml"
+    fast_path = inference_config_dir / "fast_upsamp.yml"
     _write(
         defaults_path,
         """
@@ -54,7 +62,7 @@ apply:
         + "\n",
     )
 
-    resolved = resolve_apply_options(config="fast_upsamp", cwd=tmp_path, save_inp=True)
+    resolved = resolve_apply_options(config="fast_upsamp", save_inp=True)
 
     assert resolved["tiling_size"] == 512
     assert resolved["crop_size"] == 128
@@ -64,8 +72,8 @@ apply:
     assert resolved["color_code_prm"]["colormap"] == "turbo"
 
 
-def test_resolve_apply_options_preserves_legacy_downsamp_when_fill_factor_is_not_set(tmp_path: Path):
-    defaults_path = tmp_path / "configs" / "inference" / "defaults.yml"
+def test_resolve_apply_options_preserves_legacy_downsamp_when_fill_factor_is_not_set(inference_config_dir: Path):
+    defaults_path = inference_config_dir / "defaults.yml"
     _write(
         defaults_path,
         """
@@ -76,27 +84,27 @@ apply:
         + "\n",
     )
 
-    resolved = resolve_apply_options(cwd=tmp_path)
+    resolved = resolve_apply_options()
 
     assert resolved["downsamp"] == 2
     assert resolved["fill_factor"] is None
 
 
-def test_resolve_evaluate_options_requires_requested_section_in_named_config(tmp_path: Path):
-    defaults_path = tmp_path / "configs" / "inference" / "defaults.yml"
-    apply_only_path = tmp_path / "configs" / "inference" / "apply_only.yml"
+def test_resolve_evaluate_options_requires_requested_section_in_named_config(inference_config_dir: Path):
+    defaults_path = inference_config_dir / "defaults.yml"
+    apply_only_path = inference_config_dir / "apply_only.yml"
     _write(defaults_path, "evaluate:\n  split: test\n")
     _write(apply_only_path, "apply:\n  tiling_size: 512\n")
 
     with pytest.raises(ValueError, match="does not define a 'evaluate' section"):
-        resolve_evaluate_options(config="apply_only", cwd=tmp_path)
+        resolve_evaluate_options(config="apply_only")
 
 
-def test_inference_config_rejects_python_only_evaluate_hooks(tmp_path: Path):
-    defaults_path = tmp_path / "configs" / "inference" / "defaults.yml"
-    invalid_path = tmp_path / "configs" / "inference" / "invalid.yml"
+def test_inference_config_rejects_python_only_evaluate_hooks(inference_config_dir: Path):
+    defaults_path = inference_config_dir / "defaults.yml"
+    invalid_path = inference_config_dir / "invalid.yml"
     _write(defaults_path, "evaluate:\n  split: test\n")
     _write(invalid_path, "evaluate:\n  test_loader: bad\n")
 
     with pytest.raises(Exception, match="test_loader"):
-        resolve_evaluate_options(config="invalid", cwd=tmp_path)
+        resolve_evaluate_options(config="invalid")
