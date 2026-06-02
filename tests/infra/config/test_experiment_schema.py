@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
 from lisai.config import load_yaml
 from lisai.config.json_schema import (
@@ -35,11 +34,17 @@ def test_training_yaml_examples_validate_against_mode_specific_authoring_schemas
 
 
 
-def test_current_upsamp_yaml_fails_with_timelapse_single_channel_validation():
+def test_current_upsamp_yaml_validates_timelapse_context_channels():
     cfg = load_yaml(Path("configs/training/upsamp.yml"))
 
-    with pytest.raises(ValidationError, match="expected 1, got 3"):
-        ExperimentConfig.model_validate(cfg)
+    validated = ExperimentConfig.model_validate(cfg)
+
+    assert validated.data.timelapse_prm is not None
+    context_length = validated.data.timelapse_prm.context_length
+    assert context_length == 3
+    assert validated.model.architecture == "unet_rcan"
+    assert validated.model.parameters.UNet_prm.in_channels == context_length
+    assert validated.model.parameters.UNet_prm.out_channels == context_length
 
 
 

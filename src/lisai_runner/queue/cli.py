@@ -1187,7 +1187,7 @@ def add_queue_subparser(subparsers: argparse._SubParsersAction[argparse.Argument
     return parser
 
 
-def build_parser(*, prog: str = "lisai queue") -> argparse.ArgumentParser:
+def build_parser(*, prog: str = "lisai-runner") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage local training queue jobs.", prog=prog)
     subparsers = parser.add_subparsers(dest="queue_command")
     subparsers.required = True

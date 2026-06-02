@@ -6,7 +6,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import lisai.queue.cli as queue_cli
-import lisai.training.cli as training_cli
 from lisai.cli import main as root_main
 from lisai.config import load_yaml
 from lisai.queue.history import SchedulingContext
@@ -596,7 +595,13 @@ def test_queue_submit_sweep_resolves_file_from_training_sweeps_dir(monkeypatch, 
             training_signature=TrainingSignature(architecture="unet", batch_size=8, patch_size=128),
         )
 
-    monkeypatch.setattr(training_cli, "config_dir", training_dir)
+    def fake_resolve_config_path(arg: str) -> Path:
+        path = Path(arg)
+        if path.is_absolute():
+            return path.resolve()
+        return (training_dir / path).resolve()
+
+    monkeypatch.setattr(queue_cli, "resolve_config_path", fake_resolve_config_path)
     monkeypatch.setattr(queue_cli, "load_scheduling_context", fake_context)
 
     exit_code = queue_cli.submit_sweep(
