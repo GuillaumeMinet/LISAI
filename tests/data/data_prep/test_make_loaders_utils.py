@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from lisai.data.data_prep.pipeline import (
+from lisai.data.data_loaders.pipeline import (
     apply_normalization,
     calculate_dataset_normalization,
     make_tensor,

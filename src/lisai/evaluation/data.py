@@ -13,7 +13,7 @@ from typing import Any, Mapping
 from lisai.config import load_yaml, settings
 from lisai.config.io import deep_merge
 from lisai.config.models.training import DataSection
-from lisai.data.data_prep import make_test_loader
+from lisai.data.data_loaders import make_test_loader
 from lisai.infra.paths import Paths
 
 from .saved_run import SavedTrainingRun

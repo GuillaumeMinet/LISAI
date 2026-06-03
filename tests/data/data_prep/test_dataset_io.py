@@ -4,7 +4,7 @@ import numpy as np
 from tifffile import imwrite
 
 from lisai.config.models.training import DataSection
-from lisai.data.data_prep.dataset_io import (
+from lisai.data.data_loaders.dataset_io import (
     _timelapse_identifier,
     _timelapse_sampling_seed,
     load_image,

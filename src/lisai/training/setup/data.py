@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Mapping
 
 from lisai.config import load_yaml
-from lisai.data.data_prep import make_training_loaders
+from lisai.data.data_loaders import make_training_loaders
 
 from .noise_model import resolve_noise_model_metadata
 
