@@ -344,8 +344,14 @@ def load_image(
     Loads pair of images (inp,gt) - gt=None if not paired dataset.
     Images can be 2d, 3d or 4d, depending on the data_format:
         - 2d: single, or mltpl snr with 1 snr
-        - 3d: timelapses
-        - 4d: mltpl noise levels ([snr,1,h,w])
+        - 3d: timelapses [T, H, W]
+        - 4d: mltpl noise levels [snr,1,h,w]
+    
+    Shape of the returned array vary with the data_format:
+        - single: stays 2D
+        - timelapse: stays 3D if no timelapse prm is provided, otherwise 
+        it will be converted to a 4D stack: [sample, context_length, H, W]
+        - mltpl_snr stays 4D: [snr,1,H,W]
 
     Arguments:
         - inp_file: Path
@@ -370,7 +376,7 @@ def load_image(
         return inp_img, gt_img
 
     elif data_format == "timelapse":
-        assert len(inp_img.shape) == 3
+        assert len(inp_img.shape) == 3 # [T, H, W]
         prm = config.timelapse_prm
         if prm is None:
             return inp_img, gt_img
@@ -389,7 +395,8 @@ def load_image(
                     inp_img = inp_img[:nFrames]
         
         if prm.context_length is None:
-            inp_img = np.expand_dims(inp_img, axis=1)  # [time,1,h,w] => considered as [snr,1,h,w]
+            # if no context_length; each timepoin = independent single-frame sample
+            inp_img = np.expand_dims(inp_img, axis=1) #[T, H, W] -> [T, 1, H, W].
             return inp_img, None
 
 
@@ -416,7 +423,8 @@ def load_image(
         inp_imgs = np.stack(inp_imgs, axis=0)
         if paired:
             gt_imgs = np.stack(gt_imgs, axis=0)
-        return inp_imgs, gt_imgs
+            
+        return inp_imgs, gt_imgs # [sample, context_length, H, W]
 
     elif data_format == "mltpl_snr":
         prm = config.mltpl_snr_prm

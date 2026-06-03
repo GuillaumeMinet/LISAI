@@ -183,6 +183,7 @@ def _normalization_flags(config: DataSection) -> tuple[Any, bool, bool]:
 
 def _load_eval_block(record: EvalRecord, *, config: DataSection):
     data_format = config.resolved_data_format
+
     inp_img, gt_img = load_image(
         record.inp_path,
         gt_file=record.gt_path,
@@ -191,8 +192,8 @@ def _load_eval_block(record: EvalRecord, *, config: DataSection):
     )
     if inp_img is None:
         return None, None
-
-    inp_img, gt_img = make_pair_4d(inp_img, gt_img)
+    
+    inp_img, gt_img = make_pair_4d(inp_img, gt_img)  # [sample idx, channel (context_length), H, W]
 
     if config.artificial_movement is not None:
         movement_prm = config.artificial_movement.model_dump(exclude_none=True)
