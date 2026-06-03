@@ -189,8 +189,8 @@
         "fill_factor": {
           "anyOf": [
             {
-              "exclusiveMinimum": 0.0,
-              "maximum": 1.0,
+              "exclusiveMinimum": 0,
+              "maximum": 1,
               "type": "number"
             },
             {
@@ -280,17 +280,6 @@
           "default": null,
           "description": "Explicit checkpoint epoch number to load. Use null to select the checkpoint through best_or_last instead.",
           "title": "Epoch Number"
-        },
-        "test_loader": {
-          "anyOf": [
-            {},
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Optional pre-built test loader supplied through the Python API to bypass automatic loader construction.",
-          "title": "Test Loader"
         },
         "tiling_size": {
           "anyOf": [

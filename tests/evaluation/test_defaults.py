@@ -111,7 +111,7 @@ def test_resolve_evaluate_options_requires_requested_section_in_named_config(inf
         resolve_evaluate_options(config="apply_only")
 
 
-def test_inference_config_rejects_python_only_evaluate_hooks(inference_config_dir: Path):
+def test_inference_config_rejects_unknown_evaluate_keys(inference_config_dir: Path):
     defaults_path = inference_config_dir / "defaults.yml"
     invalid_path = inference_config_dir / "invalid.yml"
     _write(defaults_path, "evaluate:\n  split: test\n")

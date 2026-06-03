@@ -1,7 +1,7 @@
 """High-level entrypoint for dataset-based evaluation of a saved model.
 
 This module orchestrates the full evaluation flow: resolve the saved run,
-initialize the inference runtime, rebuild the evaluation loader when needed,
+initialize the inference runtime, rebuild the evaluation sample source when needed,
 run predictions, compute metrics, and persist outputs.
 """
 
@@ -92,15 +92,13 @@ def _run_single_evaluation(*, run_dir: Path, saved_run: SavedTrainingRun, option
     print(f"Found upsampling factor to be: {upsamp}\n")
     tiling_size = runtime.tiling_size
 
-    sample_source = options["test_loader"]  # Legacy option name; expected to yield EvalSample objects.
-    if sample_source is None:
-        sample_source = build_eval_source(
-            saved_run,
-            split=options["split"],
-            crop_size=options["crop_size"],
-            eval_gt=options["eval_gt"],
-            data_prm_update=options["data_prm_update"],
-        )
+    sample_source = build_eval_source(
+        saved_run,
+        split=options["split"],
+        crop_size=options["crop_size"],
+        eval_gt=options["eval_gt"],
+        data_prm_update=options["data_prm_update"],
+    )
     results = options["results"]
 
     for batch_id, sample in enumerate(sample_source):
@@ -163,7 +161,6 @@ def run_evaluate(dataset_name:str,
              model_subfolder:str="",
              best_or_last: str | UnsetType = UNSET,
              epoch_number: int | None | UnsetType = UNSET,
-             test_loader: Any | None | UnsetType = UNSET,
              tiling_size: int | None | UnsetType = UNSET,
              crop_size: int | tuple[int, int] | None | UnsetType = UNSET,
              metrics_list: list[str] | None | UnsetType = UNSET,
@@ -187,7 +184,6 @@ def run_evaluate(dataset_name:str,
         config=config,
         best_or_last=best_or_last,
         epoch_number=epoch_number,
-        test_loader=test_loader,
         tiling_size=tiling_size,
         crop_size=crop_size,
         metrics_list=metrics_list,

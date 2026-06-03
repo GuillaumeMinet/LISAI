@@ -53,7 +53,6 @@ CH_OUT_DESC = (
 )
 SPLIT_DESC = "Dataset split to evaluate, typically 'test' or 'val'."
 LIMIT_N_IMGS_DESC = "Optional cap on the number of images or batches evaluated."
-TEST_LOADER_DESC = "Optional pre-built test loader supplied through the Python API to bypass automatic loader construction."
 
 
 CheckpointSelector = Literal["best", "last", "both"]
@@ -142,7 +141,6 @@ class EvaluateDefaults(BaseModel):
 
     best_or_last: CheckpointSelector = Field(default="best", description=BEST_OR_LAST_DESC)
     epoch_number: int | None = Field(default=None, description=EPOCH_NUMBER_DESC)
-    test_loader: Any | None = Field(default=None, description=TEST_LOADER_DESC)
     tiling_size: int | None = Field(default=None, description=TILING_SIZE_DESC)
     crop_size: int | tuple[int, int] | None = Field(default=None, description=CROP_SIZE_DESC)
     metrics_list: list[str] | None = Field(default=None, description=METRICS_LIST_DESC)
