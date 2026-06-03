@@ -10,10 +10,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-import torch
-
 from lisai.evaluation.defaults import UNSET, UnsetType, resolve_evaluate_options
-from lisai.evaluation.data import build_eval_loader
+from lisai.evaluation.data import build_eval_source
 from lisai.evaluation.inference.stack import infer_batch
 from lisai.evaluation.io import (
     create_save_folder,
@@ -94,9 +92,9 @@ def _run_single_evaluation(*, run_dir: Path, saved_run: SavedTrainingRun, option
     print(f"Found upsampling factor to be: {upsamp}\n")
     tiling_size = runtime.tiling_size
 
-    test_loader = options["test_loader"]
-    if test_loader is None:
-        test_loader = build_eval_loader(
+    sample_source = options["test_loader"]  # Legacy option name; expected to yield EvalSample objects.
+    if sample_source is None:
+        sample_source = build_eval_source(
             saved_run,
             split=options["split"],
             crop_size=options["crop_size"],
@@ -105,12 +103,11 @@ def _run_single_evaluation(*, run_dir: Path, saved_run: SavedTrainingRun, option
         )
     results = options["results"]
 
-    for batch_id, (x, y) in enumerate(test_loader):
-        print(f"Image {batch_id} / {len(test_loader)}")
+    for batch_id, sample in enumerate(sample_source):
+        print(f"Image {batch_id} / {len(sample_source)}")
 
-        if torch.isnan(y).all().item():
-            y = None
-
+        x = sample.x.unsqueeze(0)
+        y = sample.y.unsqueeze(0) if sample.y is not None else None
         x = x.to(runtime.device)
         print(f"Input shape: {x.shape}")
         resolved_ch_out = options["ch_out"]
@@ -127,13 +124,14 @@ def _run_single_evaluation(*, run_dir: Path, saved_run: SavedTrainingRun, option
             upsamp=upsamp,
             ch_out=resolved_ch_out,
         )
+        img_name = sample.name
         tosave = {
             "inp": x.cpu().detach().numpy(),
             "gt": y.cpu().detach().numpy() if y is not None else None,
             "pred": outputs.get("prediction"),
             "samples": outputs.get("samples"),
         }
-        save_outputs(tosave, save_folder, img_name=f"img_{batch_id}")
+        save_outputs(tosave, save_folder, img_name=img_name)
 
         if options["metrics_list"] is not None and y is None:
             warnings.warn("no ground-truth provided, cannot calculate metrics")
@@ -145,7 +143,7 @@ def _run_single_evaluation(*, run_dir: Path, saved_run: SavedTrainingRun, option
 
             gt = y.cpu().detach().numpy()
             results = metrics.calculate_metrics(
-                img_name=f"img_{batch_id}",
+                img_name=img_name,
                 metrics=options["metrics_list"],
                 results=results,
                 pred=outputs.get("prediction"),
@@ -205,6 +203,8 @@ def run_evaluate(dataset_name:str,
     )
     run_dir = resolve_run_dir(dataset_name=dataset_name, subfolder=model_subfolder, exp_name=model_name)
     saved_run = load_saved_run(run_dir)
+
+    # build list of runs to evaluate (so that we can evaluate both best and last run for example)
     run_options_list = _expand_checkpoint_selection(options)
     if len(run_options_list) > 1:
         print("best_or_last='both': running evaluation for checkpoints ['best', 'last'].")
