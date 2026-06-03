@@ -94,7 +94,7 @@ class Settings:
         new_config = {"infrastructure": {"data_root": str(Path(data_root).resolve())}}
         self._local_yaml_path.parent.mkdir(parents=True, exist_ok=True)
         save_yaml(new_config, self._local_yaml_path)
-        print(f"✅ Saved to {self._local_yaml_path}\n")
+        print(f"Saved to {self._local_yaml_path}\n")
         return new_config
 
     def _build_context(self) -> AttrDict:
