@@ -302,7 +302,13 @@ class QueueWorker:
             # Queue worker logs are non-interactive files; disable tqdm redraw spam.
             env["LISAI_DISABLE_TQDM"] = "1"
 
-            command = [sys.executable, "-m", "lisai", "train", "--config", job.config]
+            command = [
+                sys.executable,
+                "-m",
+                "lisai_runner.training_entrypoint",
+                "--config",
+                job.config,
+            ]
             process = subprocess.Popen(
                 command,
                 cwd=str(settings.PROJECT_ROOT),
