@@ -22,19 +22,23 @@ class FakePaths:
 
 
 
-def _make_saved_run() -> SavedTrainingRun:
+def _make_saved_run(data_cfg: dict | None = None) -> SavedTrainingRun:
+    resolved_data_cfg = {
+        'dataset_name': 'dataset_a',
+        'canonical_load': True,
+        'paired': False,
+        'input': 'inp',
+        'patch_size': 64,
+    }
+    if data_cfg is not None:
+        resolved_data_cfg.update(data_cfg)
+
     return SavedTrainingRun(
         run_dir=Path('/runs/dataset_a/exp_a'),
         experiment_name='exp_a',
         dataset_name='dataset_a',
         data_subfolder='raw',
-        data_cfg={
-            'dataset_name': 'dataset_a',
-            'canonical_load': True,
-            'paired': False,
-            'input': 'inp',
-            'patch_size': 64,
-        },
+        data_cfg=resolved_data_cfg,
         model_architecture='unet',
         model_parameters=UNetParams(),
         data_norm_prm={'clip': 0},
@@ -80,10 +84,11 @@ def test_build_eval_source_resolves_data_and_applies_overrides(monkeypatch, tmp_
     assert cfg.split == 'val'
     assert cfg.model_norm_prm['data_mean_gt'] == 0
     assert cfg.model_norm_prm['data_std_gt'] == 1
-    assert len(source.records) == 1
+    assert len(source.items) == 1
 
+    item = source.items[0]
     sample = next(iter(source))
-    assert sample.name == 'img_a'
+    assert item.sample_name(0) == 'img_a'
     assert sample.x.shape == (1, 4, 5)
     assert sample.y is not None
     assert sample.y.shape == (1, 4, 5)
@@ -120,3 +125,42 @@ def test_build_eval_source_streams_mixed_size_inputs(monkeypatch, tmp_path: Path
         assert sample.y is None
 
     assert shapes == [(1, 3, 4), (1, 5, 7)]
+
+
+def test_eval_source_keeps_timelapse_item_and_time_indices(monkeypatch, tmp_path: Path):
+    saved_run = _make_saved_run(
+        data_cfg={
+            'data_format': 'timelapse',
+            'timelapse_prm': {'context_length': 3},
+        }
+    )
+    data_dir = tmp_path / 'dataset'
+    inp_dir = data_dir / 'inp' / 'test'
+    inp_dir.mkdir(parents=True)
+    stack = np.arange(5, dtype=np.float32)[:, None, None] * np.ones((5, 4, 5), dtype=np.float32)
+    imwrite(inp_dir / 'stack_a.tif', stack)
+
+    monkeypatch.setattr(data_mod, 'load_yaml', lambda path: {'dataset_a': {'data_format': 'timelapse'}})
+
+    source = data_mod.build_eval_source(
+        saved_run,
+        split='test',
+        data_prm_update={'data_dir': str(data_dir)},
+    )
+
+    assert len(source.items) == 1
+    item = source.items[0]
+    assert item.name == 'stack_a'
+    assert item.data_format == 'timelapse'
+    assert item.sample_count == 3
+    assert item.time_indices == (1, 2, 3)
+
+    indexed_samples = list(item.iter_samples(source.config))
+    assert [sample_index for sample_index, _ in indexed_samples] == [0, 1, 2]
+    assert [item.sample_time_index(sample_index) for sample_index, _ in indexed_samples] == [1, 2, 3]
+    assert [item.sample_name(sample_index) for sample_index, _ in indexed_samples] == [
+        'stack_a_1',
+        'stack_a_2',
+        'stack_a_3',
+    ]
+    assert [tuple(sample.x.shape) for _, sample in indexed_samples] == [(3, 4, 5)] * 3

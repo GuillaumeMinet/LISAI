@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 from tifffile import imwrite
 
 from lisai.data.utils import get_saving_shape
@@ -11,6 +13,7 @@ from lisai.infra.fs.run_naming import get_unique_exp_name
 
 
 def create_save_folder(path: Path, overwrite: bool = False, parent_exists_check: bool = False) -> Path | None:
+    """Create a new output folder, optionally overwriting or uniquifying it."""
     path = Path(path)
     parent = path.parent
 
@@ -29,6 +32,7 @@ def create_save_folder(path: Path, overwrite: bool = False, parent_exists_check:
 
 
 def ensure_save_folder(path: Path) -> Path:
+    """Ensure an output folder exists and return it as a Path."""
     path = Path(path)
     ensure_folder(path, mode="exist_ok")
     return path
@@ -40,6 +44,7 @@ def resolve_prediction_inputs(
     filters: list[str] | str,
     skip_if_contain: list[str] | None = None,
 ) -> tuple[Path, list[str], str | None]:
+    """Resolve apply-mode input files from a file or directory path."""
     data_path = Path(data_path)
     if isinstance(filters, str):
         filters = [filters]
@@ -74,6 +79,7 @@ def resolve_prediction_inputs(
 
 
 def save_metrics_json(save_folder: Path, results: dict) -> None:
+    """Write evaluation metrics to `metrics.json` inside the save folder."""
     save_folder = Path(save_folder)
     with open(save_folder / "metrics.json", "w") as f:
         json.dump(results, f, indent=4)
@@ -96,3 +102,50 @@ def save_outputs(tosave: dict, save_folder: Path, img_name: str, no_suffix: bool
         else:
             shape = get_saving_shape(item)
             imwrite(path, item, imagej=True, metadata={"axes": shape})
+
+
+class EvalItemOutputWriter:
+    """Collect sample-level outputs and save them at the evaluation-item level."""
+
+    def __init__(self, *, item: Any, save_folder: Path):
+        """Create a writer scoped to one evaluation item."""
+        self.item = item
+        self.save_folder = Path(save_folder)
+        self._entries: list[tuple[int, dict]] = []
+
+    def add(self, *, sample_index: int, tosave: dict) -> None:
+        """Buffer outputs for one selected sample from the item."""
+        self._entries.append((sample_index, tosave))
+
+    def flush(self) -> None:
+        """Persist buffered outputs, regrouping timelapses into one stack."""
+        if not self._entries:
+            return
+
+        if self.item.data_format == "timelapse":
+            save_outputs(
+                _stack_timelapse_entries(self.item, self._entries),
+                self.save_folder,
+                img_name=self.item.name,
+            )
+            return
+
+        for sample_index, tosave in self._entries:
+            save_outputs(tosave, self.save_folder, img_name=self.item.sample_name(sample_index))
+
+
+def _stack_timelapse_entries(item: Any, entries: list[tuple[int, dict]]) -> dict:
+    """Stack buffered sample outputs in the item's timelapse order."""
+    entries = sorted(entries, key=lambda entry: item.sample_sort_key(entry[0]))
+    keys = {key for _, tosave in entries for key, value in tosave.items() if value is not None}
+
+    stacked = {}
+    for key in keys:
+        arrays = [tosave[key] for _, tosave in entries if tosave.get(key) is not None]
+        if not arrays:
+            continue
+        if key == "samples":
+            stacked[key] = np.stack(arrays, axis=1)
+        else:
+            stacked[key] = np.concatenate(arrays, axis=0)
+    return stacked

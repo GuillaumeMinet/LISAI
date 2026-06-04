@@ -8,7 +8,7 @@ overrides, and building a sample source for `run_evaluate`.
 from __future__ import annotations
 
 import glob
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 
@@ -27,44 +27,110 @@ from .saved_run import SavedTrainingRun
 
 
 @dataclass(frozen=True)
-class EvalRecord:
-    """File-backed description of one evaluation sample."""
+class EvalSample:
+    """Tensor-ready input/GT pair for one model call."""
+
+    x: torch.Tensor
+    y: torch.Tensor | None
+
+    @classmethod
+    def from_numpy(cls, x_np: np.ndarray, y_np: np.ndarray | None) -> "EvalSample":
+        """Convert one numpy input/GT pair into float32 tensors."""
+        return cls(
+            x=torch.from_numpy(np.asarray(x_np)).to(torch.float32),
+            y=torch.from_numpy(np.asarray(y_np)).to(torch.float32) if y_np is not None else None,
+        )
+
+
+@dataclass(frozen=True)
+class EvalItem:
+    """File-backed evaluation unit that owns sample selection and naming."""
 
     name: str
     inp_path: Path
     gt_path: Path | None
     split: str
     file_index: int
-    sample_index: int = 0
+    data_format: str
+    sample_count: int
+    time_indices: tuple[int | None, ...]
 
+    def __len__(self) -> int:
+        """Return the number of model calls represented by this item."""
+        return self.sample_count
 
-@dataclass(frozen=True)
-class EvalSample:
-    """Prepared tensors and metadata for one evaluation sample."""
+    def iter_samples(self, config: DataSection) -> Iterator[tuple[int, EvalSample]]:
+        """Yield `(sample_index, EvalSample)` pairs prepared from this item."""
+        inp_img, gt_img = _prepare_eval_item_arrays(self, config=config)
+        if inp_img is None:
+            return
 
-    name: str
-    x: torch.Tensor
-    y: torch.Tensor | None
-    original_shape: tuple[int, int]
-    record: EvalRecord
+        for sample_index in self.iter_sample_indices():
+            yield sample_index, self.sample_from_arrays(inp_img, gt_img, sample_index)
+
+    def iter_sample_indices(self) -> range:
+        """Return the valid sample indices for this item."""
+        return range(self.sample_count)
+
+    def sample_from_arrays(
+        self,
+        inp_img: np.ndarray,
+        gt_img: np.ndarray | None,
+        sample_index: int,
+    ) -> EvalSample:
+        """Select one sample from prepared arrays and convert it to tensors."""
+        self.validate_sample_index(inp_img, gt_img, sample_index)
+        x_np = inp_img[sample_index]
+        y_np = gt_img[sample_index] if gt_img is not None else None
+        return EvalSample.from_numpy(x_np, y_np)
+
+    def validate_sample_index(
+        self,
+        inp_img: np.ndarray,
+        gt_img: np.ndarray | None,
+        sample_index: int,
+    ) -> None:
+        """Raise if `sample_index` cannot be selected from input or GT arrays."""
+        if sample_index >= inp_img.shape[0]:
+            raise IndexError(f"Sample index {sample_index} out of range for {self.inp_path}.")
+        if gt_img is not None and sample_index >= gt_img.shape[0]:
+            raise IndexError(f"Sample index {sample_index} out of range for {self.gt_path}.")
+
+    def sample_time_index(self, sample_index: int) -> int | None:
+        """Return the original timelapse index for a sample when available."""
+        return self.time_indices[sample_index]
+
+    def sample_name(self, sample_index: int) -> str:
+        """Return the output/metrics name for one selected sample."""
+        if self.sample_count == 1:
+            return self.name
+
+        time_index = self.sample_time_index(sample_index)
+        suffix = sample_index if time_index is None else time_index
+        return f"{self.name}_{suffix}"
+
+    def sample_sort_key(self, sample_index: int) -> int:
+        """Return the ordering key used when regrouping item-level outputs."""
+        time_index = self.sample_time_index(sample_index)
+        return sample_index if time_index is None else time_index
 
 
 class EvalSampleSource:
-    """Ordered iterable of prepared evaluation samples."""
+    """Ordered source of evaluation items and their prepared samples."""
 
-    def __init__(self, *, records: Sequence[EvalRecord], config: DataSection):
+    def __init__(self, *, items: Sequence[EvalItem], config: DataSection):
+        """Store file-level evaluation items and their resolved data config."""
         self.config = config
-        self.records = tuple(records)
+        self.items = tuple(items)
 
     @classmethod
     def from_config(cls, config: DataSection) -> "EvalSampleSource":
-        file_records = cls.build_records(config)
-        sample_records = cls.expand_records(file_records, config=config)
-        return cls(records=sample_records, config=config)
+        """Build an item source from a resolved evaluation data config."""
+        return cls(items=cls.build_items(config), config=config)
 
     @staticmethod
-    def build_records(config: DataSection) -> tuple[EvalRecord, ...]:
-        """Resolve one file-level evaluation record per input/GT pair."""
+    def build_items(config: DataSection) -> tuple[EvalItem, ...]:
+        """Resolve one file-level evaluation item per input/GT pair."""
         if config.data_dir is None:
             raise ValueError("`data_dir` must be provided for evaluation data loading.")
         if config.input is None:
@@ -83,43 +149,44 @@ class EvalSampleSource:
             if len(inp_files) != len(gt_files):
                 raise ValueError(f"Found #{len(inp_files)} inp_files and #{len(gt_files)} gt_files")
 
-        records = []
+        items = []
         for index, inp_path in enumerate(inp_files):
             gt_path = gt_files[index] if gt_files is not None else None
-            records.append(
-                EvalRecord(
+            sample_count = _count_eval_samples(inp_path=inp_path, gt_path=gt_path, config=config)
+            if sample_count == 0:
+                continue
+            data_format = config.resolved_data_format
+            items.append(
+                EvalItem(
                     name=inp_path.stem,
                     inp_path=inp_path,
                     gt_path=gt_path,
                     split=split,
                     file_index=index,
+                    data_format=data_format,
+                    sample_count=sample_count,
+                    time_indices=_time_indices_for_item(
+                        data_format=data_format,
+                        sample_count=sample_count,
+                        config=config,
+                    ),
                 )
             )
-        return tuple(records)
-
-    @staticmethod
-    def expand_records(records: Sequence[EvalRecord], *, config: DataSection) -> tuple[EvalRecord, ...]:
-        """Expand file-level records into one record per sample.
-
-        Example: one timelapse file record that loads as shape [3, C, H, W]
-        becomes three records with sample_index 0, 1, and 2.
-        """
-        expanded: list[EvalRecord] = []
-        for record in records:
-            n_samples = _count_eval_samples(record, config=config)
-            if n_samples == 0:
-                continue
-            for sample_index in range(n_samples):
-                name = record.name if n_samples == 1 else f"{record.name}_{sample_index}"
-                expanded.append(replace(record, name=name, sample_index=sample_index))
-        return tuple(expanded)
+        return tuple(items)
 
     def __len__(self) -> int:
-        return len(self.records)
+        """Return the total number of model calls across all items."""
+        return sum(len(item) for item in self.items)
+
+    def iter_items(self) -> Iterator[EvalItem]:
+        """Iterate over file-level evaluation items."""
+        return iter(self.items)
 
     def __iter__(self) -> Iterator[EvalSample]:
-        for record in self.records:
-            yield prepare_eval_sample(record, config=self.config)
+        """Iterate over prepared samples without item metadata."""
+        for item in self.items:
+            for _, sample in item.iter_samples(self.config):
+                yield sample
 
 
 def resolve_dataset_info(dataset_name: str | None) -> dict[str, Any] | None:
@@ -137,7 +204,6 @@ def resolve_dataset_info(dataset_name: str | None) -> dict[str, Any] | None:
     if isinstance(info, Mapping):
         return dict(info)
     return None
-
 
 
 def resolve_eval_data_dir(saved_run: SavedTrainingRun, data_cfg: Mapping[str, Any]) -> Path | None:
@@ -163,6 +229,7 @@ def resolve_eval_data_dir(saved_run: SavedTrainingRun, data_cfg: Mapping[str, An
 
 
 def _collect_split_files(data_dir: Path, filters: list[str]) -> list[Path]:
+    """Collect split files matching configured suffix filters."""
     files: list[Path] = []
     for image_filter in filters:
         files += [Path(path) for path in sorted(glob.glob(str(data_dir) + f"/*{image_filter}"))]
@@ -170,6 +237,7 @@ def _collect_split_files(data_dir: Path, filters: list[str]) -> list[Path]:
 
 
 def _normalization_flags(config: DataSection) -> tuple[Any, bool, bool]:
+    """Resolve legacy normalization flags from a data config."""
     norm_prm = config.norm_prm or {}
     clip = norm_prm.get("clip", False)
     if isinstance(clip, bool) and clip is True:
@@ -181,18 +249,20 @@ def _normalization_flags(config: DataSection) -> tuple[Any, bool, bool]:
     return clip, normalize_data, norm_sig_to_obs
 
 
-def _load_eval_block(record: EvalRecord, *, config: DataSection):
+def _prepare_eval_item_arrays(item: EvalItem, *, config: DataSection):
+    """Load one EvalItem and apply eval-time preprocessing.
+    Returns sample-first input/GT arrays for per-sample tensor conversion."""
     data_format = config.resolved_data_format
 
     inp_img, gt_img = load_image(
-        record.inp_path,
-        gt_file=record.gt_path,
+        item.inp_path,
+        gt_file=item.gt_path,
         data_format=data_format,
         config=config,
     )
     if inp_img is None:
         return None, None
-    
+
     inp_img, gt_img = make_pair_4d(inp_img, gt_img)  # [sample idx, channel (context_length), H, W]
 
     if config.artificial_movement is not None:
@@ -255,10 +325,11 @@ def _load_eval_block(record: EvalRecord, *, config: DataSection):
     return list_datasets[0]
 
 
-def _count_eval_samples(record: EvalRecord, *, config: DataSection) -> int:
+def _count_eval_samples(*, inp_path: Path, gt_path: Path | None, config: DataSection) -> int:
+    """Return how many model calls one input/GT file pair expands to."""
     inp_img, gt_img = load_image(
-        record.inp_path,
-        gt_file=record.gt_path,
+        inp_path,
+        gt_file=gt_path,
         data_format=config.resolved_data_format,
         config=config,
     )
@@ -269,31 +340,17 @@ def _count_eval_samples(record: EvalRecord, *, config: DataSection) -> int:
     return inp_img.shape[0]
 
 
-def prepare_eval_sample(record: EvalRecord, *, config: DataSection) -> EvalSample:
-    """Load and prepare one evaluation sample for model inference."""
-    inp_img, gt_img = _load_eval_block(record, config=config)
-    if inp_img is None:
-        raise ValueError(f"Evaluation record could not be loaded: {record.inp_path}")
+def _time_indices_for_item(*, data_format: str, sample_count: int, config: DataSection) -> tuple[int | None, ...]:
+    """Map prepared sample indices back to original timelapse indices."""
+    if data_format != "timelapse":
+        return (None,) * sample_count
 
-    sample_index = record.sample_index
-    if sample_index >= inp_img.shape[0]:
-        raise IndexError(f"Sample index {sample_index} out of range for {record.inp_path}.")
-    if gt_img is not None and sample_index >= gt_img.shape[0]:
-        raise IndexError(f"Sample index {sample_index} out of range for {record.gt_path}.")
+    timelapse_prm = config.timelapse_prm
+    if timelapse_prm is None or timelapse_prm.context_length is None:
+        return tuple(range(sample_count))
 
-    x_np = inp_img[sample_index]
-    y_np = gt_img[sample_index] if gt_img is not None else None
-    x = torch.from_numpy(np.asarray(x_np)).to(torch.float32)
-    y = torch.from_numpy(np.asarray(y_np)).to(torch.float32) if y_np is not None else None
-
-    return EvalSample(
-        name=record.name,
-        x=x,
-        y=y,
-        original_shape=tuple(x_np.shape[-2:]),
-        record=record,
-    )
-
+    side_frames = timelapse_prm.context_length // 2
+    return tuple(range(side_frames, side_frames + sample_count))
 
 
 def build_eval_source(
@@ -348,11 +405,10 @@ def build_eval_source(
 
 
 __all__ = [
-    "EvalRecord",
+    "EvalItem",
     "EvalSample",
     "EvalSampleSource",
     "build_eval_source",
-    "prepare_eval_sample",
     "resolve_dataset_info",
     "resolve_eval_data_dir",
 ]

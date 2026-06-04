@@ -1,7 +1,7 @@
 """High-level entrypoint for dataset-based evaluation of a saved model.
 
 This module orchestrates the full evaluation flow: resolve the saved run,
-initialize the inference runtime, rebuild the evaluation sample source when needed,
+initialize the inference runtime, rebuild the evaluation sample source,
 run predictions, compute metrics, and persist outputs.
 """
 
@@ -14,10 +14,10 @@ from lisai.evaluation.defaults import UNSET, UnsetType, resolve_evaluate_options
 from lisai.evaluation.data import build_eval_source
 from lisai.evaluation.inference.stack import infer_batch
 from lisai.evaluation.io import (
+    EvalItemOutputWriter,
     create_save_folder,
     ensure_save_folder,
     save_metrics_json,
-    save_outputs,
 )
 from lisai.evaluation.metrics import compute as metrics
 from lisai.evaluation.runtime import initialize_runtime
@@ -31,6 +31,7 @@ def _build_evaluation_folder_name(
     resolved_epoch: int | None,
     split: str,
 ) -> str:
+    """Build the default output folder name for one evaluation run."""
     if requested_epoch is not None:
         save_name = f"evaluation_epoch_{requested_epoch}"
     elif resolved_epoch is not None:
@@ -44,6 +45,7 @@ def _build_evaluation_folder_name(
 
 
 def _expand_checkpoint_selection(options: dict[str, Any]) -> list[dict[str, Any]]:
+    """Expand `best_or_last='both'` into independent checkpoint runs."""
     if options["epoch_number"] is not None or options["best_or_last"] != "both":
         return [options]
 
@@ -61,6 +63,7 @@ def _expand_checkpoint_selection(options: dict[str, Any]) -> list[dict[str, Any]
 
 
 def _run_single_evaluation(*, run_dir: Path, saved_run: SavedTrainingRun, options: dict[str, Any]) -> None:
+    """Run one resolved checkpoint evaluation and save outputs/metrics."""
     runtime = initialize_runtime(
         saved_run=saved_run,
         best_or_last=options["best_or_last"],
@@ -101,55 +104,68 @@ def _run_single_evaluation(*, run_dir: Path, saved_run: SavedTrainingRun, option
     )
     results = options["results"]
 
-    for batch_id, sample in enumerate(sample_source):
-        print(f"Image {batch_id} / {len(sample_source)}")
+    n_processed = 0
+    stop_eval = False
+    for item_id, item in enumerate(sample_source.iter_items()):
+        print(f"Item {item_id} / {len(sample_source.items)}: {item.name}")
+        writer = EvalItemOutputWriter(item=item, save_folder=save_folder)
 
-        x = sample.x.unsqueeze(0)
-        y = sample.y.unsqueeze(0) if sample.y is not None else None
-        x = x.to(runtime.device)
-        print(f"Input shape: {x.shape}")
-        resolved_ch_out = options["ch_out"]
-        if resolved_ch_out is None and x.ndim >= 4 and x.shape[1] > 1:
-            # Context/multi-channel inputs are used to predict one target frame.
-            resolved_ch_out = 1
+        for sample_index, sample in item.iter_samples(sample_source.config):
+            print(f"Image {n_processed} / {len(sample_source)}")
 
-        outputs = infer_batch(
-            runtime.model,
-            x,
-            is_lvae=saved_run.is_lvae,
-            tiling_size=tiling_size,
-            num_samples=options["lvae_num_samples"],
-            upsamp=upsamp,
-            ch_out=resolved_ch_out,
-        )
-        img_name = sample.name
-        tosave = {
-            "inp": x.cpu().detach().numpy(),
-            "gt": y.cpu().detach().numpy() if y is not None else None,
-            "pred": outputs.get("prediction"),
-            "samples": outputs.get("samples"),
-        }
-        save_outputs(tosave, save_folder, img_name=img_name)
+            x = sample.x.unsqueeze(0)
+            y = sample.y.unsqueeze(0) if sample.y is not None else None
+            x = x.to(runtime.device)
+            print(f"Input shape: {x.shape}")
+            resolved_ch_out = options["ch_out"]
+            if resolved_ch_out is None and x.ndim >= 4 and x.shape[1] > 1:
+                # Context/multi-channel inputs are used to predict one target frame.
+                resolved_ch_out = 1
 
-        if options["metrics_list"] is not None and y is None:
-            warnings.warn("no ground-truth provided, cannot calculate metrics")
-        elif options["metrics_list"] is not None:
-            if x.shape[-2:] == y.shape[-2:]:
-                inp = x.cpu().detach().numpy()
-            else:
-                inp = None
-
-            gt = y.cpu().detach().numpy()
-            results = metrics.calculate_metrics(
-                img_name=img_name,
-                metrics=options["metrics_list"],
-                results=results,
-                pred=outputs.get("prediction"),
-                gt=gt,
-                inp=inp,
+            outputs = infer_batch(
+                runtime.model,
+                x,
+                is_lvae=saved_run.is_lvae,
+                tiling_size=tiling_size,
+                num_samples=options["lvae_num_samples"],
+                upsamp=upsamp,
+                ch_out=resolved_ch_out,
             )
-        if options["limit_n_imgs"] is not None and batch_id >= options["limit_n_imgs"] - 1:
-            print("Stopping eval because reached limit_n_imgs")
+            img_name = item.sample_name(sample_index)
+            tosave = {
+                "inp": x.cpu().detach().numpy(),
+                "gt": y.cpu().detach().numpy() if y is not None else None,
+                "pred": outputs.get("prediction"),
+                "samples": outputs.get("samples"),
+            }
+            writer.add(sample_index=sample_index, tosave=tosave)
+
+            if options["metrics_list"] is not None and y is None:
+                warnings.warn("no ground-truth provided, cannot calculate metrics")
+            elif options["metrics_list"] is not None:
+                if x.shape[-2:] == y.shape[-2:]:
+                    inp = x.cpu().detach().numpy()
+                else:
+                    inp = None
+
+                gt = y.cpu().detach().numpy()
+                results = metrics.calculate_metrics(
+                    img_name=img_name,
+                    metrics=options["metrics_list"],
+                    results=results,
+                    pred=outputs.get("prediction"),
+                    gt=gt,
+                    inp=inp,
+                )
+
+            n_processed += 1
+            if options["limit_n_imgs"] is not None and n_processed >= options["limit_n_imgs"]:
+                print("Stopping eval because reached limit_n_imgs")
+                stop_eval = True
+                break
+
+        writer.flush()
+        if stop_eval:
             break
 
     if options["metrics_list"] is not None and results is not None:
