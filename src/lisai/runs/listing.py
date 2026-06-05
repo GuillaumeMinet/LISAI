@@ -105,6 +105,7 @@ def filter_runs(
     runs: Iterable[DiscoveredRun],
     *,
     run_id: str | None = None,
+    run_dir_name: str | None = None,
     run_name: str | None = None,
     run_index: int | None = None,
     dataset: str | None = None,
@@ -115,6 +116,7 @@ def filter_runs(
         run
         for run in runs
         if (run_id is None or run.metadata.run_id == run_id)
+        and (run_dir_name is None or run.run_dir.name == run_dir_name)
         and (run_name is None or run.metadata.run_name == run_name)
         and (run_index is None or run.metadata.run_index == run_index)
         and (dataset is None or run.dataset == dataset)
@@ -161,8 +163,7 @@ def render_runs_table(
     headers = [
         "dataset",
         "model_subfolder",
-        "run_name",
-        "idx",
+        "run_dir",
         "status",
         "epoch",
         "eta_left",
@@ -179,14 +180,12 @@ def render_runs_table(
             ]
         )
     selection_width = max(2, len(str(len(runs))))
-    idx_width = int(getattr(settings.project_cfg.naming, "run_dir_index_width", 2))
     rows: list[list[str]] = []
     for selection_idx, run in enumerate(runs, start=1):
         row = [
             run.dataset,
             run.model_subfolder,
-            run.metadata.run_name,
-            f"{run.metadata.run_index:0{idx_width}d}",
+            run.run_dir.name,
             display_run_status(run, now=reference),
             _format_epoch(run),
             _format_eta_left(run),

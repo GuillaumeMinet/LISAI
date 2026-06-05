@@ -159,6 +159,39 @@ def test_runs_list_subfolder_alias_works(monkeypatch, tmp_path, capsys):
     assert "run_b" not in captured.out
 
 
+def test_runs_list_run_dir_filter_works(monkeypatch, tmp_path, capsys):
+    datasets_root = tmp_path / "datasets"
+    run_a = datasets_root / "Gag" / "models" / "HDN" / "run_a_00"
+    run_b = datasets_root / "Gag" / "models" / "HDN" / "run_b_00"
+
+    _write_metadata(
+        run_a,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/run_a_00",
+        status="running",
+    )
+    _write_metadata(
+        run_b,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/run_b_00",
+        status="completed",
+    )
+
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+
+    exit_code = root_main(["runs", "list", "--run_dir", "run_b_00"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "run_dir='run_b_00'" in captured.out
+    assert "run_b_00" in captured.out
+    assert "run_a_00" not in captured.out
+
+
 def test_runs_list_uses_local_timestamp_formatter(monkeypatch, tmp_path, capsys):
     datasets_root = tmp_path / "datasets"
     run_a = datasets_root / "Gag" / "models" / "HDN" / "run_a"
@@ -252,7 +285,7 @@ def test_runs_list_full_appends_extended_columns(monkeypatch, tmp_path, capsys):
     assert exit_code == 0
     assert "LISAI runs listing - Dataset: 'Gag'" in captured.out
     columns = _header_columns(captured.out)
-    assert columns[:7] == ["dataset", "model_subfolder", "run_name", "idx", "status", "epoch", "eta_left"]
+    assert columns[:6] == ["dataset", "model_subfolder", "run_dir", "status", "epoch", "eta_left"]
     assert columns[-6:] == [
         "failure",
         "path_consistent",
@@ -301,7 +334,7 @@ def test_runs_list_live_renders_in_place_when_interactive(monkeypatch, tmp_path)
     assert "warning: --interval 0.1s is below the minimum 1s; using 1s." in out.getvalue()
     assert "LISAI runs listing - Dataset: 'Gag'" in out.getvalue()
     assert "LIVE MODE (1s refresh) - Ctrl+C to stop live" in out.getvalue()
-    assert re.search(r"\brun_a\s+00\b", out.getvalue()) is not None
+    assert "run_a_00" in out.getvalue()
     assert err.getvalue() == ""
 
 
@@ -326,7 +359,7 @@ def test_runs_list_live_falls_back_to_single_snapshot_without_tty(monkeypatch, t
     assert exit_code == 0
     assert captured.out.splitlines()[0] == "warning: --interval 0.25s is below the minimum 1s; using 1s."
     assert captured.out.splitlines()[1] == "LISAI runs listing - Dataset: 'Gag'"
-    assert re.search(r"\brun_a\s+00\b", captured.out) is not None
+    assert "run_a_00" in captured.out
     assert "--live requires interactive terminal output" in captured.err
 
 

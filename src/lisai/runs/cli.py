@@ -28,6 +28,7 @@ _LIVE_INTERVAL_MIN_SECONDS = 1.0
 def list_runs(
     *,
     run_id: str | None = None,
+    run_dir_name: str | None = None,
     run_name: str | None = None,
     run_index: int | None = None,
     dataset: str | None = None,
@@ -66,6 +67,7 @@ def list_runs(
             while True:
                 _render_runs_snapshot(
                     run_id=run_id,
+                    run_dir_name=run_dir_name,
                     run_name=run_name,
                     run_index=run_index,
                     dataset=dataset,
@@ -87,6 +89,7 @@ def list_runs(
 
     _render_runs_snapshot(
         run_id=run_id,
+        run_dir_name=run_dir_name,
         run_name=run_name,
         run_index=run_index,
         dataset=dataset,
@@ -106,6 +109,7 @@ def list_runs(
 def _render_runs_snapshot(
     *,
     run_id: str | None,
+    run_dir_name: str | None,
     run_name: str | None,
     run_index: int | None,
     dataset: str | None,
@@ -123,6 +127,7 @@ def _render_runs_snapshot(
     filtered_runs = filter_runs(
         scan_result.runs,
         run_id=run_id,
+        run_dir_name=run_dir_name,
         run_name=run_name,
         run_index=run_index,
         dataset=dataset,
@@ -136,6 +141,7 @@ def _render_runs_snapshot(
     snapshot_lines.append(
         _format_listing_title(
             run_id=run_id,
+            run_dir_name=run_dir_name,
             run_name=run_name,
             run_index=run_index,
             dataset=dataset,
@@ -178,6 +184,7 @@ def _render_runs_snapshot(
 def _format_listing_title(
     *,
     run_id: str | None,
+    run_dir_name: str | None,
     run_name: str | None,
     run_index: int | None,
     dataset: str | None,
@@ -193,6 +200,8 @@ def _format_listing_title(
         filter_parts.append(f"Subfolder: '{model_subfolder}'")
     if status:
         filter_parts.append(f"Status: '{status}'")
+    if run_dir_name:
+        filter_parts.append(f"run_dir='{run_dir_name}'")
     if run_name:
         filter_parts.append(f"run_name='{run_name}'")
     if run_index is not None:
@@ -250,8 +259,7 @@ def _seconds_value(value: str) -> float:
 def run_list_from_args(args: argparse.Namespace) -> int:
     return list_runs(
         run_id=args.run_id,
-        run_name=args.run_name,
-        run_index=args.run_index,
+        run_dir_name=args.run_dir_name,
         dataset=args.dataset,
         model_subfolder=args.model_subfolder,
         status=args.status,
@@ -265,7 +273,7 @@ def _parse_run_ref_selector(run_ref: str) -> tuple[str, str, str]:
     parts = [part for part in run_ref.replace("\\", "/").split("/") if part]
     if len(parts) < 2:
         raise ValueError(
-            "Run reference must be 'dataset/exp_name' or 'dataset/subfolder/exp_name'."
+            "Run reference must be 'dataset/run_dir_name' or 'dataset/subfolder/run_dir_name'."
         )
     dataset_name = parts[0]
     run_dir_name = parts[-1]
@@ -295,7 +303,7 @@ def _resolve_single_run_selector(
     if run_id is None:
         if run is None:
             print(
-                "Missing run selector. Use dataset[/subfolder]/run_name, <run_name> <run_index>, or --run-id <run_id>.",
+                "Missing run selector. Use dataset[/subfolder]/run_dir_name, <run_name> <run_index>, or --run-id <run_id>.",
                 file=err,
             )
             return None
@@ -319,7 +327,7 @@ def _resolve_single_run_selector(
             if run_index is None:
                 print(
                     "Missing run_index for run_name selector. Use <run_name> <run_index>, "
-                    "or pass dataset[/subfolder]/run_name.",
+                    "or pass dataset[/subfolder]/run_dir_name.",
                     file=err,
                 )
                 return None
@@ -328,7 +336,7 @@ def _resolve_single_run_selector(
                 return None
             if has_run_ref_separator:
                 print(
-                    "run_index cannot be combined with dataset[/subfolder]/run_name selectors.",
+                    "run_index cannot be combined with dataset[/subfolder]/run_dir_name selectors.",
                     file=err,
                 )
                 return None
@@ -464,8 +472,12 @@ def add_run_filter_arguments(
 ) -> argparse.ArgumentParser:
     if include_identity:
         parser.add_argument("--run-id", help="Filter runs by stable run_id.")
-        parser.add_argument("--run-name", help="Filter runs by semantic run_name.")
-        parser.add_argument("--run-index", type=int, help="Filter runs by run_index.")
+        parser.add_argument(
+            "--run-dir",
+            "--run_dir",
+            dest="run_dir_name",
+            help="Filter runs by full run folder name.",
+        )
     parser.add_argument("--dataset", help="Filter runs by dataset name.")
     parser.add_argument(
         "--model-subfolder",
@@ -510,7 +522,7 @@ def _add_runs_plot_arguments(parser: argparse.ArgumentParser) -> argparse.Argume
         "run",
         nargs="?",
         help=(
-            "Run selector: dataset[/subfolder]/run_name, or run_name when paired with run_index. "
+            "Run selector: dataset[/subfolder]/run_dir_name, or run_name when paired with run_index. "
             "Use --run-id as an alternative selector."
         ),
     )
@@ -526,7 +538,7 @@ def _add_runs_open_arguments(parser: argparse.ArgumentParser) -> argparse.Argume
         "run",
         nargs="?",
         help=(
-            "Run selector: dataset[/subfolder]/run_name, or run_name when paired with run_index. "
+            "Run selector: dataset[/subfolder]/run_dir_name, or run_name when paired with run_index. "
             "Use --run-id as an alternative selector."
         ),
     )

@@ -21,7 +21,7 @@ def _parse_run_ref(run_ref: str) -> tuple[str, str, str]:
     parts = [part for part in run_ref.replace("\\", "/").split("/") if part]
     if len(parts) < 2:
         raise ValueError(
-            "Run reference must be 'dataset/exp_name' or 'dataset/subfolder/exp_name'."
+            "Run reference must be 'dataset/run_dir_name' or 'dataset/subfolder/run_dir_name'."
         )
     dataset_name = parts[0]
     model_name = parts[-1]
@@ -66,7 +66,7 @@ def _maybe_unset(value):
 
 
 def add_apply_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    parser.add_argument("run", help="Run reference: dataset[/subfolder]/exp_name.")
+    parser.add_argument("run", help="Run reference: dataset[/subfolder]/run_dir_name.")
     parser.add_argument("data_path", help="Input file or directory to process.")
     parser.add_argument(
         "-c",
@@ -132,7 +132,7 @@ def add_evaluate_arguments(parser: argparse.ArgumentParser) -> argparse.Argument
         "run",
         nargs="?",
         help=(
-            "Run selector: dataset[/subfolder]/run_name, or run_name when paired with run_index. "
+            "Run selector: dataset[/subfolder]/run_dir_name, or run_name when paired with run_index. "
             "Use --run-id as an alternative selector."
         ),
     )
@@ -252,7 +252,7 @@ def _resolve_evaluate_run_selector(
     if run_id is None:
         if run is None:
             print(
-                "Missing run selector. Use dataset[/subfolder]/run_name, <run_name> <run_index>, or --run-id <run_id>.",
+                "Missing run selector. Use dataset[/subfolder]/run_dir_name, <run_name> <run_index>, or --run-id <run_id>.",
                 file=err,
             )
             return None
@@ -275,7 +275,7 @@ def _resolve_evaluate_run_selector(
         if run_index is None:
             print(
                 "Missing run_index for run_name selector. Use <run_name> <run_index>, "
-                "or pass dataset[/subfolder]/run_name.",
+                "or pass dataset[/subfolder]/run_dir_name.",
                 file=err,
             )
             return None
@@ -284,7 +284,7 @@ def _resolve_evaluate_run_selector(
             return None
         if has_run_ref_separator:
             print(
-                "run_index cannot be combined with dataset[/subfolder]/run_name selectors.",
+                "run_index cannot be combined with dataset[/subfolder]/run_dir_name selectors.",
                 file=err,
             )
             return None
