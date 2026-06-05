@@ -106,6 +106,7 @@ def filter_runs(
     *,
     run_id: str | None = None,
     run_dir_name: str | None = None,
+    exp_name: str | None = None,
     run_name: str | None = None,
     run_index: int | None = None,
     dataset: str | None = None,
@@ -117,12 +118,22 @@ def filter_runs(
         for run in runs
         if (run_id is None or run.metadata.run_id == run_id)
         and (run_dir_name is None or run.run_dir.name == run_dir_name)
+        and matches_exp_name(run, exp_name)
         and (run_name is None or run.metadata.run_name == run_name)
         and (run_index is None or run.metadata.run_index == run_index)
         and (dataset is None or run.dataset == dataset)
         and (model_subfolder is None or run.model_subfolder == model_subfolder)
         and (status is None or run.metadata.status == status)
     ]
+
+
+def matches_exp_name(run: DiscoveredRun, query: str | None) -> bool:
+    if query is None:
+        return True
+    normalized_query = query.strip().casefold()
+    if not normalized_query:
+        return True
+    return normalized_query in run.metadata.run_name.casefold()
 
 
 def is_run_heartbeat_fresh(run: DiscoveredRun, *, now: datetime | None = None) -> bool:
@@ -313,6 +324,7 @@ __all__ = [
     "is_run_heartbeat_fresh",
     "is_run_likely_active",
     "is_run_likely_stale",
+    "matches_exp_name",
     "render_runs_table",
     "write_invalid_run_warnings",
 ]

@@ -29,6 +29,7 @@ def list_runs(
     *,
     run_id: str | None = None,
     run_dir_name: str | None = None,
+    exp_name: str | None = None,
     run_name: str | None = None,
     run_index: int | None = None,
     dataset: str | None = None,
@@ -68,6 +69,7 @@ def list_runs(
                 _render_runs_snapshot(
                     run_id=run_id,
                     run_dir_name=run_dir_name,
+                    exp_name=exp_name,
                     run_name=run_name,
                     run_index=run_index,
                     dataset=dataset,
@@ -90,6 +92,7 @@ def list_runs(
     _render_runs_snapshot(
         run_id=run_id,
         run_dir_name=run_dir_name,
+        exp_name=exp_name,
         run_name=run_name,
         run_index=run_index,
         dataset=dataset,
@@ -110,6 +113,7 @@ def _render_runs_snapshot(
     *,
     run_id: str | None,
     run_dir_name: str | None,
+    exp_name: str | None,
     run_name: str | None,
     run_index: int | None,
     dataset: str | None,
@@ -128,6 +132,7 @@ def _render_runs_snapshot(
         scan_result.runs,
         run_id=run_id,
         run_dir_name=run_dir_name,
+        exp_name=exp_name,
         run_name=run_name,
         run_index=run_index,
         dataset=dataset,
@@ -142,6 +147,7 @@ def _render_runs_snapshot(
         _format_listing_title(
             run_id=run_id,
             run_dir_name=run_dir_name,
+            exp_name=exp_name,
             run_name=run_name,
             run_index=run_index,
             dataset=dataset,
@@ -185,6 +191,7 @@ def _format_listing_title(
     *,
     run_id: str | None,
     run_dir_name: str | None,
+    exp_name: str | None,
     run_name: str | None,
     run_index: int | None,
     dataset: str | None,
@@ -202,6 +209,8 @@ def _format_listing_title(
         filter_parts.append(f"Status: '{status}'")
     if run_dir_name:
         filter_parts.append(f"run_dir='{run_dir_name}'")
+    if exp_name:
+        filter_parts.append(f"exp_name~='{exp_name}'")
     if run_name:
         filter_parts.append(f"run_name='{run_name}'")
     if run_index is not None:
@@ -260,6 +269,7 @@ def run_list_from_args(args: argparse.Namespace) -> int:
     return list_runs(
         run_id=args.run_id,
         run_dir_name=args.run_dir_name,
+        exp_name=args.exp_name,
         dataset=args.dataset,
         model_subfolder=args.model_subfolder,
         status=args.status,
@@ -477,6 +487,12 @@ def add_run_filter_arguments(
             "--run_dir",
             dest="run_dir_name",
             help="Filter runs by full run folder name.",
+        )
+        parser.add_argument(
+            "--exp-name",
+            "--exp_name",
+            dest="exp_name",
+            help="Partially filter runs by semantic experiment name.",
         )
     parser.add_argument("--dataset", help="Filter runs by dataset name.")
     parser.add_argument(

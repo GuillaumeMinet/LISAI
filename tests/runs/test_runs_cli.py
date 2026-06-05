@@ -192,6 +192,83 @@ def test_runs_list_run_dir_filter_works(monkeypatch, tmp_path, capsys):
     assert "run_a_00" not in captured.out
 
 
+def test_runs_list_exp_name_partial_filter_works(monkeypatch, tmp_path, capsys):
+    datasets_root = tmp_path / "datasets"
+    reduced_a = datasets_root / "Gag" / "models" / "HDN" / "reducedUpsamp_Upsamp2_beta_00"
+    reduced_b = datasets_root / "Actin" / "models" / "Upsamp" / "my_REDUCED_debug_01"
+    other = datasets_root / "Gag" / "models" / "HDN" / "fullDataset_Upsamp2_00"
+
+    _write_metadata(
+        reduced_a,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/reducedUpsamp_Upsamp2_beta_00",
+        status="running",
+    )
+    _write_metadata(
+        reduced_b,
+        dataset="Actin",
+        model_subfolder="Upsamp",
+        group_path=None,
+        path="datasets/Actin/models/Upsamp/my_REDUCED_debug_01",
+        status="completed",
+    )
+    _write_metadata(
+        other,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/fullDataset_Upsamp2_00",
+        status="running",
+    )
+
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+
+    exit_code = root_main(["runs", "list", "--exp-name", "reduced"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "exp_name~='reduced'" in captured.out
+    assert "reducedUpsamp_Upsamp2_beta_00" in captured.out
+    assert "my_REDUCED_debug_01" in captured.out
+    assert "fullDataset_Upsamp2_00" not in captured.out
+
+
+def test_runs_list_exp_name_partial_filter_combines_with_other_filters(monkeypatch, tmp_path, capsys):
+    datasets_root = tmp_path / "datasets"
+    run_a = datasets_root / "Gag" / "models" / "HDN" / "reducedUpsamp_Upsamp2_beta_00"
+    run_b = datasets_root / "Actin" / "models" / "HDN" / "reducedUpsamp_Upsamp2_beta_01"
+
+    _write_metadata(
+        run_a,
+        dataset="Gag",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Gag/models/HDN/reducedUpsamp_Upsamp2_beta_00",
+        status="running",
+    )
+    _write_metadata(
+        run_b,
+        dataset="Actin",
+        model_subfolder="HDN",
+        group_path=None,
+        path="datasets/Actin/models/HDN/reducedUpsamp_Upsamp2_beta_01",
+        status="completed",
+    )
+
+    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+
+    exit_code = root_main(["runs", "list", "--exp-name", "upsamp2", "--dataset", "Gag"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Dataset: 'Gag'" in captured.out
+    assert "exp_name~='upsamp2'" in captured.out
+    assert "reducedUpsamp_Upsamp2_beta_00" in captured.out
+    assert "reducedUpsamp_Upsamp2_beta_01" not in captured.out
+
+
 def test_runs_list_uses_local_timestamp_formatter(monkeypatch, tmp_path, capsys):
     datasets_root = tmp_path / "datasets"
     run_a = datasets_root / "Gag" / "models" / "HDN" / "run_a"
