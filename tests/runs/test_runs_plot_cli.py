@@ -6,6 +6,7 @@ from pathlib import Path
 
 import lisai.cli as root_cli
 import lisai.runs.cli as runs_cli
+import lisai.runs.selection as selection_mod
 from lisai.infra.fs.run_naming import parse_run_dir_name
 from lisai.runs.io import write_run_metadata_atomic
 from lisai.runs.scanner import scan_runs
@@ -69,7 +70,7 @@ def test_runs_plot_delegates_to_shared_plotting(monkeypatch, tmp_path):
     )
 
     captured = {}
-    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
 
     def _fake_show(**kwargs):
         captured.update(kwargs)
@@ -77,7 +78,7 @@ def test_runs_plot_delegates_to_shared_plotting(monkeypatch, tmp_path):
 
     monkeypatch.setattr(runs_cli, "show_loss_plot_for_run", _fake_show)
 
-    exit_code = root_cli.main(["runs", "plot", "resume_me", "0", "--dataset", "Gag"])
+    exit_code = root_cli.main(["runs", "plot", "resume_me_00", "--dataset", "Gag"])
 
     assert exit_code == 0
     assert captured["run_dir"] == run_dir.resolve()
@@ -104,7 +105,7 @@ def test_runs_plot_accepts_dataset_subfolder_runref_selector(monkeypatch, tmp_pa
     )
 
     captured = {}
-    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(
         runs_cli,
         "show_loss_plot_for_run",
@@ -128,10 +129,10 @@ def test_runs_plot_returns_nonzero_when_plotting_fails(monkeypatch, tmp_path):
         model_subfolder="Upsamp",
     )
 
-    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(runs_cli, "show_loss_plot_for_run", lambda **_kwargs: 1)
 
-    exit_code = root_cli.main(["runs", "plot", "resume_me", "0", "--dataset", "Gag"])
+    exit_code = root_cli.main(["runs", "plot", "resume_me_00", "--dataset", "Gag"])
 
     assert exit_code == 1
 
@@ -156,7 +157,7 @@ def test_runs_plot_ambiguous_selector_requires_disambiguation_when_non_interacti
     )
 
     called = {"value": False}
-    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(runs_cli.sys, "stdin", NonInteractiveInput(""))
 
     def _fake_show(**_kwargs):
@@ -165,10 +166,19 @@ def test_runs_plot_ambiguous_selector_requires_disambiguation_when_non_interacti
 
     monkeypatch.setattr(runs_cli, "show_loss_plot_for_run", _fake_show)
 
-    exit_code = root_cli.main(["runs", "plot", "duplicate", "0"])
+    exit_code = root_cli.main(["runs", "plot", "duplicate_00"])
     captured = capsys.readouterr()
 
     assert exit_code == 1
     assert called["value"] is False
     assert "Multiple matching runs found:" in captured.out
     assert "Rerun with --dataset/--subfolder or with --run-id to disambiguate." in captured.err
+
+
+def test_runs_plot_rejects_split_run_name_and_index_selector():
+    try:
+        root_cli.main(["runs", "plot", "resume_me", "0"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("Expected argparse to reject split run_name/run_index selector.")

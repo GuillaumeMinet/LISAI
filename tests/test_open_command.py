@@ -7,6 +7,7 @@ import pytest
 
 import lisai.cli as root_cli
 import lisai.runs.cli as runs_cli
+import lisai.runs.selection as selection_mod
 from lisai.infra.fs.run_naming import parse_run_dir_name
 from lisai.runs.io import write_run_metadata_atomic
 from lisai.runs.scanner import scan_runs
@@ -51,7 +52,7 @@ def _write_metadata(
     write_run_metadata_atomic(run_dir, RunMetadata.model_validate(payload))
 
 
-def test_runs_open_accepts_run_name_and_index_selector(monkeypatch, tmp_path):
+def test_runs_open_accepts_run_dir_selector(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
     run_dir = datasets_root / "Gag" / "models" / "Upsamp" / "resume_me_00"
     _write_metadata(
@@ -62,7 +63,7 @@ def test_runs_open_accepts_run_name_and_index_selector(monkeypatch, tmp_path):
     )
 
     opened = {}
-    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
 
     def fake_open(path: Path) -> bool:
         opened["path"] = path
@@ -70,7 +71,7 @@ def test_runs_open_accepts_run_name_and_index_selector(monkeypatch, tmp_path):
 
     monkeypatch.setattr(runs_cli, "_try_open_path", fake_open)
 
-    exit_code = root_cli.main(["runs", "open", "resume_me", "0", "--dataset", "Gag"])
+    exit_code = root_cli.main(["runs", "open", "resume_me_00", "--dataset", "Gag"])
 
     assert exit_code == 0
     assert opened["path"] == run_dir.resolve()
@@ -88,7 +89,7 @@ def test_runs_open_accepts_run_id_selector(monkeypatch, tmp_path):
     )
 
     opened = {}
-    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
 
     def fake_open(path: Path) -> bool:
         opened["path"] = path
@@ -118,7 +119,7 @@ def test_runs_open_requires_disambiguation_when_selector_is_ambiguous(monkeypatc
     )
 
     called = {"value": False}
-    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
 
     def fake_open(_path: Path) -> bool:
         called["value"] = True
@@ -126,7 +127,7 @@ def test_runs_open_requires_disambiguation_when_selector_is_ambiguous(monkeypatc
 
     monkeypatch.setattr(runs_cli, "_try_open_path", fake_open)
 
-    exit_code = root_cli.main(["runs", "open", "duplicate", "0"])
+    exit_code = root_cli.main(["runs", "open", "duplicate_00"])
     captured = capsys.readouterr()
 
     assert exit_code == 1
@@ -145,7 +146,7 @@ def test_runs_open_prints_run_folder_when_explorer_launch_fails(monkeypatch, tmp
         model_subfolder="Upsamp",
     )
 
-    monkeypatch.setattr(runs_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(runs_cli, "_try_open_path", lambda _path: False)
 
     exit_code = root_cli.main(["runs", "open", "Gag/Upsamp/resume_me_00"])
@@ -158,3 +159,9 @@ def test_runs_open_prints_run_folder_when_explorer_launch_fails(monkeypatch, tmp
 def test_top_level_open_command_is_not_registered_anymore():
     with pytest.raises(SystemExit):
         root_cli.main(["open", "resume_me", "0"])
+
+
+def test_runs_open_rejects_split_run_name_and_index_selector():
+    with pytest.raises(SystemExit) as exc_info:
+        root_cli.main(["runs", "open", "resume_me", "0"])
+    assert exc_info.value.code == 2

@@ -20,7 +20,7 @@ from .listing import (
 from .plotting import show_loss_plot_for_run
 from .scanner import DiscoveredRun, InvalidRunMetadata, scan_runs
 from .schema import RUN_STATUSES
-from .selection import resolve_ambiguous_run_matches
+from .selection import resolve_discovered_run_selector
 
 _LIVE_INTERVAL_MIN_SECONDS = 1.0
 
@@ -279,124 +279,16 @@ def run_list_from_args(args: argparse.Namespace) -> int:
     )
 
 
-def _parse_run_ref_selector(run_ref: str) -> tuple[str, str, str]:
-    parts = [part for part in run_ref.replace("\\", "/").split("/") if part]
-    if len(parts) < 2:
-        raise ValueError(
-            "Run reference must be 'dataset/run_dir_name' or 'dataset/subfolder/run_dir_name'."
-        )
-    dataset_name = parts[0]
-    run_dir_name = parts[-1]
-    model_subfolder = "/".join(parts[1:-1])
-    return dataset_name, model_subfolder, run_dir_name
-
-
-def _resolve_single_run_selector(
-    args: argparse.Namespace,
-    *,
-    parser: argparse.ArgumentParser,
-) -> DiscoveredRun | None:
-    out = sys.stdout
-    err = sys.stderr
-
-    run = args.run
-    run_index = args.run_index
-    run_id = args.run_id
-    dataset = args.dataset
-    model_subfolder = args.model_subfolder
-    run_dir_name: str | None = None
-
-    if run_id is not None and (run is not None or run_index is not None):
-        print("Use either <run_name> <run_index> or --run-id, not both.", file=err)
-        return None
-
-    if run_id is None:
-        if run is None:
-            print(
-                "Missing run selector. Use dataset[/subfolder]/run_dir_name, <run_name> <run_index>, or --run-id <run_id>.",
-                file=err,
-            )
-            return None
-
-        normalized = run.replace("\\", "/")
-        has_run_ref_separator = "/" in normalized
-        if run_index is None and has_run_ref_separator:
-            if dataset is not None or model_subfolder is not None:
-                print(
-                    "--dataset/--subfolder can only be used with <run_name> <run_index> or --run-id selectors.",
-                    file=err,
-                )
-                return None
-            try:
-                dataset, model_subfolder, run_dir_name = _parse_run_ref_selector(run)
-            except ValueError as exc:
-                parser.error(str(exc))
-                raise AssertionError("argparse.error should raise SystemExit")
-
-        if run_dir_name is None:
-            if run_index is None:
-                print(
-                    "Missing run_index for run_name selector. Use <run_name> <run_index>, "
-                    "or pass dataset[/subfolder]/run_dir_name.",
-                    file=err,
-                )
-                return None
-            if run_index < 0:
-                print("run_index must be >= 0.", file=err)
-                return None
-            if has_run_ref_separator:
-                print(
-                    "run_index cannot be combined with dataset[/subfolder]/run_dir_name selectors.",
-                    file=err,
-                )
-                return None
-
-    scan_result = scan_runs()
-    if run_dir_name is None:
-        matches = filter_runs(
-            scan_result.runs,
-            run_id=run_id,
-            run_name=run if run_id is None else None,
-            run_index=run_index if run_id is None else None,
-            dataset=dataset,
-            model_subfolder=model_subfolder,
-        )
-    else:
-        matches = [
-            candidate
-            for candidate in scan_result.runs
-            if candidate.dataset == dataset
-            and candidate.model_subfolder == model_subfolder
-            and candidate.run_dir.name == run_dir_name
-        ]
-
-    if not matches:
-        if run_id is not None:
-            selector_desc = f"run_id={run_id!r}"
-        elif run_dir_name is not None:
-            selector_desc = f"run={run!r}"
-        else:
-            selector_desc = f"run_name={run!r}, run_index={run_index}"
-        print(f"No matching run found for {selector_desc}.", file=err)
-        print("Use 'lisai runs list' to inspect available runs.", file=err)
-        write_invalid_run_warnings(scan_result.invalid, stderr=err)
-        return None
-
-    selected = resolve_ambiguous_run_matches(
-        matches,
+def _resolve_run_from_args(args: argparse.Namespace) -> DiscoveredRun | None:
+    return resolve_discovered_run_selector(
+        selector=args.run,
+        run_id=args.run_id,
+        dataset=args.dataset,
+        model_subfolder=args.model_subfolder,
         stdin=sys.stdin,
-        stdout=out,
-        stderr=err,
-        rerun_hint="Rerun with --dataset/--subfolder or with --run-id to disambiguate.",
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
-    if selected is None:
-        write_invalid_run_warnings(scan_result.invalid, stderr=err)
-        return None
-
-    print("Selected run:", file=out)
-    print(render_runs_table([selected]), file=out)
-    write_invalid_run_warnings(scan_result.invalid, stderr=err)
-    return selected
 
 
 def _try_open_path(path: Path) -> bool:
@@ -446,8 +338,8 @@ def _to_windows_path(path: Path) -> str | None:
     return converted or None
 
 
-def run_open_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    selected = _resolve_single_run_selector(args, parser=parser)
+def run_open_from_args(args: argparse.Namespace) -> int:
+    selected = _resolve_run_from_args(args)
     if selected is None:
         return 1
     if _try_open_path(selected.run_dir):
@@ -456,8 +348,8 @@ def run_open_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser
     return 0
 
 
-def run_plot_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    selected = _resolve_single_run_selector(args, parser=parser)
+def run_plot_from_args(args: argparse.Namespace) -> int:
+    selected = _resolve_run_from_args(args)
     if selected is None:
         return 1
 
@@ -538,14 +430,13 @@ def _add_runs_plot_arguments(parser: argparse.ArgumentParser) -> argparse.Argume
         "run",
         nargs="?",
         help=(
-            "Run selector: dataset[/subfolder]/run_dir_name, or run_name when paired with run_index. "
-            "Use --run-id as an alternative selector."
+            "Run selector: run_dir_name, partial exp_name, or dataset[/subfolder]/run_dir_name. "
+            "Use --run-id as an alternative."
         ),
     )
-    parser.add_argument("run_index", nargs="?", type=int, help="Run index used with a run_name selector.")
     parser.add_argument("--run-id", help="Stable run identifier to plot.")
     add_run_filter_arguments(parser, include_identity=False, include_status=False)
-    parser.set_defaults(handler=lambda args, p=parser: run_plot_from_args(args, p))
+    parser.set_defaults(handler=run_plot_from_args)
     return parser
 
 
@@ -554,14 +445,13 @@ def _add_runs_open_arguments(parser: argparse.ArgumentParser) -> argparse.Argume
         "run",
         nargs="?",
         help=(
-            "Run selector: dataset[/subfolder]/run_dir_name, or run_name when paired with run_index. "
-            "Use --run-id as an alternative selector."
+            "Run selector: run_dir_name, partial exp_name, or dataset[/subfolder]/run_dir_name. "
+            "Use --run-id as an alternative."
         ),
     )
-    parser.add_argument("run_index", nargs="?", type=int, help="Run index used with a run_name selector.")
     parser.add_argument("--run-id", help="Stable run identifier to open.")
     add_run_filter_arguments(parser, include_identity=False, include_status=False)
-    parser.set_defaults(handler=lambda args, p=parser: run_open_from_args(args, p))
+    parser.set_defaults(handler=run_open_from_args)
     return parser
 
 
