@@ -1,11 +1,12 @@
 from .callbacks import RunMetadataCallback
+from .code_state import collect_code_state
 from .io import metadata_path, read_run_metadata, write_run_metadata_atomic
 from .lifecycle import (
     create_run_metadata,
     finalize_run_completed,
     finalize_run_failed,
-    finalize_setup_failed,
     finalize_run_stopped,
+    finalize_setup_failed,
     group_path_from_model_subfolder,
     normalize_model_subfolder,
     stored_run_path,
@@ -26,21 +27,23 @@ from .listing import (
 )
 from .plotting import is_hdn_layout, read_loss_table, save_loss_plot_for_run, show_loss_plot_for_run
 from .scanner import scan_runs
-from .selection import resolve_discovered_run_selector
 from .schema import (
     RUN_METADATA_FILENAME,
     RUN_STATUSES,
+    CodeState,
     LiveRuntimeStats,
     RunMetadata,
     RunStatus,
     RuntimeStats,
     TrainingSignature,
 )
+from .selection import resolve_discovered_run_selector
 from .signature import build_training_signature_from_resolved_config, count_trainable_parameters
 
 __all__ = [
     "RUN_METADATA_FILENAME",
     "RUN_STATUSES",
+    "CodeState",
     "LiveRuntimeStats",
     "RunMetadata",
     "RunMetadataCallback",
@@ -48,6 +51,7 @@ __all__ = [
     "RuntimeStats",
     "TrainingSignature",
     "active_heartbeat_timeout",
+    "collect_code_state",
     "create_run_metadata",
     "filter_runs",
     "finalize_run_completed",

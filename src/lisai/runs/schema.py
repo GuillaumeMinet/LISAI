@@ -5,7 +5,14 @@ from pathlib import PurePosixPath
 from statistics import median
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from lisai.infra.paths.model_subfolder import group_path_from_model_subfolder
 
@@ -198,6 +205,24 @@ class LiveRuntimeStats(BaseModel):
         return self
 
 
+class CodeState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    git_commit: str | None = None
+    git_branch: str | None = None
+    git_dirty: bool | None = None
+    git_remote: str | None = None
+    lisai_version: str | None = None
+
+    @field_validator("git_commit", "git_branch", "git_remote", "lisai_version")
+    @classmethod
+    def _normalize_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        return text or None
+
+
 class RunMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -222,6 +247,7 @@ class RunMetadata(BaseModel):
     training_signature: TrainingSignature | None = None
     runtime_stats: RuntimeStats | None = None
     live_runtime_stats: LiveRuntimeStats | None = None
+    code: CodeState | None = None
 
     failure_reason: str | None = None
     recovery_checkpoint_filename: str | None = None
@@ -363,6 +389,7 @@ __all__ = [
     "RUN_STATUSES",
     "RUN_TERMINAL_STATUSES",
     "SCHEMA_VERSION",
+    "CodeState",
     "LiveRuntimeStats",
     "RuntimeStats",
     "TrainingSignature",

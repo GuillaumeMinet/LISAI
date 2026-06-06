@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Mapping
 
 from lisai.config import settings
+from lisai.infra.paths import Paths
 
 from .schema import JOB_STATUSES, JobStatus, QueueJob
 
@@ -30,7 +31,7 @@ def default_queue_root() -> Path:
     env_override = os.environ.get("LISAI_QUEUE_ROOT")
     if env_override:
         return Path(env_override).expanduser().resolve()
-    return (Path(settings.PROJECT_ROOT) / ".lisai" / "queue").resolve()
+    return (Paths(settings).project_root() / ".lisai" / "queue").resolve()
 
 
 def queue_state_dir(status: JobStatus, *, queue_root: str | Path | None = None) -> Path:

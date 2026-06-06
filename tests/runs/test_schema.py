@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import re
+from datetime import datetime, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -99,6 +99,33 @@ def test_run_metadata_accepts_optional_training_signature_and_runtime_stats():
     assert metadata.live_runtime_stats.last_epoch_duration_s == pytest.approx(62.5)
     assert metadata.live_runtime_stats.recent_epoch_durations_s == pytest.approx([58.0, 60.0, 62.5])
     assert metadata.live_runtime_stats.median_epoch_duration_s == pytest.approx(60.0)
+
+
+def test_run_metadata_accepts_optional_code_state():
+    metadata = RunMetadata.model_validate(
+        _payload(
+            code={
+                "git_commit": "abc1234def5678",
+                "git_branch": "main",
+                "git_dirty": True,
+                "git_remote": "git@github.com:GuillaumeMinet/LISAI.git",
+                "lisai_version": "0.1.0",
+            }
+        )
+    )
+
+    assert metadata.code is not None
+    assert metadata.code.git_commit == "abc1234def5678"
+    assert metadata.code.git_branch == "main"
+    assert metadata.code.git_dirty is True
+    assert metadata.code.git_remote == "git@github.com:GuillaumeMinet/LISAI.git"
+    assert metadata.code.lisai_version == "0.1.0"
+
+
+def test_run_metadata_accepts_payload_without_code_state():
+    metadata = RunMetadata.model_validate(_payload())
+
+    assert metadata.code is None
 
 
 def test_run_metadata_rejects_negative_live_epoch_duration():

@@ -11,14 +11,21 @@ from pathlib import Path
 from typing import IO
 
 from lisai.config import settings
+from lisai.infra.paths import Paths
 from lisai.runs.listing import is_run_likely_active, write_invalid_run_warnings
-from lisai.runs.schema import utc_now
 from lisai.runs.scanner import DiscoveredRun, scan_runs
+from lisai.runs.schema import utc_now
 
 from .control import QueueControl, default_queue_control, read_queue_control
 from .gpu import parse_cuda_device_index
 from .schema import QueueJob, parse_queue_selector
-from .state import mark_job_blocked, mark_job_done, mark_job_failed, mark_job_running, set_job_run_id
+from .state import (
+    mark_job_blocked,
+    mark_job_done,
+    mark_job_failed,
+    mark_job_running,
+    set_job_run_id,
+)
 from .storage import (
     DiscoveredJob,
     InvalidQueueJob,
@@ -311,7 +318,7 @@ class QueueWorker:
             ]
             process = subprocess.Popen(
                 command,
-                cwd=str(settings.PROJECT_ROOT),
+                cwd=str(Paths(settings).project_root()),
                 env=env,
                 stdin=subprocess.DEVNULL,
                 stdout=log_handle,
