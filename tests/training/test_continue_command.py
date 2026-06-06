@@ -4,7 +4,10 @@ import io
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
+
 import lisai.cli as root_cli
+import lisai.runs.selection as selection_mod
 import lisai.training.continue_cli as continue_cli
 from lisai.config import settings
 from lisai.infra.fs.run_naming import parse_run_dir_name
@@ -79,13 +82,12 @@ def test_root_cli_continue_dispatches_unique_match_and_builds_continue_config(mo
     )
 
     captured = {}
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"cfg": cfg}))
 
     exit_code = root_cli.main([
         "continue",
-        "CL1_Upsamp2_Mltpl05_lightweight",
-        "1",
+        "CL1_Upsamp2_Mltpl05_lightweight_01",
         "--dataset",
         "Gag_timelapses",
         "--yes",
@@ -105,8 +107,7 @@ def test_root_cli_continue_dispatches_unique_match_and_builds_continue_config(mo
 
 def test_continue_reports_multiple_matches_and_requests_disambiguation(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
-    run_name = "duplicate"
-    run_index = 0
+    selector = "duplicate_00"
     _write_metadata(
         datasets_root / "Gag" / "models" / "HDN" / "duplicate_00",
         run_id="01ARZ3NDEKTSV4RRFFQ69G5FAB",
@@ -124,11 +125,10 @@ def test_continue_reports_multiple_matches_and_requests_disambiguation(monkeypat
 
     stdout = io.StringIO()
     stderr = io.StringIO()
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
 
     exit_code = continue_cli.continue_run(
-        run_name=run_name,
-        run_index=run_index,
+        selector=selector,
         stdin=NonInteractiveInput(""),
         stdout=stdout,
         stderr=stderr,
@@ -136,14 +136,13 @@ def test_continue_reports_multiple_matches_and_requests_disambiguation(monkeypat
 
     assert exit_code == 1
     assert "Multiple matching runs found" in stdout.getvalue()
-    assert run_name in stdout.getvalue()
+    assert selector in stdout.getvalue()
     assert "Rerun with --dataset/--subfolder or with --run-id to disambiguate." in stderr.getvalue()
 
 
 def test_continue_ambiguous_matches_allow_interactive_line_selection(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
-    run_name = "duplicate"
-    run_index = 0
+    selector = "duplicate_00"
     now = utc_now()
     _write_metadata(
         datasets_root / "Actin" / "models" / "HDN" / "duplicate_00",
@@ -166,12 +165,11 @@ def test_continue_ambiguous_matches_allow_interactive_line_selection(monkeypatch
     captured = {}
     stdout = io.StringIO()
     stderr = io.StringIO()
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"cfg": cfg}))
 
     exit_code = continue_cli.continue_run(
-        run_name=run_name,
-        run_index=run_index,
+        selector=selector,
         assume_yes=True,
         stdin=InteractiveInput("02\n"),
         stdout=stdout,
@@ -197,7 +195,7 @@ def test_continue_allows_run_id_override(monkeypatch, tmp_path):
     )
 
     captured = {}
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"cfg": cfg}))
 
     exit_code = continue_cli.continue_run(
@@ -214,8 +212,7 @@ def test_continue_allows_run_id_override(monkeypatch, tmp_path):
 
 def test_continue_requires_yes_when_confirmation_is_non_interactive(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
-    run_name = "resume_me"
-    run_index = 0
+    selector = "resume_me_00"
     _write_metadata(
         datasets_root / "Gag" / "models" / "HDN" / "resume_me_00",
         run_id="01ARZ3NDEKTSV4RRFFQ69G5FAE",
@@ -227,12 +224,11 @@ def test_continue_requires_yes_when_confirmation_is_non_interactive(monkeypatch,
     captured = {"called": False}
     stdout = io.StringIO()
     stderr = io.StringIO()
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"called": True}))
 
     exit_code = continue_cli.continue_run(
-        run_name=run_name,
-        run_index=run_index,
+        selector=selector,
         stdin=NonInteractiveInput(""),
         stdout=stdout,
         stderr=stderr,
@@ -245,8 +241,7 @@ def test_continue_requires_yes_when_confirmation_is_non_interactive(monkeypatch,
 
 def test_continue_blocks_recently_active_runs_without_force(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
-    run_name = "still_running"
-    run_index = 0
+    selector = "still_running_00"
     now = utc_now()
     _write_metadata(
         datasets_root / "Gag" / "models" / "HDN" / "still_running_00",
@@ -261,13 +256,12 @@ def test_continue_blocks_recently_active_runs_without_force(monkeypatch, tmp_pat
 
     captured = {"called": False}
     stderr = io.StringIO()
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"called": True}))
     monkeypatch.setattr(settings.project_cfg.run_tracking, "active_heartbeat_timeout_minutes", 10)
 
     exit_code = continue_cli.continue_run(
-        run_name=run_name,
-        run_index=run_index,
+        selector=selector,
         assume_yes=True,
         force=False,
         stdin=NonInteractiveInput(""),
@@ -283,8 +277,7 @@ def test_continue_blocks_recently_active_runs_without_force(monkeypatch, tmp_pat
 
 def test_continue_force_allows_recently_active_runs(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
-    run_name = "force_resume"
-    run_index = 0
+    selector = "force_resume_00"
     run_dir = datasets_root / "Gag" / "models" / "HDN" / "force_resume_00"
     now = utc_now()
     _write_metadata(
@@ -300,13 +293,12 @@ def test_continue_force_allows_recently_active_runs(monkeypatch, tmp_path):
 
     captured = {}
     stderr = io.StringIO()
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"cfg": cfg}))
     monkeypatch.setattr(settings.project_cfg.run_tracking, "active_heartbeat_timeout_minutes", 10)
 
     exit_code = continue_cli.continue_run(
-        run_name=run_name,
-        run_index=run_index,
+        selector=selector,
         assume_yes=True,
         force=True,
         stdin=NonInteractiveInput(""),
@@ -322,8 +314,7 @@ def test_continue_force_allows_recently_active_runs(monkeypatch, tmp_path):
 
 def test_continue_requires_force_for_non_interactive_path_inconsistency(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
-    run_name = "renamed"
-    run_index = 0
+    selector = "renamed_00"
     run_dir = datasets_root / "Gag" / "models" / "HDN" / "renamed_00"
     _write_metadata(
         run_dir,
@@ -340,12 +331,11 @@ def test_continue_requires_force_for_non_interactive_path_inconsistency(monkeypa
 
     captured = {"called": False}
     stderr = io.StringIO()
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"called": True}))
 
     exit_code = continue_cli.continue_run(
-        run_name=run_name,
-        run_index=run_index,
+        selector=selector,
         assume_yes=True,
         force=False,
         stdin=NonInteractiveInput(""),
@@ -360,8 +350,7 @@ def test_continue_requires_force_for_non_interactive_path_inconsistency(monkeypa
 
 def test_continue_allows_non_interactive_path_inconsistency_with_yes_and_force(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
-    run_name = "renamed"
-    run_index = 0
+    selector = "renamed_00"
     run_dir = datasets_root / "Gag" / "models" / "HDN" / "renamed_00"
     _write_metadata(
         run_dir,
@@ -377,12 +366,11 @@ def test_continue_allows_non_interactive_path_inconsistency_with_yes_and_force(m
 
     captured = {"called": False}
     stderr = io.StringIO()
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"called": True}))
 
     exit_code = continue_cli.continue_run(
-        run_name=run_name,
-        run_index=run_index,
+        selector=selector,
         assume_yes=True,
         force=True,
         stdin=NonInteractiveInput(""),
@@ -397,8 +385,7 @@ def test_continue_allows_non_interactive_path_inconsistency_with_yes_and_force(m
 
 def test_continue_allows_stale_running_runs_after_confirmation(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
-    run_name = "stale_run"
-    run_index = 0
+    selector = "stale_run_00"
     run_dir = datasets_root / "Gag" / "models" / "HDN" / "stale_run_00"
     now = utc_now()
     _write_metadata(
@@ -414,13 +401,12 @@ def test_continue_allows_stale_running_runs_after_confirmation(monkeypatch, tmp_
 
     captured = {}
     stderr = io.StringIO()
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"cfg": cfg}))
     monkeypatch.setattr(settings.project_cfg.run_tracking, "active_heartbeat_timeout_minutes", 10)
 
     exit_code = continue_cli.continue_run(
-        run_name=run_name,
-        run_index=run_index,
+        selector=selector,
         stdin=InteractiveInput("y\n"),
         stdout=io.StringIO(),
         stderr=stderr,
@@ -434,8 +420,7 @@ def test_continue_allows_stale_running_runs_after_confirmation(monkeypatch, tmp_
 
 def test_continue_failed_run_uses_generic_confirmation_prompt(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
-    run_name = "failed_once"
-    run_index = 0
+    selector = "failed_once_00"
     run_dir = datasets_root / "Gag" / "models" / "HDN" / "failed_once_00"
     _write_metadata(
         run_dir,
@@ -447,12 +432,11 @@ def test_continue_failed_run_uses_generic_confirmation_prompt(monkeypatch, tmp_p
 
     captured = {}
     stdout = io.StringIO()
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"cfg": cfg}))
 
     exit_code = continue_cli.continue_run(
-        run_name=run_name,
-        run_index=run_index,
+        selector=selector,
         stdin=InteractiveInput("y\n"),
         stdout=stdout,
         stderr=io.StringIO(),
@@ -465,8 +449,7 @@ def test_continue_failed_run_uses_generic_confirmation_prompt(monkeypatch, tmp_p
 
 def test_continue_failed_run_non_interactive_requires_yes(monkeypatch, tmp_path):
     datasets_root = tmp_path / "datasets"
-    run_name = "failed_once"
-    run_index = 0
+    selector = "failed_once_00"
     run_dir = datasets_root / "Gag" / "models" / "HDN" / "failed_once_00"
     _write_metadata(
         run_dir,
@@ -478,12 +461,11 @@ def test_continue_failed_run_non_interactive_requires_yes(monkeypatch, tmp_path)
 
     captured = {"called": False}
     stderr = io.StringIO()
-    monkeypatch.setattr(continue_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(continue_cli, "run_training_from_config_dict", lambda cfg: captured.update({"called": True}))
 
     exit_code = continue_cli.continue_run(
-        run_name=run_name,
-        run_index=run_index,
+        selector=selector,
         stdin=NonInteractiveInput(""),
         stdout=io.StringIO(),
         stderr=stderr,
@@ -492,3 +474,9 @@ def test_continue_failed_run_non_interactive_requires_yes(monkeypatch, tmp_path)
     assert exit_code == 1
     assert captured["called"] is False
     assert "Confirmation required. Rerun with --yes to continue non-interactively." in stderr.getvalue()
+
+
+def test_continue_rejects_split_run_name_and_index_selector():
+    with pytest.raises(SystemExit) as exc_info:
+        root_cli.main(["continue", "resume_me", "0"])
+    assert exc_info.value.code == 2
