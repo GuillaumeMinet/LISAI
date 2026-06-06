@@ -75,4 +75,5 @@ python src/scripts/preprocess/preprocess.py path/to/preprocess.yml
 
 - [`docs/architecture.md`](architecture.md): current module boundaries
 - [`docs/data_organization.md`](data_organization.md): path and run layout overview
+- [`docs/run_selectors.md`](run_selectors.md): how to reference existing runs from CLI commands
 - [`docs/preprocess.md`](preprocess.md): preprocess flow and concepts
