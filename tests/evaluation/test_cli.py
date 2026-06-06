@@ -4,7 +4,10 @@ import io
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
+
 import lisai.evaluation.cli as evaluation_cli
+import lisai.runs.selection as selection_mod
 from lisai.cli import build_parser
 from lisai.infra.fs.run_naming import parse_run_dir_name
 from lisai.runs.io import write_run_metadata_atomic
@@ -118,19 +121,28 @@ def test_apply_cli_accepts_best_or_last_both(monkeypatch):
     assert captured["best_or_last"] == "both"
 
 
-def test_evaluate_cli_parses_metrics_and_split(monkeypatch):
+def test_evaluate_cli_parses_metrics_and_split(monkeypatch, tmp_path):
     captured = {}
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "Upsamp" / "my_model_00"
+    _write_metadata(
+        run_dir,
+        run_id="01ARZ3NDEKTSV4RRFFQ69G7ABA",
+        dataset="Gag",
+        model_subfolder="Upsamp",
+    )
 
     def fake_run_evaluate(**kwargs):
         captured.update(kwargs)
 
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(evaluation_cli, "run_evaluate", fake_run_evaluate)
 
     parser = build_parser()
     args = parser.parse_args(
         [
             "evaluate",
-            "Gag/Upsamp/my_model",
+            "Gag/Upsamp/my_model_00",
             "--config",
             "benchmark",
             "--split",
@@ -144,25 +156,34 @@ def test_evaluate_cli_parses_metrics_and_split(monkeypatch):
     assert result == 0
     assert captured["dataset_name"] == "Gag"
     assert captured["model_subfolder"] == "Upsamp"
-    assert captured["model_name"] == "my_model"
+    assert captured["model_name"] == "my_model_00"
     assert captured["config"] == "benchmark"
     assert captured["split"] == "val"
     assert captured["metrics_list"] == ["psnr", "ssim"]
 
 
-def test_evaluate_cli_accepts_best_or_last_both(monkeypatch):
+def test_evaluate_cli_accepts_best_or_last_both(monkeypatch, tmp_path):
     captured = {}
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "Upsamp" / "my_model_00"
+    _write_metadata(
+        run_dir,
+        run_id="01ARZ3NDEKTSV4RRFFQ69G7ABB",
+        dataset="Gag",
+        model_subfolder="Upsamp",
+    )
 
     def fake_run_evaluate(**kwargs):
         captured.update(kwargs)
 
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(evaluation_cli, "run_evaluate", fake_run_evaluate)
 
     parser = build_parser()
     args = parser.parse_args(
         [
             "evaluate",
-            "Gag/Upsamp/my_model",
+            "Gag/Upsamp/my_model_00",
             "--best-or-last",
             "both",
         ]
@@ -173,7 +194,7 @@ def test_evaluate_cli_accepts_best_or_last_both(monkeypatch):
     assert captured["best_or_last"] == "both"
 
 
-def test_evaluate_cli_accepts_run_name_and_index_selector(monkeypatch, tmp_path):
+def test_evaluate_cli_accepts_run_dir_selector(monkeypatch, tmp_path):
     captured = {}
     datasets_root = tmp_path / "datasets"
     run_dir = datasets_root / "Gag" / "models" / "Upsamp" / "resume_me_00"
@@ -184,11 +205,11 @@ def test_evaluate_cli_accepts_run_name_and_index_selector(monkeypatch, tmp_path)
         model_subfolder="Upsamp",
     )
 
-    monkeypatch.setattr(evaluation_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(evaluation_cli, "run_evaluate", lambda **kwargs: captured.update(kwargs))
 
     parser = build_parser()
-    args = parser.parse_args(["evaluate", "resume_me", "0", "--config", "benchmark"])
+    args = parser.parse_args(["evaluate", "resume_me_00", "--config", "benchmark"])
     result = args.handler(args)
 
     assert result == 0
@@ -219,14 +240,14 @@ def test_evaluate_cli_ambiguous_selector_allows_interactive_line_selection(monke
 
     stdout = io.StringIO()
     stderr = io.StringIO()
-    monkeypatch.setattr(evaluation_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(evaluation_cli, "run_evaluate", lambda **kwargs: captured.update(kwargs))
     monkeypatch.setattr(evaluation_cli.sys, "stdin", InteractiveInput("02\n"))
     monkeypatch.setattr(evaluation_cli.sys, "stdout", stdout)
     monkeypatch.setattr(evaluation_cli.sys, "stderr", stderr)
 
     parser = build_parser()
-    args = parser.parse_args(["evaluate", "duplicate", "0"])
+    args = parser.parse_args(["evaluate", "duplicate_00"])
     result = args.handler(args)
 
     assert result == 0
@@ -255,17 +276,24 @@ def test_evaluate_cli_ambiguous_selector_requires_extra_filters_when_non_interac
     stdout = io.StringIO()
     stderr = io.StringIO()
     called = {"value": False}
-    monkeypatch.setattr(evaluation_cli, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(evaluation_cli, "run_evaluate", lambda **kwargs: called.update({"value": True}))
     monkeypatch.setattr(evaluation_cli.sys, "stdin", NonInteractiveInput(""))
     monkeypatch.setattr(evaluation_cli.sys, "stdout", stdout)
     monkeypatch.setattr(evaluation_cli.sys, "stderr", stderr)
 
     parser = build_parser()
-    args = parser.parse_args(["evaluate", "duplicate", "0"])
+    args = parser.parse_args(["evaluate", "duplicate_00"])
     result = args.handler(args)
 
     assert result == 1
     assert called["value"] is False
     assert "Multiple matching runs found:" in stdout.getvalue()
     assert "Rerun with --dataset/--subfolder or with --run-id to disambiguate." in stderr.getvalue()
+
+
+def test_evaluate_cli_rejects_split_run_name_and_index_selector():
+    parser = build_parser()
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["evaluate", "resume_me", "0"])
+    assert exc_info.value.code == 2
