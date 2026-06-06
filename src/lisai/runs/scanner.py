@@ -66,12 +66,12 @@ def scan_runs(datasets_root: str | Path | None = None) -> ScanResults:
 
     runs: list[DiscoveredRun] = []
     invalid: list[InvalidRunMetadata] = []
-    run_container_dirname = _PATHS.run_container_dirname()
 
+    # retrieve metadata paths of all saved runs folder
     for meta_path in iter_run_metadata_paths(
         root,
         metadata_filename=RUN_METADATA_FILENAME,
-        run_container_dirname=run_container_dirname,
+        paths=_PATHS,
     ):
         try:
             inferred = infer_run_location(meta_path, root)

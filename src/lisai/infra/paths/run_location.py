@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
+if TYPE_CHECKING:
+    from .paths import Paths
 
 @dataclass(frozen=True)
 class InferredRunLocation:
@@ -15,26 +17,18 @@ class InferredRunLocation:
     path: str
 
 
-def dataset_models_dir(dataset_dir: str | Path, *, run_container_dirname: str) -> Path:
-    container = str(run_container_dirname).strip().strip("/\\")
-    if not container:
-        raise ValueError("run_container_dirname must not be empty.")
-    return Path(dataset_dir) / container
-
-
 def iter_run_metadata_paths(
     datasets_root: str | Path,
     *,
     metadata_filename: str,
-    run_container_dirname: str,
+    paths: Paths,
 ) -> Iterable[Path]:
     root = Path(datasets_root).resolve()
     for dataset_dir in sorted(path for path in root.iterdir() if path.is_dir()):
-        models_dir = dataset_models_dir(dataset_dir, run_container_dirname=run_container_dirname)
-        if not models_dir.is_dir():
+        runs_dir = paths.dataset_runs_dir_from_dataset_dir(dataset_dir)
+        if not runs_dir.is_dir():
             continue
-        for meta_path in sorted(models_dir.rglob(metadata_filename)):
-            yield meta_path
+        yield from sorted(runs_dir.rglob(metadata_filename))
 
 
 def infer_run_location(
@@ -82,7 +76,6 @@ def infer_run_location(
 
 __all__ = [
     "InferredRunLocation",
-    "dataset_models_dir",
     "infer_run_location",
     "iter_run_metadata_paths",
 ]
