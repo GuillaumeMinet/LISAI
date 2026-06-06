@@ -30,8 +30,6 @@ def list_runs(
     run_id: str | None = None,
     run_dir_name: str | None = None,
     exp_name: str | None = None,
-    run_name: str | None = None,
-    run_index: int | None = None,
     dataset: str | None = None,
     model_subfolder: str | None = None,
     status: str | None = None,
@@ -70,8 +68,6 @@ def list_runs(
                     run_id=run_id,
                     run_dir_name=run_dir_name,
                     exp_name=exp_name,
-                    run_name=run_name,
-                    run_index=run_index,
                     dataset=dataset,
                     model_subfolder=model_subfolder,
                     status=status,
@@ -93,8 +89,6 @@ def list_runs(
         run_id=run_id,
         run_dir_name=run_dir_name,
         exp_name=exp_name,
-        run_name=run_name,
-        run_index=run_index,
         dataset=dataset,
         model_subfolder=model_subfolder,
         status=status,
@@ -114,8 +108,6 @@ def _render_runs_snapshot(
     run_id: str | None,
     run_dir_name: str | None,
     exp_name: str | None,
-    run_name: str | None,
-    run_index: int | None,
     dataset: str | None,
     model_subfolder: str | None,
     status: str | None,
@@ -133,8 +125,6 @@ def _render_runs_snapshot(
         run_id=run_id,
         run_dir_name=run_dir_name,
         exp_name=exp_name,
-        run_name=run_name,
-        run_index=run_index,
         dataset=dataset,
         model_subfolder=model_subfolder,
         status=status,
@@ -148,8 +138,6 @@ def _render_runs_snapshot(
             run_id=run_id,
             run_dir_name=run_dir_name,
             exp_name=exp_name,
-            run_name=run_name,
-            run_index=run_index,
             dataset=dataset,
             model_subfolder=model_subfolder,
             status=status,
@@ -192,8 +180,6 @@ def _format_listing_title(
     run_id: str | None,
     run_dir_name: str | None,
     exp_name: str | None,
-    run_name: str | None,
-    run_index: int | None,
     dataset: str | None,
     model_subfolder: str | None,
     status: str | None,
@@ -211,10 +197,6 @@ def _format_listing_title(
         filter_parts.append(f"run_dir='{run_dir_name}'")
     if exp_name:
         filter_parts.append(f"exp_name~='{exp_name}'")
-    if run_name:
-        filter_parts.append(f"run_name='{run_name}'")
-    if run_index is not None:
-        filter_parts.append(f"run_index={run_index}")
     if run_id:
         filter_parts.append(f"run_id={run_id}")
 

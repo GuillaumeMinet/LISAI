@@ -101,15 +101,15 @@ def resolve_discovered_run_selector(
 
     if run_id is None and not normalized_selector:
         print(
-            "Missing run selector. Use --run-id <run_id>, dataset[/subfolder]/run_dir_name, or run_dir_name.",
+            "Missing run selector. Use --run-id <run_id>, dataset[/subfolder]/run_dir_name, "
+            "run_dir_name, or partial exp_name.",
             file=err,
         )
         return None
 
-    # find all runs
+    # Scan once so invalid metadata warnings stay consistent with the selected run list.
     resolved_scan = scan_runs() if scan_result is None else scan_result
 
-    # filter by run_id if provided
     if run_id is not None:
         matches = filter_runs(
             resolved_scan.runs,
@@ -118,8 +118,6 @@ def resolve_discovered_run_selector(
             model_subfolder=model_subfolder,
         )
         selector_description = f"run_id={run_id!r}"
-    
-    # public selector filtering such as exp_name or run_dir
     else:
         assert normalized_selector is not None
         matches, selector_description = _select_runs_by_public_selector(
@@ -133,18 +131,14 @@ def resolve_discovered_run_selector(
         if matches is None:
             return None
 
-    # 0 match case
     if not matches:
         print(f"No matching run found for {selector_description}.", file=err)
         print("Use 'lisai runs list' to inspect available runs.", file=err)
         write_invalid_run_warnings(resolved_scan.invalid, stderr=err)
         return None
-    
-    # 1 match only
+
     if len(matches) == 1:
         selected = matches[0]
-    
-    # more than 1 match: user-driven ambiguous resolution
     else:
         selected = resolve_ambiguous_run_matches(
             matches,
@@ -175,7 +169,6 @@ def _select_runs_by_public_selector(
 ) -> tuple[list[DiscoveredRun] | None, str]:
     normalized = selector.replace("\\", "/")
 
-    # check if selector is of type dataset[/subfolder]/run_dir_name
     has_path_separator = "/" in normalized
     if has_path_separator:
         if dataset is not None or model_subfolder is not None:
@@ -192,13 +185,11 @@ def _select_runs_by_public_selector(
                 file=stderr,
             )
             return None, f"run={selector!r}"
-        
-        # split dataset[/subfolder]/run_dir_name into dataset, [subfolder(s)], run_dir
+
         selector_dataset = parts[0]
         selector_model_subfolder = "/".join(parts[1:-1])
         run_dir_name = parts[-1]
 
-        # filter
         matches = filter_runs(
             runs,
             run_dir_name=run_dir_name,
@@ -207,8 +198,7 @@ def _select_runs_by_public_selector(
         )
         return matches, f"run={selector!r}"
 
-    # cases where selector is the full run directory name, or the partial exp_name
-    # fist we look for exact_matches
+    # Prefer an exact folder name before falling back to partial experiment names.
     exact_matches = filter_runs(
         runs,
         run_dir_name=selector,
@@ -218,7 +208,6 @@ def _select_runs_by_public_selector(
     if exact_matches or not allow_partial_exp_name:
         return exact_matches, f"run={selector!r}"
 
-    # if not found, we look for patial matches
     scoped_runs = filter_runs(
         runs,
         dataset=dataset,

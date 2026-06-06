@@ -107,8 +107,6 @@ def filter_runs(
     run_id: str | None = None,
     run_dir_name: str | None = None,
     exp_name: str | None = None,
-    run_name: str | None = None,
-    run_index: int | None = None,
     dataset: str | None = None,
     model_subfolder: str | None = None,
     status: str | None = None,
@@ -119,8 +117,6 @@ def filter_runs(
         if (run_id is None or run.metadata.run_id == run_id)
         and (run_dir_name is None or run.run_dir.name == run_dir_name)
         and matches_exp_name(run, exp_name)
-        and (run_name is None or run.metadata.run_name == run_name)
-        and (run_index is None or run.metadata.run_index == run_index)
         and (dataset is None or run.dataset == dataset)
         and (model_subfolder is None or run.model_subfolder == model_subfolder)
         and (status is None or run.metadata.status == status)

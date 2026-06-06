@@ -53,12 +53,15 @@ Training resolves the config, creates a run directory, saves `config_train.yaml`
 Use the CLI for evaluation workflows:
 
 ```powershell
-lisai evaluate Gag/Upsamp/my_model --split val --metrics psnr,ssim
-lisai apply Gag/Upsamp/my_model /data/images --tiling-size 512
+lisai evaluate Gag/Upsamp/my_model_00 --split val --metrics psnr,ssim
+lisai apply Gag/Upsamp/my_model_00 /data/images --tiling-size 512
+lisai apply --run-id 01ARZ3NDEKTSV4RRFFQ69G7ACD /data/images
 ```
 
 Both commands accept `--config <name>` to load settings from `configs/inference/<name>.yml`,
-and any CLI argument overrides the config value.
+and any CLI argument overrides the config value. Run selectors must refer to a discovered run
+folder, either by `--run-id`, `dataset[/subfolder]/run_dir_name`, `run_dir_name`, or a partial
+experiment name when it can be resolved unambiguously.
 
 ## Preprocess
 
