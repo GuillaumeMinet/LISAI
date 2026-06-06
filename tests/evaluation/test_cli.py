@@ -63,19 +63,28 @@ def _write_metadata(
     write_run_metadata_atomic(run_dir, RunMetadata.model_validate(payload))
 
 
-def test_apply_cli_parses_run_ref_config_and_overrides(monkeypatch):
+def test_apply_cli_parses_run_ref_config_and_overrides(monkeypatch, tmp_path):
     captured = {}
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "Upsamp" / "my_model_00"
+    _write_metadata(
+        run_dir,
+        run_id="01ARZ3NDEKTSV4RRFFQ69G7ACA",
+        dataset="Gag",
+        model_subfolder="Upsamp",
+    )
 
     def fake_run_apply_model(**kwargs):
         captured.update(kwargs)
 
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(evaluation_cli, "run_apply_model", fake_run_apply_model)
 
     parser = build_parser()
     args = parser.parse_args(
         [
             "apply",
-            "Gag/Upsamp/my_model",
+            "Gag/Upsamp/my_model_00",
             "/data/images",
             "--config",
             "fast_upsamp",
@@ -90,26 +99,35 @@ def test_apply_cli_parses_run_ref_config_and_overrides(monkeypatch):
     assert result == 0
     assert captured["model_dataset"] == "Gag"
     assert captured["model_subfolder"] == "Upsamp"
-    assert captured["model_name"] == "my_model"
+    assert captured["model_name"] == "my_model_00"
     assert captured["data_path"] == Path("/data/images")
     assert captured["config"] == "fast_upsamp"
     assert captured["tiling_size"] == 512
     assert captured["crop_size"] == 200
 
 
-def test_apply_cli_accepts_best_or_last_both(monkeypatch):
+def test_apply_cli_accepts_best_or_last_both(monkeypatch, tmp_path):
     captured = {}
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "Upsamp" / "my_model_00"
+    _write_metadata(
+        run_dir,
+        run_id="01ARZ3NDEKTSV4RRFFQ69G7ACB",
+        dataset="Gag",
+        model_subfolder="Upsamp",
+    )
 
     def fake_run_apply_model(**kwargs):
         captured.update(kwargs)
 
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
     monkeypatch.setattr(evaluation_cli, "run_apply_model", fake_run_apply_model)
 
     parser = build_parser()
     args = parser.parse_args(
         [
             "apply",
-            "Gag/Upsamp/my_model",
+            "my_model_00",
             "/data/images",
             "--best-or-last",
             "both",
@@ -119,6 +137,59 @@ def test_apply_cli_accepts_best_or_last_both(monkeypatch):
 
     assert result == 0
     assert captured["best_or_last"] == "both"
+    assert captured["model_name"] == "my_model_00"
+
+
+def test_apply_cli_run_id_without_run_positional_parses_data_path():
+    run_id = "01ARZ3NDEKTSV4RRFFQ69G7ACC"
+    parser = build_parser()
+
+    args = parser.parse_args(["apply", "--run-id", run_id, "/data/images"])
+
+    assert args.run is None
+    assert args.data_path == "/data/images"
+    assert args.run_id == run_id
+
+
+def test_apply_cli_accepts_run_id_selector_without_run_positional(monkeypatch, tmp_path):
+    captured = {}
+    datasets_root = tmp_path / "datasets"
+    run_dir = datasets_root / "Gag" / "models" / "HDN" / "resume_me_00"
+    run_id = "01ARZ3NDEKTSV4RRFFQ69G7ACD"
+    _write_metadata(
+        run_dir,
+        run_id=run_id,
+        dataset="Gag",
+        model_subfolder="HDN",
+    )
+
+    monkeypatch.setattr(selection_mod, "scan_runs", lambda: scan_runs(datasets_root))
+    monkeypatch.setattr(evaluation_cli, "run_apply_model", lambda **kwargs: captured.update(kwargs))
+
+    parser = build_parser()
+    args = parser.parse_args(["apply", "--run-id", run_id, "/data/images"])
+    result = args.handler(args)
+
+    assert result == 0
+    assert captured["model_dataset"] == "Gag"
+    assert captured["model_subfolder"] == "HDN"
+    assert captured["model_name"] == "resume_me_00"
+    assert captured["data_path"] == Path("/data/images")
+
+
+def test_apply_cli_missing_run_selector_returns_nonzero(monkeypatch):
+    called = {"value": False}
+    stderr = io.StringIO()
+    monkeypatch.setattr(evaluation_cli, "run_apply_model", lambda **_kwargs: called.update({"value": True}))
+    monkeypatch.setattr(evaluation_cli.sys, "stderr", stderr)
+
+    parser = build_parser()
+    args = parser.parse_args(["apply", "/data/images"])
+    result = args.handler(args)
+
+    assert result == 1
+    assert called["value"] is False
+    assert "Missing run selector." in stderr.getvalue()
 
 
 def test_evaluate_cli_parses_metrics_and_split(monkeypatch, tmp_path):

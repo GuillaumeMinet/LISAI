@@ -16,18 +16,6 @@ from .run_apply_model import run_apply_model
 from .run_evaluate import run_evaluate
 
 
-def _parse_run_ref(run_ref: str) -> tuple[str, str, str]:
-    parts = [part for part in run_ref.replace("\\", "/").split("/") if part]
-    if len(parts) < 2:
-        raise ValueError(
-            "Run reference must be 'dataset/run_dir_name' or 'dataset/subfolder/run_dir_name'."
-        )
-    dataset_name = parts[0]
-    model_name = parts[-1]
-    model_subfolder = "/".join(parts[1:-1])
-    return dataset_name, model_subfolder, model_name
-
-
 def _parse_csv_list(value: str) -> list[str]:
     items = [item.strip() for item in value.split(",") if item.strip()]
     if not items:
@@ -65,8 +53,17 @@ def _maybe_unset(value):
 
 
 def add_apply_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    parser.add_argument("run", help="Run reference: dataset[/subfolder]/run_dir_name.")
+    parser.add_argument(
+        "run",
+        nargs="?",
+        help=(
+            "Run selector: run_dir_name, partial exp_name, or dataset[/subfolder]/run_dir_name. "
+            "Use --run-id as an alternative."
+        ),
+    )
     parser.add_argument("data_path", help="Input file or directory to process.")
+    parser.add_argument("--run-id", help="Stable run identifier to apply.")
+    add_run_filter_arguments(parser, include_identity=False, include_status=False)
     parser.add_argument(
         "-c",
         "--config",
@@ -166,16 +163,14 @@ def add_evaluate_arguments(parser: argparse.ArgumentParser) -> argparse.Argument
 
 
 def run_apply_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    try:
-        dataset_name, model_subfolder, model_name = _parse_run_ref(args.run)
-    except ValueError as exc:
-        parser.error(str(exc))
-        raise AssertionError("argparse.error should raise SystemExit")
+    selected = _resolve_run_selector(args)
+    if selected is None:
+        return 1
 
     run_apply_model(
-        model_dataset=dataset_name,
-        model_subfolder=model_subfolder,
-        model_name=model_name,
+        model_dataset=selected.dataset,
+        model_subfolder=selected.model_subfolder,
+        model_name=selected.run_dir.name,
         data_path=Path(args.data_path),
         config=args.config,
         save_folder=_maybe_unset(args.save_folder),
@@ -202,7 +197,7 @@ def run_apply_from_args(args: argparse.Namespace, parser: argparse.ArgumentParse
 
 
 def run_evaluate_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    selected = _resolve_evaluate_run_selector(args)
+    selected = _resolve_run_selector(args)
     if selected is None:
         return 1
 
@@ -228,7 +223,7 @@ def run_evaluate_from_args(args: argparse.Namespace, parser: argparse.ArgumentPa
     return 0
 
 
-def _resolve_evaluate_run_selector(
+def _resolve_run_selector(
     args: argparse.Namespace,
 ) -> DiscoveredRun | None:
     return resolve_discovered_run_selector(
