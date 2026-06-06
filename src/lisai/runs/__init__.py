@@ -26,6 +26,7 @@ from .listing import (
 )
 from .plotting import is_hdn_layout, read_loss_table, save_loss_plot_for_run, show_loss_plot_for_run
 from .scanner import scan_runs
+from .selection import resolve_discovered_run_selector
 from .schema import (
     RUN_METADATA_FILENAME,
     RUN_STATUSES,
@@ -63,6 +64,7 @@ __all__ = [
     "read_loss_table",
     "read_run_metadata",
     "render_runs_table",
+    "resolve_discovered_run_selector",
     "save_loss_plot_for_run",
     "scan_runs",
     "show_loss_plot_for_run",
