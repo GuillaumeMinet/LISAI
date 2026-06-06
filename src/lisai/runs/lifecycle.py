@@ -14,6 +14,7 @@ from lisai.infra.paths.model_subfolder import (
     normalize_model_subfolder,
 )
 
+from .code_state import collect_code_state
 from .identifiers import generate_run_id
 from .io import read_run_metadata, write_run_metadata_atomic
 from .schema import (
@@ -24,7 +25,6 @@ from .schema import (
     TrainingSignature,
     utc_now,
 )
-
 
 _PATHS = Paths(settings)
 
@@ -78,6 +78,7 @@ def create_run_metadata(
             best_val_loss=None,
             path=path_text,
             group_path=group_path,
+            code=collect_code_state(),
         )
     else:
         metadata = existing.model_copy(
@@ -314,6 +315,7 @@ def _read_existing_metadata(run_dir: str | Path) -> RunMetadata | None:
 
 __all__ = [
     "create_run_metadata",
+    "collect_code_state",
     "finalize_run_completed",
     "finalize_run_failed",
     "finalize_setup_failed",

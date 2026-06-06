@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from lisai.runs.io import read_run_metadata, write_run_metadata_atomic
 from lisai.runs.lifecycle import (
+    create_run_metadata,
     update_run_failure_reason,
     update_run_recovery_info,
     update_run_runtime_details,
 )
-from lisai.runs.schema import RunMetadata
+from lisai.runs.schema import CodeState, RunMetadata
 
 
 def _payload(run_dir, **overrides):
@@ -59,6 +60,23 @@ def test_update_run_runtime_details_sets_signature_and_peak(tmp_path):
     assert metadata.runtime_stats.total_training_time_sec == 120.0
     assert metadata.runtime_stats.training_time_per_epoch_sec == 12.0
     assert metadata.status == "running"
+
+
+def test_create_run_metadata_persists_code_state(monkeypatch, tmp_path):
+    run_dir = tmp_path / "demo_00"
+    expected = CodeState(
+        git_commit="abc1234def5678",
+        git_branch="main",
+        git_dirty=True,
+        git_remote="git@github.com:GuillaumeMinet/LISAI.git",
+        lisai_version="0.1.0",
+    )
+    monkeypatch.setattr("lisai.runs.lifecycle.collect_code_state", lambda: expected)
+
+    create_run_metadata(run_dir, dataset="Gag", model_subfolder="HDN", max_epoch=10)
+    metadata = read_run_metadata(run_dir)
+
+    assert metadata.code == expected
 
 
 def test_update_run_runtime_details_keeps_max_peak(tmp_path):
