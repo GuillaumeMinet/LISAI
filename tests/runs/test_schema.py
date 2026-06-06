@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import re
+from datetime import datetime, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -99,6 +99,29 @@ def test_run_metadata_accepts_optional_training_signature_and_runtime_stats():
     assert metadata.live_runtime_stats.last_epoch_duration_s == pytest.approx(62.5)
     assert metadata.live_runtime_stats.recent_epoch_durations_s == pytest.approx([58.0, 60.0, 62.5])
     assert metadata.live_runtime_stats.median_epoch_duration_s == pytest.approx(60.0)
+
+
+def test_run_metadata_accepts_legacy_import_provenance():
+    metadata = RunMetadata.model_validate(
+        _payload(
+            status="completed",
+            closed_cleanly=True,
+            ended_at="2026-03-20T10:20:00Z",
+            provenance={
+                "source": "legacy_import",
+                "source_path": "/mnt/e/dl_monalisa/deepL_resolft_dataset/Trained_models/CARE",
+                "source_config": "config_train.json",
+                "imported_at": "2026-03-20T10:19:00Z",
+                "notes": "Imported by src/scripts/import_legacy_models.py",
+            },
+        )
+    )
+    dumped = metadata.model_dump(mode="json")
+
+    assert metadata.provenance is not None
+    assert metadata.provenance.source == "legacy_import"
+    assert metadata.provenance.source_config == "config_train.json"
+    assert dumped["provenance"]["imported_at"] == "2026-03-20T10:19:00Z"
 
 
 def test_run_metadata_rejects_negative_live_epoch_duration():

@@ -5,7 +5,14 @@ from pathlib import PurePosixPath
 from statistics import median
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from lisai.infra.paths.model_subfolder import group_path_from_model_subfolder
 
@@ -156,6 +163,38 @@ class RuntimeStats(BaseModel):
     training_time_per_epoch_sec: float | None = Field(default=None, ge=0.0)
 
 
+class RunProvenance(BaseModel):
+    """Optional origin metadata for runs imported from outside the current trainer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: Literal["legacy_import"] = "legacy_import"
+    source_path: str
+    source_config: str = "config_train.json"
+    imported_at: datetime = Field(default_factory=utc_now)
+    notes: str | None = None
+
+    @field_validator("source_path", "source_config")
+    @classmethod
+    def _validate_required_text(cls, value: str) -> str:
+        text = str(value).strip()
+        if not text:
+            raise ValueError("Value must not be empty.")
+        return text
+
+    @field_validator("imported_at", mode="before")
+    @classmethod
+    def _parse_imported_at(cls, value: datetime | str) -> datetime:
+        parsed = parse_timestamp(value)
+        if parsed is None:
+            raise ValueError("Timestamp must not be null.")
+        return parsed
+
+    @field_serializer("imported_at", when_used="json")
+    def _serialize_imported_at(self, value: datetime) -> str:
+        return format_timestamp(value)
+
+
 class LiveRuntimeStats(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -222,6 +261,7 @@ class RunMetadata(BaseModel):
     training_signature: TrainingSignature | None = None
     runtime_stats: RuntimeStats | None = None
     live_runtime_stats: LiveRuntimeStats | None = None
+    provenance: RunProvenance | None = None
 
     failure_reason: str | None = None
     recovery_checkpoint_filename: str | None = None
@@ -367,6 +407,7 @@ __all__ = [
     "RuntimeStats",
     "TrainingSignature",
     "RunMetadata",
+    "RunProvenance",
     "RunStatus",
     "format_timestamp",
     "format_timestamp_local",
