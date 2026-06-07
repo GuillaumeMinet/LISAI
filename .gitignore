@@ -1,6 +1,16 @@
 # Local machine config
 configs/local_config.yml
 
+# Ignore local training configs directly inside configs/training/
+configs/training/*
+configs/training/sweeps/*
+
+# But keep subdirectories visible to Git rules and track templates/examples
+!configs/training/*/
+!configs/training/templates/**
+!configs/training/examples/**
+
+# internal lisai cache
 .lisai/
 
 # Python bytecode and caches
