@@ -10,10 +10,10 @@ apply:
   skip_if_contain: null
   crop_size: null
   keep_original_shape: true
-  tiling_size: 400
+  tiling_size: 2000
   stack_selection_idx: null
   timelapse_max: null
-  lvae_num_samples: 50
+  lvae_num_samples: 20
   lvae_save_samples: true
   denormalize_output: true
   save_inp: true

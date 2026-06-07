@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../schema/continue_training.schema.json
+# yaml-language-server: $schema=../../schema/continue_training.schema.json
 # ========================================================
 # Continue training configuration
 # This mode resumes optimization in the original run directory.

@@ -1,10 +1,10 @@
-# yaml-language-server: $schema=../schema/experiment.schema.json
+# yaml-language-server: $schema=../../schema/experiment.schema.json
 # ========================================================
 # General experiment settings
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: CARE_clip_charEdge_recon_fullskipcon
+  exp_name: vim_single_betaKL05_lr1e-4
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
 
@@ -13,8 +13,8 @@ experiment:
 # ========================================================
 routing:
   data_subfolder: "preprocess/recon"
-  models_subfolder: "Denoising"
-  tensorboard_subfolder: ""
+  models_subfolder: "HDN"
+  tensorboard_subfolder: "HDN"
   # used only for non-canonical loads => full path is used directly
   dataset_full_path: ""
 
@@ -31,66 +31,65 @@ data:
     - tiff
     - tif
 
-  paired: true
-  target: "gt_avg" # for paired datasets
+  paired: false
+  target: null # for paired datasets
   input: "inp_single"
 
-  patch_size: 128
-  val_patch_size: 512
+  patch_size: 64
+  val_patch_size: 256
   batch_size: 64
 
   # options
   initial_crop: null
   augmentation: false
-  patch_thresh: null # None or float [0,1]
-  select_on_gt: true
+  patch_thresh: 0.05 # None or float [0,1]
+  select_on_gt: false
 
+
+# ========================================================
+# Normalization / Noise
+# ========================================================
 normalization:
-  norm_prm:
-    clip: -3
-    normalize_data: false
+  load_from_noise_model: true
+  norm_prm: null
+
+noise_model:
+  name: Noise0_SigN2Vavg_Clip-3_norm_bis
 
 # ========================================================
 # Model configuration
 # ========================================================
 model:
-  architecture: unet
+  architecture: lvae
   parameters:
-    feat: 64
-    depth: 4
-    in_channels: 1
-    out_channels: 1
-    activation: swish
+    num_latents: 5
+    z_dims: 32
+    blocks_per_layer: 6
     norm: group
     gr_norm: 8
-    dropout: 0.1
-    remove_skip_con: 0
+    free_bits: 1.0
 
 # ========================================================
 # Training configuration
 # ========================================================
 training:
-  n_epochs: 100
-  batch_size: 16
-  learning_rate: 0.001
+  n_epochs: 200
+  batch_size: 32
+  learning_rate: 1e-4
+  betaKL: 0.5
   optimizer: Adam
-  scheduler: 
-    name: ReduceLROnPlateau
+  scheduler: ReduceLROnPlateau
   progress_bar: true
   debug_stop: false
   warmup:
-    enabled: false
+    enabled: true
     steps: 500
     start_factor: 0.1
-  auto_stop:
-    enabled: false
+  auto_stop: 
+    enabled: true
     metrics: val_loss
-    patience: 50
-
-loss_function:
-  name: CharEdge
-  CharEdge_loss_prm:
-    alpha: 0.05
+    patience: 30
+  max_grad_norm: null
 
 # ========================================================
 # Saving configuration

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../schema/retrain.schema.json
+# yaml-language-server: $schema=../../schema/retrain.schema.json
 # ========================================================
 # Retrain configuration
 # This mode starts a new run from weights loaded from an older run.

@@ -1,10 +1,10 @@
-# yaml-language-server: $schema=../schema/experiment.schema.json
+# yaml-language-server: $schema=../../schema/experiment.schema.json
 # ========================================================
 # General experiment settings
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: CL1_Upsamp2_lightweight_test12345_early
+  exp_name: Fulldataset_CL1_3FramesMax_Upsamp2_smallerNet_clip
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
 
@@ -13,7 +13,7 @@ experiment:
 # ========================================================
 routing:
   data_subfolder: "preprocess/recon"
-  models_subfolder: "Testing"
+  models_subfolder: "Upsamp"
   tensorboard_subfolder: "Upsamp"
   # used only for non-canonical loads => full path is used directly
   dataset_full_path: ""
@@ -22,7 +22,7 @@ routing:
 # Dataset / DataLoader configuration
 # ========================================================
 data:
-  dataset_name: Gag_timelapses
+  dataset_name: vim_live
   data_format: timelapse
   canonical_load: true
   prep_before: true
@@ -35,8 +35,9 @@ data:
   target: null # for paired datasets
   input: ""
   timelapse_prm:
-    context_length: null
-    timelapse_max_frames: 5
+    timelapse_max_frames: 3
+    shuffle: false
+    context_length: 1
 
   patch_size: 96
   val_patch_size: 240
@@ -44,16 +45,18 @@ data:
 
   downsampling:
     downsamp_factor: 2
-    downsamp_method: "multiple"
-    multiple_prm:
-      fill_factor: 0.25
-      random: True
+    downsamp_method: "random"
 
   # options
   initial_crop: null
   augmentation: false
-  patch_thresh: 0.15 # None or float [0,1]
+  patch_thresh: 0.2 # None or float [0,1]
   select_on_gt: false
+
+normalization:
+  norm_prm:
+    clip: -3
+
 
 # ========================================================
 # Model configuration
@@ -64,7 +67,7 @@ model:
     upsampling_net: rcan
     upsampling_factor: 2
     UNet_prm:
-      feat: 32
+      feat: 64
       depth: 3
       in_channels: 1
       out_channels: 1
@@ -74,37 +77,41 @@ model:
       dropout: 0.1
       cab_skip_con: false
     RCAN_prm:
-      num_features: 32
-      num_rg: 4
+      num_features: 64
+      num_rg: 8
       num_rcab: 8
       reduction: 12
       dropout: 0.1
       upsamp_kernel_factor: 1
+      collapse_ch_before_upsamp: True
 
 # ========================================================
 # Training configuration
 # ========================================================
 training:
-  n_epochs: 50
-  batch_size: 8
-  learning_rate: 0.0001
+  n_epochs: 300
+  batch_size: 32
+  learning_rate: 1e-4
   optimizer: Adam
   scheduler: ReduceLROnPlateau
   progress_bar: true
-  debug_stop: true
+  debug_stop: false
   warmup:
-    enabled: false
+    enabled: true
     steps: 500
     start_factor: 0.1
   auto_stop:
-    enabled: false
+    enabled: True
     metrics: val_loss
-    patience: 30
+    patience: 50
 
 loss_function:
   name: CharEdge_loss
   CharEdge_loss_prm:
     alpha: 0.05
+  # MSE_upsampling_prm:
+  #   alpha: 0.5
+  #   upsampling_factor: 2
 
 # ========================================================
 # Saving configuration
@@ -117,7 +124,7 @@ saving:
   entire_model: true
   state_dict: true
   validation_images: true
-  validation_freq: 10  # save every Xth epoch
+  validation_freq: 5  # save every Xth epoch
 
 # ========================================================
 # Tensorboard configuration
