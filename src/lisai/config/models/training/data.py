@@ -81,6 +81,47 @@ class TimelapseParams(BaseModel):
         return value
 
 
+class SplitRatios(BaseModel):
+    """File-level split ratios used for unprepared, unpaired datasets."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    train: float = Field(default=0.6, ge=0, le=1, description="Fraction of files assigned to training.")
+    val: float = Field(default=0.2, ge=0, le=1, description="Fraction of files assigned to validation.")
+    test: float = Field(default=0.2, ge=0, le=1, description="Fraction of files assigned to testing.")
+
+    @model_validator(mode="after")
+    def _validate_sum(self):
+        total = self.train + self.val + self.test
+        if abs(total - 1.0) > 1e-9:
+            raise ValueError("`data.split_manifest.ratios` must sum to 1.")
+        if self.train <= 0:
+            raise ValueError("`data.split_manifest.ratios.train` must be > 0.")
+        if self.val <= 0:
+            raise ValueError("`data.split_manifest.ratios.val` must be > 0.")
+        return self
+
+
+class SplitManifestParams(BaseModel):
+    """Options for file-level split manifests used by prep_before=false."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    seed: int = Field(
+        default=0,
+        ge=0,
+        description="Random seed used when creating a new unprepared-data split manifest.",
+    )
+    ratios: SplitRatios = Field(
+        default_factory=SplitRatios,
+        description="Train/validation/test file-level split ratios for unprepared datasets.",
+    )
+    retrain_policy: Literal["reuse", "new"] = Field(
+        default="reuse",
+        description="For retrain with prep_before=false, reuse the origin split manifest or create a new one.",
+    )
+
+
 class MultipleSnrParams(BaseModel):
     """Options used when selecting a noise level from multi-SNR datasets."""
 
@@ -375,6 +416,10 @@ class ExperimentDataSection(BaseModel):
         default=None,
         description="Multi-SNR selection options, used when a dataset contains several noise levels per sample.",
     )
+    split_manifest: SplitManifestParams = Field(
+        default_factory=SplitManifestParams,
+        description="File-level split manifest options used only when prep_before is false.",
+    )
 
     # Synthetic input-generation parameters
     downsampling: DownsamplingParams | None = Field(
@@ -420,6 +465,10 @@ class ExperimentDataSection(BaseModel):
             raise ValueError("`patch_size` must be > 0.")
         if self.val_patch_size is not None and self.val_patch_size <= 0:
             raise ValueError("`val_patch_size` must be > 0.")
+        if self.prep_before is False and self.paired:
+            raise ValueError("`data.prep_before=false` is only supported for unpaired datasets.")
+        if self.prep_before is True and self.already_split is False:
+            raise ValueError("`data.already_split=false` is no longer supported when `data.prep_before=true`.")
         return self
 
     @property

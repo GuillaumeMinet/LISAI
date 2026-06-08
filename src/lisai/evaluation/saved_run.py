@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Literal, Mapping
 
 from lisai.config import load_yaml, settings
+from lisai.data.data_loaders.split_manifest import read_split_manifest, resolve_split_manifest_path
 from lisai.config.models import ResolvedExperiment
 from lisai.infra.paths import Paths
 from lisai.models.params import AnyModelParams
@@ -91,6 +92,7 @@ class SavedTrainingRun:
     upsampling_factor: int
     context_length: int | None
     default_tiling_size: int | None
+    split_manifest: dict[str, Any] | None = None
 
     @property
     def is_lvae(self) -> bool:
@@ -120,6 +122,10 @@ class SavedTrainingRun:
         if cfg.data.timelapse_prm is not None:
             context_length = cfg.data.timelapse_prm.context_length
 
+        paths = Paths(settings)
+        manifest_path = resolve_split_manifest_path(paths, run_dir)
+        split_manifest = read_split_manifest(manifest_path) if manifest_path.exists() else None
+
         return cls(
             run_dir=Path(run_dir),
             experiment_name=Path(run_dir).name,
@@ -137,6 +143,7 @@ class SavedTrainingRun:
             upsampling_factor=model_parameters.effective_upsampling_factor(),
             context_length=int(context_length) if context_length is not None else None,
             default_tiling_size=_default_tiling_size(architecture),
+            split_manifest=split_manifest,
         )
 
 

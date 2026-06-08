@@ -18,6 +18,7 @@ from lisai.config import load_yaml, settings
 from lisai.config.io import deep_merge
 from lisai.config.models.training import DataSection
 from lisai.data.data_loaders.dataset_io import load_image
+from lisai.data.data_loaders.split_manifest import manifest_split_entries
 from lisai.data.data_loaders.transforms import apply_additional_transforms, apply_inp_transformations
 from lisai.data.utils import crop_center, make_pair_4d
 from lisai.infra.paths import Paths
@@ -118,36 +119,59 @@ class EvalItem:
 class EvalSampleSource:
     """Ordered source of evaluation items and their prepared samples."""
 
-    def __init__(self, *, items: Sequence[EvalItem], config: DataSection):
+    def __init__(
+        self,
+        *,
+        items: Sequence[EvalItem],
+        config: DataSection,
+        split_manifest: Mapping[str, Any] | None = None,
+    ):
         """Store file-level evaluation items and their resolved data config."""
         self.config = config
         self.items = tuple(items)
+        self.split_manifest = dict(split_manifest) if split_manifest is not None else None
 
     @classmethod
-    def from_config(cls, config: DataSection) -> "EvalSampleSource":
+    def from_config(
+        cls,
+        config: DataSection,
+        *,
+        split_manifest: Mapping[str, Any] | None = None,
+    ) -> "EvalSampleSource":
         """Build an item source from a resolved evaluation data config."""
-        return cls(items=cls.build_items(config), config=config)
+        return cls(
+            items=cls.build_items(config, split_manifest=split_manifest),
+            config=config,
+            split_manifest=split_manifest,
+        )
 
     @staticmethod
-    def build_items(config: DataSection) -> tuple[EvalItem, ...]:
+    def build_items(
+        config: DataSection,
+        *,
+        split_manifest: Mapping[str, Any] | None = None,
+    ) -> tuple[EvalItem, ...]:
         """Resolve one file-level evaluation item per input/GT pair."""
         if config.data_dir is None:
             raise ValueError("`data_dir` must be provided for evaluation data loading.")
-        if config.input is None:
+        if config.input is None and split_manifest is None:
             raise ValueError("`input` must be provided for evaluation data loading.")
 
         split = getattr(config, "split", "test")
-        inp_dir = config.data_dir / config.input / split
-        inp_files = _collect_split_files(inp_dir, config.filters)
-        if not inp_files:
-            raise FileNotFoundError(f"No input files found in {inp_dir} with filters={config.filters}.")
+        if split_manifest is not None:
+            inp_files, gt_files = _manifest_eval_files(config, split_manifest, split)
+        else:
+            inp_dir = config.data_dir / config.input / split
+            inp_files = _collect_split_files(inp_dir, config.filters)
+            if not inp_files:
+                raise FileNotFoundError(f"No input files found in {inp_dir} with filters={config.filters}.")
 
-        gt_files: list[Path] | None = None
-        if config.target is not None:
-            gt_dir = config.data_dir / config.target / split
-            gt_files = _collect_split_files(gt_dir, config.filters)
-            if len(inp_files) != len(gt_files):
-                raise ValueError(f"Found #{len(inp_files)} inp_files and #{len(gt_files)} gt_files")
+            gt_files: list[Path] | None = None
+            if config.target is not None:
+                gt_dir = config.data_dir / config.target / split
+                gt_files = _collect_split_files(gt_dir, config.filters)
+                if len(inp_files) != len(gt_files):
+                    raise ValueError(f"Found #{len(inp_files)} inp_files and #{len(gt_files)} gt_files")
 
         items = []
         for index, inp_path in enumerate(inp_files):
@@ -234,6 +258,40 @@ def _collect_split_files(data_dir: Path, filters: list[str]) -> list[Path]:
     for image_filter in filters:
         files += [Path(path) for path in sorted(glob.glob(str(data_dir) + f"/*{image_filter}"))]
     return files
+
+
+def _manifest_eval_files(
+    config: DataSection,
+    split_manifest: Mapping[str, Any],
+    split: str,
+) -> tuple[list[Path], list[Path] | None]:
+    """Resolve evaluation file paths from a run split manifest."""
+    if config.data_dir is None:
+        raise ValueError("`data_dir` must be provided for manifest-based evaluation loading.")
+
+    entries = manifest_split_entries(dict(split_manifest), split)
+    input_root = config.data_dir / (config.input or "")
+    target_root = config.data_dir / config.target if config.target is not None else None
+
+    inp_files: list[Path] = []
+    gt_files: list[Path] | None = [] if target_root is not None else None
+
+    for entry in entries:
+        if not isinstance(entry, Mapping) or not entry.get("input"):
+            raise ValueError(f"Invalid split manifest entry in split '{split}': {entry!r}")
+        input_rel = Path(str(entry["input"]))
+        inp_files.append(input_root / input_rel)
+
+        if gt_files is not None:
+            target_rel = entry.get("target")
+            if target_rel:
+                gt_files.append(target_root / str(target_rel))
+            else:
+                gt_files.append(target_root / input_rel)
+
+    if not inp_files:
+        raise FileNotFoundError(f"Split manifest contains no files for split '{split}'.")
+    return inp_files, gt_files
 
 
 def _normalization_flags(config: DataSection) -> tuple[Any, bool, bool]:
@@ -400,7 +458,7 @@ def build_eval_source(
         split=split,
     )
 
-    return EvalSampleSource.from_config(prep_cfg)
+    return EvalSampleSource.from_config(prep_cfg, split_manifest=saved_run.split_manifest)
 
 
 

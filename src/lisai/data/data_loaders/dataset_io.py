@@ -18,6 +18,8 @@ from lisai.data.utils import (
 from lisai.config.models.training import DataSection
 from lisai.lib.upsamp.artificial_movement import apply_movement
 
+from .split_manifest import files_for_manifest_split, make_unprepared_split_manifest
+
 logger = logging.getLogger("lisai.data_prep")
 
 
@@ -54,6 +56,7 @@ def load_full_datasets(
     *,
     data_format: str,
     for_training: bool,
+    split_manifest: dict | None = None,
 ):
     """
     Loads all datasets: train and validation if arg:`for_training` is True,
@@ -64,8 +67,31 @@ def load_full_datasets(
     target_name = config.target
     paired = config.paired
 
+    resolved_split_manifest = split_manifest
+
     if for_training:
-        if config.already_split:
+        if resolved_split_manifest is not None or not config.prep_before:
+            if resolved_split_manifest is None:
+                resolved_split_manifest = make_unprepared_split_manifest(config, data_format=data_format)
+
+            inp_train, gt_train = load_all_data(
+                data_dir / (input_name or ""),
+                inp_files=files_for_manifest_split(config, resolved_split_manifest, "train"),
+                data_format=data_format,
+                config=config,
+                make_patches=True,
+            )
+
+            inp_val, gt_val = load_all_data(
+                data_dir / (input_name or ""),
+                inp_files=files_for_manifest_split(config, resolved_split_manifest, "val"),
+                data_format=data_format,
+                config=config,
+                val_split=True,
+                make_patches=True,
+            )
+
+        elif config.already_split:
             # train split
             inp_path = data_dir / input_name / "train"
             gt_path = data_dir / target_name / "train" if paired else None
@@ -90,21 +116,7 @@ def load_full_datasets(
             )
 
         else:
-            inp_path = data_dir / input_name
-            gt_path = data_dir / target_name if target_name is not None else None
-            inp_data, gt_data = load_all_data(
-                inp_path,
-                data_dir_gt=gt_path,
-                data_format=data_format,
-                config=config,
-                make_patches=True,
-            )
-
-            inp_train = inp_data[: int(0.85 * inp_data.shape[0])]
-            inp_val = inp_data[int(0.85 * inp_data.shape[0]) :]
-
-            gt_train = gt_data[: int(0.85 * gt_data.shape[0])] if paired else None
-            gt_val = gt_data[int(0.85 * gt_data.shape[0]) :] if paired else None
+            raise ValueError("`data.already_split=false` is no longer supported when `data.prep_before=true`.")
 
         # train dataset augmentation (optional)
         if config.augmentation:
@@ -124,11 +136,20 @@ def load_full_datasets(
 
     else:
         split = getattr(config, "split", "test")
-        inp_path = data_dir / input_name / split
-        gt_path = data_dir / target_name / split if target_name is not None else None
+        if split_manifest is not None or not config.prep_before:
+            if split_manifest is None:
+                raise ValueError("A split manifest is required to load unprepared evaluation data.")
+            inp_path = data_dir / (input_name or "")
+            gt_path = None
+            inp_files = files_for_manifest_split(config, split_manifest, split)
+        else:
+            inp_path = data_dir / input_name / split
+            gt_path = data_dir / target_name / split if target_name is not None else None
+            inp_files = None
         inp_test, gt_test = load_all_data(
             inp_path,
             data_dir_gt=gt_path,
+            inp_files=inp_files,
             data_format=data_format,
             config=config,
             make_patches=False,
@@ -137,7 +158,7 @@ def load_full_datasets(
         list_datasets = [test_dataset]
         patch_info = None
 
-    return list_datasets, patch_info
+    return list_datasets, patch_info, resolved_split_manifest
 
 
 def load_all_data(
@@ -145,6 +166,8 @@ def load_all_data(
     *,
     config: DataSection,
     data_dir_gt: Optional[Path] = None,
+    inp_files: Optional[list[Path]] = None,
+    gt_files: Optional[list[Path]] = None,
     data_format: str = "single",
     val_split=False,
     make_patches=True,
@@ -219,13 +242,19 @@ def load_all_data(
             stdObs_per_noise = [stdObs]
 
     # get list of file path
-    inp_files = []
-    for image_filter in filters:
-        inp_files += sorted(glob.glob(str(data_dir_inp) + f"/*{image_filter}"))
-    if paired:
-        gt_files = []
+    if inp_files is None:
+        inp_files = []
         for image_filter in filters:
-            gt_files += sorted(glob.glob(str(data_dir_gt) + f"/*{image_filter}"))
+            inp_files += sorted(glob.glob(str(data_dir_inp) + f"/*{image_filter}"))
+    else:
+        inp_files = [str(path) for path in inp_files]
+    if paired:
+        if gt_files is None:
+            gt_files = []
+            for image_filter in filters:
+                gt_files += sorted(glob.glob(str(data_dir_gt) + f"/*{image_filter}"))
+        else:
+            gt_files = [str(path) for path in gt_files]
         assert len(inp_files) == len(
             gt_files
         ), f"Found #{len(inp_files)} inp_files and #{len(gt_files)} gt_files"

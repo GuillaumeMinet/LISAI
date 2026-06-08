@@ -76,6 +76,31 @@ def test_normalization_section_is_typed():
     }
 
 
+def test_unprepared_data_rejects_paired_datasets():
+    with pytest.raises(ValidationError, match="prep_before=false"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "prep_before": False,
+                    "paired": True,
+                    "target": "gt",
+                }
+            }
+        )
+
+
+def test_prepped_data_rejects_unsplit_legacy_loading():
+    with pytest.raises(ValidationError, match="already_split=false"):
+        ExperimentConfig.model_validate(
+            {
+                "data": {
+                    "prep_before": True,
+                    "already_split": False,
+                }
+            }
+        )
+
+
 
 def test_model_section_resolves_architecture_specific_parameter_model():
     cfg = ExperimentConfig.model_validate(

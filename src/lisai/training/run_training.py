@@ -48,6 +48,7 @@ def _setup_training(cfg, runtime, monitor: RunMonitor):
             runtime,
             prepared_data.data_norm_prm,
             prepared_data.model_norm_prm,
+            prepared_data.split_manifest,
         )
 
         model, state_dict = setup.build_model(

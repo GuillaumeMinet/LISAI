@@ -135,6 +135,9 @@ class Paths:
     def cfg_train_path(self, *, run_dir: str | Path) -> Path:
         return self._artifact(run_dir, "config_train", "config_train.yaml")
 
+    def split_manifest_path(self, *, run_dir: str | Path) -> Path:
+        return self._artifact(run_dir, "split_manifest", "split_manifest.json")
+
     def loss_plot_path(self, *, run_dir: str | Path) -> Path:
         return self._artifact(run_dir, "loss_plot", "loss_plot.png")
 

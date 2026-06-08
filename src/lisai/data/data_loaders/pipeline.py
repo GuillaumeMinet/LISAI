@@ -7,7 +7,14 @@ from .dataset_io import load_full_datasets
 from .transforms import apply_additional_transforms, apply_inp_transformations
 
 
-def prep_data(config: DataSection, *, for_training: bool, model_norm_prm=None):
+def prep_data(
+    config: DataSection,
+    *,
+    for_training: bool,
+    model_norm_prm=None,
+    split_manifest: dict | None = None,
+    return_split_manifest: bool = False,
+):
     """
     Key-worded function that prepares data for training or evaluation,depending
     on arg:`for_trainining`(bool).
@@ -43,10 +50,12 @@ def prep_data(config: DataSection, *, for_training: bool, model_norm_prm=None):
         assert config.target is not None, "paired dataset necessitates a ground-truth"
 
     # load dataset(s)
-    list_datasets, patch_info = load_full_datasets(
+    effective_split_manifest = split_manifest if not config.prep_before else None
+    list_datasets, patch_info, resolved_split_manifest = load_full_datasets(
         config=config,
         data_format=data_format,
         for_training=for_training,
+        split_manifest=effective_split_manifest,
     )
 
     if config.downsampling is not None:
@@ -84,7 +93,10 @@ def prep_data(config: DataSection, *, for_training: bool, model_norm_prm=None):
 
     list_datasets = make_tensor(list_datasets)
 
-    return list_datasets, resolved_model_norm_prm, patch_info
+    result = (list_datasets, resolved_model_norm_prm, patch_info)
+    if return_split_manifest:
+        return (*result, resolved_split_manifest)
+    return result
 
 
 def make_tensor(list_datasets):

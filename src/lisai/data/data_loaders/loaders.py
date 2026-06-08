@@ -22,7 +22,12 @@ def make_test_loader(config: DataSection):
     return test_loader
 
 
-def make_training_loaders(config: DataSection):
+def make_training_loaders(
+    config: DataSection,
+    *,
+    split_manifest: dict | None = None,
+    return_split_manifest: bool = False,
+):
     """
     Key-worded function that makes the loaders for training and validation.
     """
@@ -30,16 +35,20 @@ def make_training_loaders(config: DataSection):
     prep_before = config.prep_before
     assert prep_before is not None, "Data preparation missing argument `prep_before` (bool)"
     assert isinstance(prep_before, bool), "Expected prep_before to be a boolean"
-    if prep_before:
-        list_datasets, model_norm_prm, patch_info = prep_data(config=config, for_training=True)
-        train_set = TensorDataset(*list_datasets[0])
-        val_set = TensorDataset(*list_datasets[1])
-    else:
-        raise NotImplementedError()  # TODO
+    list_datasets, model_norm_prm, patch_info, resolved_split_manifest = prep_data(
+        config=config,
+        for_training=True,
+        split_manifest=split_manifest,
+        return_split_manifest=True,
+    )
+    train_set = TensorDataset(*list_datasets[0])
+    val_set = TensorDataset(*list_datasets[1])
 
     train_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=config.batch_size, shuffle=False)
 
+    if return_split_manifest:
+        return train_loader, val_loader, model_norm_prm, patch_info, resolved_split_manifest
     return train_loader, val_loader, model_norm_prm, patch_info
 
 

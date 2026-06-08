@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from lisai.config import prune_config_for_saving, save_yaml
+from lisai.data.data_loaders.split_manifest import resolve_split_manifest_path, write_split_manifest
 from lisai.infra.fs import create_run_dir
 
 if TYPE_CHECKING:
@@ -94,9 +95,19 @@ def save_training_config(
     runtime: TrainingRuntime,
     data_norm_prm: dict | None = None,
     model_norm_prm: dict | None = None,
+    split_manifest: dict | None = None,
 ) -> Path | None:
     """Persist the effective saved training config for a new or retrain run."""
-    if runtime.run_dir is None or cfg.experiment.mode == "continue_training":
+    if runtime.run_dir is None:
+        return None
+
+    if split_manifest is not None and cfg.experiment.mode != "continue_training":
+        write_split_manifest(
+            resolve_split_manifest_path(runtime.paths, runtime.run_dir),
+            split_manifest,
+        )
+
+    if cfg.experiment.mode == "continue_training":
         return None
 
     clean_cfg = prune_config_for_saving(cfg)

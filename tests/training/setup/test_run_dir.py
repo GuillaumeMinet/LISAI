@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import json
 import pytest
 
 import lisai.training.setup.run_dir as run_dir_mod
@@ -26,6 +27,9 @@ class FakePaths:
 
     def cfg_train_path(self, *, run_dir):
         return Path(run_dir) / "config_train.yaml"
+
+    def split_manifest_path(self, *, run_dir):
+        return Path(run_dir) / "split_manifest.json"
 
     def retrain_origin_loss_path(self, *, run_dir):
         return self.retrain_origin_dir(run_dir=run_dir) / "origin_loss.txt"
@@ -164,3 +168,21 @@ def test_save_training_config_writes_clean_config(tmp_path: Path, monkeypatch: p
         "model_norm_prm": {"std": 2.0},
     }
     assert captured["save_yaml"]["path"] == paths.cfg_train_path(run_dir=run_dir)
+
+
+def test_save_training_config_writes_split_manifest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    paths = FakePaths()
+    run_dir = tmp_path / "new_run_dir"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {"version": 1, "splits": {"train": [], "val": [], "test": []}}
+
+    monkeypatch.setattr(run_dir_mod, "prune_config_for_saving", lambda cfg: {"saved": True})
+    monkeypatch.setattr(run_dir_mod, "save_yaml", lambda cfg, path: None)
+
+    cfg = _make_cfg(mode="train", saving_enabled=True)
+    runtime = SimpleNamespace(paths=paths, run_dir=run_dir)
+
+    run_dir_mod.save_training_config(cfg, runtime, split_manifest=manifest)
+
+    saved_manifest = json.loads(paths.split_manifest_path(run_dir=run_dir).read_text(encoding="utf-8"))
+    assert saved_manifest == manifest

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 from types import SimpleNamespace
 
 import lisai.training.setup.data as data_mod
@@ -31,7 +32,13 @@ def test_prepare_data_returns_prepared_training_data(monkeypatch):
     monkeypatch.setattr(
         data_mod,
         "make_training_loaders",
-        lambda config: ("train_loader", "val_loader", {"std": 2.0}, {"patch": 64}),
+        lambda config, split_manifest=None, return_split_manifest=False: (
+            "train_loader",
+            "val_loader",
+            {"std": 2.0},
+            {"patch": 64},
+            split_manifest,
+        ),
     )
 
     prepared = data_mod.prepare_data(cfg, runtime)
@@ -42,6 +49,7 @@ def test_prepare_data_returns_prepared_training_data(monkeypatch):
     assert prepared.data_norm_prm == {"mean": 1.0}
     assert prepared.model_norm_prm == {"std": 2.0}
     assert prepared.patch_info == {"patch": 64}
+    assert prepared.split_manifest is None
     assert resolved_kwargs == {
         "data_dir": Path("/tmp/data"),
         "norm_prm": {"mean": 1.0},
@@ -81,7 +89,13 @@ def test_prepare_data_uses_noise_model_metadata_for_lvae(monkeypatch):
     monkeypatch.setattr(
         data_mod,
         "make_training_loaders",
-        lambda config: ("train_loader", "val_loader", {"std": 2.0}, None),
+        lambda config, split_manifest=None, return_split_manifest=False: (
+            "train_loader",
+            "val_loader",
+            {"std": 2.0},
+            None,
+            split_manifest,
+        ),
     )
 
     prepared = data_mod.prepare_data(cfg, runtime)
@@ -89,3 +103,118 @@ def test_prepare_data_uses_noise_model_metadata_for_lvae(monkeypatch):
     assert calls == [(cfg, runtime.paths)]
     assert prepared.data_norm_prm == {"mean": 3.0}
     assert resolved_kwargs["norm_prm"] == {"mean": 3.0}
+
+
+def test_prepare_data_reuses_origin_manifest_for_continue(monkeypatch, tmp_path: Path):
+    manifest = {"version": 1, "splits": {"train": [], "val": [], "test": []}}
+    origin_run_dir = tmp_path / "origin"
+    origin_run_dir.mkdir()
+    (origin_run_dir / "split_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    def fake_resolved(**kwargs):
+        return SimpleNamespace(
+            prep_before=False,
+            split_manifest=SimpleNamespace(retrain_policy="reuse"),
+        )
+
+    cfg = SimpleNamespace(
+        model=SimpleNamespace(architecture="unet"),
+        experiment=SimpleNamespace(mode="continue_training", origin_run_dir=str(origin_run_dir)),
+        normalization={"norm_prm": None},
+        data=SimpleNamespace(dataset_name="demo", resolved=fake_resolved),
+        routing=SimpleNamespace(data_subfolder="raw"),
+    )
+    runtime = SimpleNamespace(
+        run_dir=origin_run_dir,
+        paths=SimpleNamespace(
+            dataset_dir=lambda dataset_name, data_subfolder: tmp_path / "data",
+            dataset_registry_path=lambda: tmp_path / "registry.yaml",
+            split_manifest_path=lambda run_dir: Path(run_dir) / "split_manifest.json",
+        ),
+    )
+    captured = {}
+
+    def fake_make_training_loaders(config, split_manifest=None, return_split_manifest=False):
+        captured["split_manifest"] = split_manifest
+        return "train_loader", "val_loader", None, None, split_manifest
+
+    monkeypatch.setattr(data_mod, "load_yaml", lambda path: {})
+    monkeypatch.setattr(data_mod, "make_training_loaders", fake_make_training_loaders)
+
+    prepared = data_mod.prepare_data(cfg, runtime)
+
+    assert captured["split_manifest"] == manifest
+    assert prepared.split_manifest == manifest
+
+
+def test_prepare_data_errors_when_retrain_reuse_manifest_is_missing(monkeypatch, tmp_path: Path):
+    origin_run_dir = tmp_path / "origin"
+    origin_run_dir.mkdir()
+
+    def fake_resolved(**kwargs):
+        return SimpleNamespace(
+            prep_before=False,
+            split_manifest=SimpleNamespace(retrain_policy="reuse"),
+        )
+
+    cfg = SimpleNamespace(
+        model=SimpleNamespace(architecture="unet"),
+        experiment=SimpleNamespace(mode="retrain", origin_run_dir=str(origin_run_dir)),
+        normalization={"norm_prm": None},
+        data=SimpleNamespace(dataset_name="demo", resolved=fake_resolved),
+        routing=SimpleNamespace(data_subfolder="raw"),
+    )
+    runtime = SimpleNamespace(
+        run_dir=tmp_path / "new_run",
+        paths=SimpleNamespace(
+            dataset_dir=lambda dataset_name, data_subfolder: tmp_path / "data",
+            dataset_registry_path=lambda: tmp_path / "registry.yaml",
+            split_manifest_path=lambda run_dir: Path(run_dir) / "split_manifest.json",
+        ),
+    )
+
+    monkeypatch.setattr(data_mod, "load_yaml", lambda path: {})
+
+    try:
+        data_mod.prepare_data(cfg, runtime)
+    except FileNotFoundError as exc:
+        assert "Missing split manifest" in str(exc)
+    else:
+        raise AssertionError("Expected missing retrain reuse manifest to fail.")
+
+
+def test_prepare_data_creates_new_manifest_for_retrain_new_policy(monkeypatch, tmp_path: Path):
+    def fake_resolved(**kwargs):
+        return SimpleNamespace(
+            prep_before=False,
+            split_manifest=SimpleNamespace(retrain_policy="new"),
+        )
+
+    cfg = SimpleNamespace(
+        model=SimpleNamespace(architecture="unet"),
+        experiment=SimpleNamespace(mode="retrain", origin_run_dir=str(tmp_path / "origin")),
+        normalization={"norm_prm": None},
+        data=SimpleNamespace(dataset_name="demo", resolved=fake_resolved),
+        routing=SimpleNamespace(data_subfolder="raw"),
+    )
+    runtime = SimpleNamespace(
+        run_dir=tmp_path / "new_run",
+        paths=SimpleNamespace(
+            dataset_dir=lambda dataset_name, data_subfolder: tmp_path / "data",
+            dataset_registry_path=lambda: tmp_path / "registry.yaml",
+        ),
+    )
+    captured = {}
+    created_manifest = {"version": 1, "splits": {"train": [], "val": [], "test": []}}
+
+    def fake_make_training_loaders(config, split_manifest=None, return_split_manifest=False):
+        captured["split_manifest"] = split_manifest
+        return "train_loader", "val_loader", None, None, created_manifest
+
+    monkeypatch.setattr(data_mod, "load_yaml", lambda path: {})
+    monkeypatch.setattr(data_mod, "make_training_loaders", fake_make_training_loaders)
+
+    prepared = data_mod.prepare_data(cfg, runtime)
+
+    assert captured["split_manifest"] is None
+    assert prepared.split_manifest == created_manifest

@@ -22,7 +22,7 @@ class FakePaths:
 
 
 
-def _make_saved_run(data_cfg: dict | None = None) -> SavedTrainingRun:
+def _make_saved_run(data_cfg: dict | None = None, split_manifest: dict | None = None) -> SavedTrainingRun:
     resolved_data_cfg = {
         'dataset_name': 'dataset_a',
         'canonical_load': True,
@@ -50,6 +50,7 @@ def _make_saved_run(data_cfg: dict | None = None) -> SavedTrainingRun:
         upsampling_factor=1,
         context_length=None,
         default_tiling_size=1024,
+        split_manifest=split_manifest,
     )
 
 
@@ -125,6 +126,44 @@ def test_build_eval_source_streams_mixed_size_inputs(monkeypatch, tmp_path: Path
         assert sample.y is None
 
     assert shapes == [(1, 3, 4), (1, 5, 7)]
+
+
+def test_build_eval_source_uses_split_manifest(monkeypatch, tmp_path: Path):
+    manifest = {
+        'version': 1,
+        'splits': {
+            'train': [{'input': 'train_a.tif', 'target': None}],
+            'val': [{'input': 'val_a.tif', 'target': None}],
+            'test': [{'input': 'test_a.tif', 'target': None}],
+        },
+    }
+    saved_run = _make_saved_run(
+        data_cfg={
+            'prep_before': False,
+            'input': 'dump',
+        },
+        split_manifest=manifest,
+    )
+    data_dir = tmp_path / 'dataset'
+    dump_dir = data_dir / 'dump'
+    dump_dir.mkdir(parents=True)
+    imwrite(dump_dir / 'train_a.tif', np.ones((3, 4), dtype=np.float32))
+    imwrite(dump_dir / 'val_a.tif', np.ones((4, 5), dtype=np.float32))
+    imwrite(dump_dir / 'test_a.tif', np.ones((5, 6), dtype=np.float32))
+
+    monkeypatch.setattr(data_mod, 'load_yaml', lambda path: {'dataset_a': {'data_format': 'single'}})
+
+    source = data_mod.build_eval_source(
+        saved_run,
+        split='test',
+        data_prm_update={'data_dir': str(data_dir)},
+    )
+
+    assert len(source.items) == 1
+    assert source.items[0].inp_path == dump_dir / 'test_a.tif'
+    sample = next(iter(source))
+    assert sample.x.shape == (1, 5, 6)
+    assert sample.y is None
 
 
 def test_eval_source_keeps_timelapse_item_and_time_indices(monkeypatch, tmp_path: Path):
