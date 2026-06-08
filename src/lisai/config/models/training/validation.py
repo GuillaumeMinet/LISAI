@@ -3,6 +3,12 @@ from __future__ import annotations
 import warnings
 from typing import Any
 
+from .tasks import (
+    DenoisingCARETaskSection,
+    DenoisingHDNTaskSection,
+    DenoisingUNetRCANTaskSection,
+)
+
 
 def _timelapse_context_length(data: Any) -> int | None:
     timelapse_prm = getattr(data, "timelapse_prm", None)
@@ -48,6 +54,91 @@ def _expected_input_channels(data: Any) -> tuple[int | None, str]:
     return 1, "default single-frame input"
 
 
+def _experiment_task(cfg: Any) -> Any:
+    experiment = getattr(cfg, "experiment", None)
+    return getattr(experiment, "task", None)
+
+
+def _require_no_context_window(data: Any, *, task_name: str) -> None:
+    context_length = _timelapse_context_length(data)
+    if context_length is not None:
+        raise ValueError(
+            f"`experiment.task.name='{task_name}'` does not support `data.timelapse_prm.context_length`; "
+            "remove it or set it to null."
+        )
+
+
+def _effective_upsampling_factor(params: Any) -> int | None:
+    factor = getattr(params, "effective_upsampling_factor", None)
+    if callable(factor):
+        return int(factor())
+    return None
+
+
+def _validate_denoising_task_consistency(
+    cfg: Any,
+    *,
+    architecture: str,
+    params: Any,
+    data: Any,
+) -> None:
+    task = _experiment_task(cfg)
+
+    if isinstance(task, DenoisingHDNTaskSection):
+        if architecture != "lvae":
+            raise ValueError("`experiment.task.name='denoising_hdn'` requires `model.architecture='lvae'`.")
+        if bool(data.paired) != bool(task.supervised):
+            raise ValueError(
+                "`data.paired` must match `experiment.task.supervised` for `denoising_hdn`."
+            )
+        return
+
+    if isinstance(task, DenoisingCARETaskSection):
+        _validate_supervised_denoising_task(
+            task_name="denoising_care",
+            expected_architecture="unet",
+            architecture=architecture,
+            params=params,
+            data=data,
+        )
+        return
+
+    if isinstance(task, DenoisingUNetRCANTaskSection):
+        _validate_supervised_denoising_task(
+            task_name="denoising_unetrcan",
+            expected_architecture="unet_rcan",
+            architecture=architecture,
+            params=params,
+            data=data,
+        )
+
+
+def _validate_supervised_denoising_task(
+    *,
+    task_name: str,
+    expected_architecture: str,
+    architecture: str,
+    params: Any,
+    data: Any,
+) -> None:
+    if architecture != expected_architecture:
+        raise ValueError(
+            f"`experiment.task.name='{task_name}'` requires `model.architecture='{expected_architecture}'`."
+        )
+    if not bool(data.paired):
+        raise ValueError(f"`experiment.task.name='{task_name}'` requires `data.paired=true`.")
+    _require_no_context_window(data, task_name=task_name)
+    if getattr(data, "downsampling", None) is not None:
+        raise ValueError(f"`experiment.task.name='{task_name}'` does not support `data.downsampling`.")
+
+    upsampling_factor = _effective_upsampling_factor(params)
+    if upsampling_factor not in {None, 1}:
+        raise ValueError(
+            f"`experiment.task.name='{task_name}'` requires model effective upsampling factor 1, "
+            f"got {upsampling_factor}."
+        )
+
+
 def validate_cross_section_consistency(cfg: Any, *, emit_warnings: bool) -> Any:
     model = getattr(cfg, "model", None)
     if model is None:
@@ -57,6 +148,13 @@ def validate_cross_section_consistency(cfg: Any, *, emit_warnings: bool) -> Any:
     architecture = model.architecture
     params = model.parameters
     context_length = _timelapse_context_length(data)
+
+    _validate_denoising_task_consistency(
+        cfg,
+        architecture=architecture,
+        params=params,
+        data=data,
+    )
 
     if architecture == "lvae" and context_length not in {None, 1}:
         raise ValueError(

@@ -3,16 +3,16 @@ base_config: hdn.yml
 runs:
   - run_name: HDN_betaKL04
     overrides:
-      training.betaKL: 0.4
+      experiment.task.betaKL: 0.4
 
   - run_name: HDN_betaKL05
     overrides:
-      training.betaKL: 0.5
+      experiment.task.betaKL: 0.5
 
   - run_name: HDN_betaKL06
     overrides:
-      training.betaKL: 0.6
+      experiment.task.betaKL: 0.6
   
   - run_name: HDN_betaKL07
     overrides:
-      training.betaKL: 0.7
+      experiment.task.betaKL: 0.7

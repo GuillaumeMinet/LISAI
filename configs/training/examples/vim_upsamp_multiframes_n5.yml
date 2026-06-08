@@ -7,6 +7,10 @@ experiment:
   exp_name: Fulldataset_CL5_5FramesMax_Upsamp2_smallerNet_clip
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
+  task:
+    name: upsamp_multiframes
+    upsampling_factor: 2
+    temporal_window: 5
 
 # ========================================================
 # Paths
@@ -37,7 +41,6 @@ data:
   timelapse_prm:
     timelapse_max_frames: 5
     shuffle: false
-    context_length: 5
 
   patch_size: 96
   val_patch_size: 240
@@ -109,9 +112,6 @@ loss_function:
   name: CharEdge_loss
   CharEdge_loss_prm:
     alpha: 0.05
-  # MSE_upsampling_prm:
-  #   alpha: 0.5
-  #   upsampling_factor: 2
 
 # ========================================================
 # Saving configuration

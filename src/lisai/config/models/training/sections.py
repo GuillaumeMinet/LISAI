@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from .tasks import CustomTaskSection, ExperimentTaskSection, normalize_task_value
 
 Mode = Literal["train", "continue_training", "retrain"]
 
@@ -28,6 +30,18 @@ class ExperimentSection(BaseModel):
         default=True,
         description="Whether to trigger automatic post-training evaluation when training completes or stops early.",
     )
+    task: ExperimentTaskSection = Field(
+        default_factory=CustomTaskSection,
+        description=(
+            "Optional high-level task preset. Use 'custom' to keep the low-level "
+            "data and model sections exactly as authored."
+        ),
+    )
+
+    @field_validator("task", mode="before")
+    @classmethod
+    def _normalize_task(cls, value):
+        return normalize_task_value(value)
 
 
 class ResolvedExperimentSection(ExperimentSection):

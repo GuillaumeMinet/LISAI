@@ -124,6 +124,21 @@
       "title": "CharEdgeLossParams",
       "type": "object"
     },
+    "CustomTaskSection": {
+      "additionalProperties": true,
+      "description": "No-op task preset. Low-level config values are used as authored.",
+      "properties": {
+        "name": {
+          "const": "custom",
+          "default": "custom",
+          "description": "Do not apply task-specific config overrides.",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "title": "CustomTaskSection",
+      "type": "object"
+    },
     "DataNormalizationParams": {
       "additionalProperties": true,
       "description": "Normalization coefficients consumed by the training data pipeline.",
@@ -207,6 +222,123 @@
         }
       },
       "title": "DataNormalizationParams",
+      "type": "object"
+    },
+    "DenoisingCARETaskSection": {
+      "additionalProperties": false,
+      "description": "Supervised U-Net denoising task.",
+      "properties": {
+        "name": {
+          "const": "denoising_care",
+          "default": "denoising_care",
+          "description": "Supervised CARE-style U-Net denoising.",
+          "title": "Name",
+          "type": "string"
+        },
+        "loss": {
+          "anyOf": [
+            {
+              "enum": [
+                "MSE",
+                "mse",
+                "l2",
+                "L2",
+                "MAE",
+                "mae",
+                "l1",
+                "L1"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "CharEdge_loss",
+                "CharEdge"
+              ],
+              "type": "string"
+            }
+          ],
+          "description": "Loss used for supervised CARE-style denoising.",
+          "title": "Loss"
+        }
+      },
+      "required": [
+        "loss"
+      ],
+      "title": "DenoisingCARETaskSection",
+      "type": "object"
+    },
+    "DenoisingHDNTaskSection": {
+      "additionalProperties": false,
+      "description": "HDN/LVAE denoising task.",
+      "properties": {
+        "name": {
+          "const": "denoising_hdn",
+          "default": "denoising_hdn",
+          "description": "HDN/LVAE denoising. Requires an LVAE model and a task-level betaKL value.",
+          "title": "Name",
+          "type": "string"
+        },
+        "betaKL": {
+          "description": "Weight applied to the LVAE KL loss term.",
+          "title": "Betakl",
+          "type": "number"
+        },
+        "supervised": {
+          "description": "Whether the HDN task expects an explicitly paired target dataset.",
+          "title": "Supervised",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "betaKL",
+        "supervised"
+      ],
+      "title": "DenoisingHDNTaskSection",
+      "type": "object"
+    },
+    "DenoisingUNetRCANTaskSection": {
+      "additionalProperties": false,
+      "description": "Supervised UNet-RCAN denoising task.",
+      "properties": {
+        "name": {
+          "const": "denoising_unetrcan",
+          "default": "denoising_unetrcan",
+          "description": "Supervised UNet-RCAN denoising.",
+          "title": "Name",
+          "type": "string"
+        },
+        "loss": {
+          "anyOf": [
+            {
+              "enum": [
+                "MSE",
+                "mse",
+                "l2",
+                "L2",
+                "MAE",
+                "mae",
+                "l1",
+                "L1"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "CharEdge_loss",
+                "CharEdge"
+              ],
+              "type": "string"
+            }
+          ],
+          "description": "Loss used for supervised UNet-RCAN denoising.",
+          "title": "Loss"
+        }
+      },
+      "required": [
+        "loss"
+      ],
+      "title": "DenoisingUNetRCANTaskSection",
       "type": "object"
     },
     "DownsamplingMultipleParams": {
@@ -949,6 +1081,41 @@
           "description": "Whether to trigger automatic post-training evaluation when the retrain run completes or stops early.",
           "title": "Post Training Inference",
           "type": "boolean"
+        },
+        "task": {
+          "description": "Optional high-level task preset. Use 'custom' to keep the low-level data and model sections exactly as authored.",
+          "discriminator": {
+            "mapping": {
+              "custom": "#/$defs/CustomTaskSection",
+              "denoising_care": "#/$defs/DenoisingCARETaskSection",
+              "denoising_hdn": "#/$defs/DenoisingHDNTaskSection",
+              "denoising_unetrcan": "#/$defs/DenoisingUNetRCANTaskSection",
+              "upsamp_multiframes": "#/$defs/UpsampMultipleSamplingTaskSection",
+              "upsamp_single_frame": "#/$defs/UpsampSingleFrameTaskSection"
+            },
+            "propertyName": "name"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CustomTaskSection"
+            },
+            {
+              "$ref": "#/$defs/UpsampSingleFrameTaskSection"
+            },
+            {
+              "$ref": "#/$defs/UpsampMultipleSamplingTaskSection"
+            },
+            {
+              "$ref": "#/$defs/DenoisingHDNTaskSection"
+            },
+            {
+              "$ref": "#/$defs/DenoisingCARETaskSection"
+            },
+            {
+              "$ref": "#/$defs/DenoisingUNetRCANTaskSection"
+            }
+          ],
+          "title": "Task"
         }
       },
       "title": "RetrainExperimentSection",
@@ -1210,6 +1377,69 @@
         }
       },
       "title": "TrainingSection",
+      "type": "object"
+    },
+    "UpsampMultipleSamplingTaskSection": {
+      "additionalProperties": false,
+      "description": "Temporal-window upsampling task using frame context as input channels.",
+      "properties": {
+        "name": {
+          "const": "upsamp_multiframes",
+          "default": "upsamp_multiframes",
+          "description": "Upsampling with a temporal context window packed into input channels.",
+          "title": "Name",
+          "type": "string"
+        },
+        "upsampling_factor": {
+          "description": "Spatial upsampling factor. Also used as the data downsampling factor.",
+          "title": "Upsampling Factor",
+          "type": "integer"
+        },
+        "temporal_window": {
+          "description": "Odd temporal context window size. This overrides data.timelapse_prm.context_length.",
+          "title": "Temporal Window",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "upsampling_factor",
+        "temporal_window"
+      ],
+      "title": "UpsampMultipleSamplingTaskSection",
+      "type": "object"
+    },
+    "UpsampSingleFrameTaskSection": {
+      "additionalProperties": false,
+      "description": "Single-frame upsampling task using multiple sparse samples as input channels.",
+      "properties": {
+        "name": {
+          "const": "upsamp_single_frame",
+          "default": "upsamp_single_frame",
+          "description": "Single-frame upsampling with multiple sparse input samples.",
+          "title": "Name",
+          "type": "string"
+        },
+        "upsampling_factor": {
+          "description": "Spatial upsampling factor. Also used as the data downsampling factor.",
+          "title": "Upsampling Factor",
+          "type": "integer"
+        },
+        "sampling_ratio": {
+          "description": "Fraction of sparse samples kept for multiple-sampling input generation.",
+          "enum": [
+            0.25,
+            0.5,
+            0.75
+          ],
+          "title": "Sampling Ratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "upsampling_factor",
+        "sampling_ratio"
+      ],
+      "title": "UpsampSingleFrameTaskSection",
       "type": "object"
     },
     "WarmupSection": {

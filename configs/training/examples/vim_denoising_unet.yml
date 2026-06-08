@@ -7,6 +7,9 @@ experiment:
   exp_name: CARE_singleToAvg_charEdge
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
+  task:
+    name: denoising_care
+    loss: CharEdge
 
 # ========================================================
 # Paths

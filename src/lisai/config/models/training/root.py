@@ -18,6 +18,7 @@ from .sections import (
     TensorboardSection,
     TrainingSection,
 )
+from .tasks import apply_experiment_task_overrides
 from .validation import validate_cross_section_consistency
 
 
@@ -78,6 +79,11 @@ class ResolvedExperiment(BaseModel):
         default_factory=RecoveryConfig,
         description="Resolved recovery behavior for continue/restart flows.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_task_overrides(cls, value):
+        return apply_experiment_task_overrides(value)
 
     @model_validator(mode="after")
     def _validate_cross_section_rules(self):

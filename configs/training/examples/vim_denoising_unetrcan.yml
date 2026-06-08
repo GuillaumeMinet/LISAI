@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../schema/experiment.schema.json
+# yaml-language-server: $schema=../../schema/experiment.schema.json
 # ========================================================
 # General experiment settings
 # ========================================================
@@ -7,6 +7,9 @@ experiment:
   exp_name: UnetRcan_clip_charEdge_recon2_CABskipcon
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
+  task:
+    name: denoising_unetrcan
+    loss: CharEdge
 
 # ========================================================
 # Paths

@@ -4,9 +4,15 @@
 # ========================================================
 experiment:
   mode: train  # 'train'
-  exp_name: Fulldataset_CL1_3FramesMax_Upsamp2_smallerNet_clip
+  exp_name: Fulldataset_CL1_1FramesMax_Upsamp2_smallerNet_clip
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
+  task:
+    name: upsamp_single_frame
+    upsampling_factor: 2
+    sampling_ratio: 0.25
+
+    
 
 # ========================================================
 # Paths
@@ -35,9 +41,8 @@ data:
   target: null # for paired datasets
   input: ""
   timelapse_prm:
-    timelapse_max_frames: 3
+    timelapse_max_frames: 1
     shuffle: false
-    context_length: 1
 
   patch_size: 96
   val_patch_size: 240
@@ -65,12 +70,9 @@ model:
   architecture: unet_rcan
   parameters:
     upsampling_net: rcan
-    upsampling_factor: 2
     UNet_prm:
       feat: 64
       depth: 3
-      in_channels: 1
-      out_channels: 1
       activation: swish
       norm: group
       gr_norm: 8
@@ -109,9 +111,6 @@ loss_function:
   name: CharEdge_loss
   CharEdge_loss_prm:
     alpha: 0.05
-  # MSE_upsampling_prm:
-  #   alpha: 0.5
-  #   upsampling_factor: 2
 
 # ========================================================
 # Saving configuration

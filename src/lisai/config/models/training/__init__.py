@@ -37,6 +37,16 @@ from .sections import (
     TensorboardSection,
     TrainingSection,
 )
+from .tasks import (
+    CustomTaskSection,
+    DenoisingCARETaskSection,
+    DenoisingHDNTaskSection,
+    DenoisingUNetRCANTaskSection,
+    ExperimentTaskSection,
+    TaskName,
+    UpsampMultipleSamplingTaskSection,
+    UpsampSingleFrameTaskSection,
+)
 
 __all__ = [
     "Mode",
@@ -64,6 +74,14 @@ __all__ = [
     "SavingSection",
     "TensorboardSection",
     "NoiseModelSection",
+    "TaskName",
+    "CustomTaskSection",
+    "DenoisingCARETaskSection",
+    "DenoisingHDNTaskSection",
+    "DenoisingUNetRCANTaskSection",
+    "UpsampSingleFrameTaskSection",
+    "UpsampMultipleSamplingTaskSection",
+    "ExperimentTaskSection",
     "ExperimentLoadModelSection",
     "LoadCheckpoint",
     "LoadModelSection",

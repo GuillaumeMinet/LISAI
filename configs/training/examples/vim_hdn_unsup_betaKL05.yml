@@ -7,6 +7,10 @@ experiment:
   exp_name: vim_single_betaKL05_lr1e-4
   overwrite: false # mainly for debug; to overwrite any exp_name with the same name
   post_training_inference: true
+  task:
+    name: denoising_hdn
+    supervised: false
+    betaKL: 0.5
 
 # ========================================================
 # Paths
@@ -76,7 +80,6 @@ training:
   n_epochs: 200
   batch_size: 32
   learning_rate: 1e-4
-  betaKL: 0.5
   optimizer: Adam
   scheduler: ReduceLROnPlateau
   progress_bar: true

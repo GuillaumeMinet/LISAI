@@ -18,6 +18,12 @@ from .sections import (
     TensorboardSection,
     TrainingSection,
 )
+from .tasks import (
+    CustomTaskSection,
+    ExperimentTaskSection,
+    apply_experiment_task_overrides,
+    normalize_task_value,
+)
 from .validation import validate_cross_section_consistency
 
 
@@ -66,6 +72,21 @@ class RetrainExperimentSection(BaseModel):
         default=True,
         description="Whether to trigger automatic post-training evaluation when the retrain run completes or stops early.",
     )
+    task: ExperimentTaskSection = Field(
+        default_factory=CustomTaskSection,
+        description=(
+            "Optional high-level task preset. Use 'custom' to keep the low-level "
+            "data and model sections exactly as authored."
+        ),
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_task(cls, value):
+        if isinstance(value, dict) and "task" in value:
+            value = dict(value)
+            value["task"] = normalize_task_value(value["task"])
+        return value
 
 
 class ExperimentConfig(BaseModel):
@@ -117,6 +138,11 @@ class ExperimentConfig(BaseModel):
         default_factory=TensorboardSection,
         description="TensorBoard logging settings.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_task_overrides(cls, value):
+        return apply_experiment_task_overrides(value)
 
     @model_validator(mode="after")
     def _validate_cross_section_rules(self):
@@ -203,3 +229,8 @@ class RetrainConfig(BaseModel):
         ...,
         description="Required source-run selector identifying which existing run should provide the starting weights.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_task_overrides(cls, value):
+        return apply_experiment_task_overrides(value)

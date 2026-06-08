@@ -103,6 +103,365 @@ def test_model_section_resolves_architecture_specific_parameter_model():
     assert cfg.model.parameters.RCAN_prm.collapse_ch_before_upsamp is True
 
 
+def test_custom_task_keeps_low_level_config_behavior():
+    with pytest.raises(ValidationError, match="UNet_prm.in_channels"):
+        ExperimentConfig.model_validate(
+            {
+                "experiment": {"task": "custom"},
+                "data": {
+                    "timelapse_prm": {"context_length": 3},
+                },
+                "model": {
+                    "architecture": "unet_rcan",
+                    "parameters": {
+                        "upsampling_net": "rcan",
+                        "upsampling_factor": 2,
+                        "UNet_prm": {"in_channels": 1, "out_channels": 1},
+                    },
+                },
+            }
+        )
+
+
+def test_upsamp_single_frame_task_overrides_multiple_sampling_geometry():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "experiment": {
+                "task": {
+                    "name": "upsamp_single_frame",
+                    "upsampling_factor": 2,
+                    "sampling_ratio": 0.5,
+                },
+            },
+            "data": {
+                "data_format": "timelapse",
+                "timelapse_prm": {"context_length": 5},
+                "downsampling": {
+                    "downsamp_factor": 3,
+                    "downsamp_method": "random",
+                },
+            },
+            "model": {
+                "architecture": "unet_rcan",
+                "parameters": {
+                    "upsampling_net": "rcan",
+                    "upsampling_factor": 3,
+                    "UNet_prm": {"in_channels": 5, "out_channels": 5},
+                    "RCAN_prm": {"in_channels": 10, "out_channels": 2},
+                },
+            },
+        }
+    )
+
+    assert cfg.experiment.task.name == "upsamp_single_frame"
+    assert cfg.data.timelapse_prm is not None
+    assert cfg.data.timelapse_prm.context_length is None
+    assert cfg.data.downsampling is not None
+    assert cfg.data.downsampling.downsamp_factor == 2
+    assert cfg.data.downsampling.downsamp_method == "multiple"
+    assert cfg.data.downsampling.multiple_prm is not None
+    assert cfg.data.downsampling.multiple_prm.fill_factor == pytest.approx(0.5)
+    assert cfg.data.downsampling.multiple_prm.random is False
+    assert cfg.model is not None
+    assert cfg.model.parameters.upsampling_factor == 2
+    assert cfg.model.parameters.UNet_prm.in_channels == 2
+    assert cfg.model.parameters.UNet_prm.out_channels == 2
+    assert cfg.model.parameters.RCAN_prm.in_channels == 4
+    assert cfg.model.parameters.RCAN_prm.out_channels == 1
+
+
+def test_upsamp_temporal_task_overrides_context_and_removes_multiple_sampling():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "experiment": {
+                "task": {
+                    "name": "upsamp_multiframes",
+                    "upsampling_factor": 2,
+                    "temporal_window": 3,
+                },
+            },
+            "data": {
+                "timelapse_prm": {"context_length": 5},
+                "downsampling": {
+                    "downsamp_factor": 3,
+                    "downsamp_method": "multiple",
+                    "multiple_prm": {"fill_factor": 0.75, "random": False},
+                },
+            },
+            "model": {
+                "architecture": "unet_rcan",
+                "parameters": {
+                    "upsampling_net": "rcan",
+                    "upsampling_factor": 3,
+                    "UNet_prm": {"in_channels": 1, "out_channels": 1},
+                    "RCAN_prm": {"in_channels": 2, "out_channels": 2},
+                },
+            },
+        }
+    )
+
+    assert cfg.experiment.task.name == "upsamp_multiframes"
+    assert cfg.data.timelapse_prm is not None
+    assert cfg.data.timelapse_prm.context_length == 3
+    assert cfg.data.downsampling is not None
+    assert cfg.data.downsampling.downsamp_factor == 2
+    assert cfg.data.downsampling.downsamp_method == "random"
+    assert cfg.data.downsampling.multiple_prm is None
+    assert cfg.model is not None
+    assert cfg.model.parameters.upsampling_factor == 2
+    assert cfg.model.parameters.UNet_prm.in_channels == 3
+    assert cfg.model.parameters.UNet_prm.out_channels == 3
+    assert cfg.model.parameters.RCAN_prm.in_channels == 6
+    assert cfg.model.parameters.RCAN_prm.out_channels == 1
+
+
+def test_temporal_task_rejects_sampling_ratio():
+    with pytest.raises(ValidationError, match="sampling_ratio"):
+        ExperimentConfig.model_validate(
+            {
+                "experiment": {
+                    "task": {
+                        "name": "upsamp_multiframes",
+                        "upsampling_factor": 2,
+                        "temporal_window": 3,
+                        "sampling_ratio": 0.5,
+                    },
+                },
+            }
+        )
+
+
+def test_denoising_hdn_task_sets_beta_kl_and_validates_supervised_pairing():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "experiment": {
+                "task": {
+                    "name": "denoising_hdn",
+                    "betaKL": 0.4,
+                    "supervised": True,
+                },
+            },
+            "data": {
+                "paired": True,
+                "target": "gt",
+            },
+            "model": {
+                "architecture": "lvae",
+                "parameters": {
+                    "num_latents": 3,
+                    "z_dims": 32,
+                },
+            },
+        }
+    )
+
+    assert cfg.experiment.task.name == "denoising_hdn"
+    assert cfg.experiment.task.supervised is True
+    assert cfg.training.betaKL == pytest.approx(0.4)
+
+
+def test_denoising_hdn_task_rejects_non_lvae_architecture():
+    with pytest.raises(ValidationError, match="model.architecture='lvae'"):
+        ExperimentConfig.model_validate(
+            {
+                "experiment": {
+                    "task": {
+                        "name": "denoising_hdn",
+                        "betaKL": 0.4,
+                        "supervised": False,
+                    },
+                },
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {},
+                },
+            }
+        )
+
+
+def test_denoising_hdn_task_requires_supervised_to_match_paired_data():
+    with pytest.raises(ValidationError, match="task.supervised"):
+        ExperimentConfig.model_validate(
+            {
+                "experiment": {
+                    "task": {
+                        "name": "denoising_hdn",
+                        "betaKL": 0.4,
+                        "supervised": True,
+                    },
+                },
+                "data": {
+                    "paired": False,
+                },
+                "model": {
+                    "architecture": "lvae",
+                    "parameters": {
+                        "num_latents": 3,
+                        "z_dims": 32,
+                    },
+                },
+            }
+        )
+
+
+def test_denoising_care_task_sets_loss_and_validates_unet_structure():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "experiment": {
+                "task": {
+                    "name": "denoising_care",
+                    "loss": "CharEdge",
+                },
+            },
+            "data": {
+                "paired": True,
+                "target": "gt",
+            },
+            "model": {
+                "architecture": "unet",
+                "parameters": {},
+            },
+        }
+    )
+
+    assert cfg.experiment.task.name == "denoising_care"
+    assert cfg.loss_function is not None
+    assert cfg.loss_function.name == "CharEdge"
+    assert cfg.loss_function.CharEdge_loss_prm is not None
+    assert cfg.loss_function.CharEdge_loss_prm.alpha == pytest.approx(0.05)
+
+
+def test_denoising_task_char_edge_loss_alpha_can_be_overridden():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "experiment": {
+                "task": {
+                    "name": "denoising_care",
+                    "loss": "CharEdge",
+                },
+            },
+            "loss_function": {
+                "name": "CharEdge_loss",
+                "CharEdge_loss_prm": {
+                    "alpha": 0.1,
+                },
+            },
+            "data": {
+                "paired": True,
+                "target": "gt",
+            },
+            "model": {
+                "architecture": "unet",
+                "parameters": {},
+            },
+        }
+    )
+
+    assert cfg.loss_function is not None
+    assert cfg.loss_function.CharEdge_loss_prm is not None
+    assert cfg.loss_function.CharEdge_loss_prm.alpha == pytest.approx(0.1)
+
+
+def test_denoising_task_loss_function_name_cannot_override_task_loss():
+    with pytest.raises(ValidationError, match="loss_function.name"):
+        ExperimentConfig.model_validate(
+            {
+                "experiment": {
+                    "task": {
+                        "name": "denoising_care",
+                        "loss": "MSE",
+                    },
+                },
+                "loss_function": {
+                    "name": "CharEdge",
+                    "CharEdge_loss_prm": {
+                        "alpha": 0.1,
+                    },
+                },
+                "data": {
+                    "paired": True,
+                    "target": "gt",
+                },
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {},
+                },
+            }
+        )
+
+
+def test_denoising_care_task_rejects_context_length():
+    with pytest.raises(ValidationError, match="context_length"):
+        ExperimentConfig.model_validate(
+            {
+                "experiment": {
+                    "task": {
+                        "name": "denoising_care",
+                        "loss": "MSE",
+                    },
+                },
+                "data": {
+                    "paired": True,
+                    "target": "gt",
+                    "timelapse_prm": {
+                        "context_length": 3,
+                    },
+                },
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {},
+                },
+            }
+        )
+
+
+def test_denoising_unetrcan_task_sets_basic_loss_and_validates_architecture():
+    cfg = ExperimentConfig.model_validate(
+        {
+            "experiment": {
+                "task": {
+                    "name": "denoising_unetrcan",
+                    "loss": "MAE",
+                },
+            },
+            "data": {
+                "paired": True,
+                "target": "gt",
+            },
+            "model": {
+                "architecture": "unet_rcan",
+                "parameters": {},
+            },
+        }
+    )
+
+    assert cfg.experiment.task.name == "denoising_unetrcan"
+    assert cfg.loss_function is not None
+    assert cfg.loss_function.name == "MAE"
+
+
+def test_denoising_unetrcan_task_rejects_unet_architecture():
+    with pytest.raises(ValidationError, match="model.architecture='unet_rcan'"):
+        ExperimentConfig.model_validate(
+            {
+                "experiment": {
+                    "task": {
+                        "name": "denoising_unetrcan",
+                        "loss": "MSE",
+                    },
+                },
+                "data": {
+                    "paired": True,
+                    "target": "gt",
+                },
+                "model": {
+                    "architecture": "unet",
+                    "parameters": {},
+                },
+            }
+        )
+
+
 def test_unet_rcan_rejects_non_boolean_collapse_ch_before_upsamp():
     with pytest.raises(ValidationError, match="collapse_ch_before_upsamp"):
         ExperimentConfig.model_validate(
