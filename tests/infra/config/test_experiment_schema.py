@@ -20,9 +20,9 @@ from lisai.config.models import ContinueTrainingConfig, ExperimentConfig, Retrai
 @pytest.mark.parametrize(
     ("config_path", "model_cls"),
     [
-        (Path("configs/training/hdn.yml"), ExperimentConfig),
-        (Path("configs/training/continue_training.yml"), ContinueTrainingConfig),
-        (Path("configs/training/retrain.yml"), RetrainConfig),
+        (Path("configs/training/examples/vim_hdn_unsup_betaKL05.yml"), ExperimentConfig),
+        (Path("configs/training/examples/continue_training.yml"), ContinueTrainingConfig),
+        (Path("configs/training/examples/retrain.yml"), RetrainConfig),
     ],
 )
 def test_training_yaml_examples_validate_against_mode_specific_authoring_schemas(config_path: Path, model_cls):
@@ -35,13 +35,13 @@ def test_training_yaml_examples_validate_against_mode_specific_authoring_schemas
 
 
 def test_current_upsamp_yaml_validates_timelapse_context_channels():
-    cfg = load_yaml(Path("configs/training/upsamp.yml"))
+    cfg = load_yaml(Path("configs/training/examples/vim_upsamp_multiframes_n5.yml"))
 
     validated = ExperimentConfig.model_validate(cfg)
 
     assert validated.data.timelapse_prm is not None
     context_length = validated.data.timelapse_prm.context_length
-    assert context_length == 3
+    assert context_length == 5
     assert validated.model.architecture == "unet_rcan"
     assert validated.model.parameters.UNet_prm.in_channels == context_length
     assert validated.model.parameters.UNet_prm.out_channels == context_length
