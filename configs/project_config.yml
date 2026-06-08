@@ -37,6 +37,7 @@ run_layout:
     loss_plot: "loss_plot.png"
     train_log: "train_log.log"
     config_train: "config_train.yaml"
+    split_manifest: "split_manifest.json"
 
   retrain_origin_artifacts:
     loss_file: "origin_loss.txt"

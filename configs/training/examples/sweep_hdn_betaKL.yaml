@@ -1,4 +1,12 @@
-base_config: hdn.yml
+# ========================================================
+# Sweep configuration
+# Submit all runs in this sweep with:
+#   lisai-runner submit-sweep --file examples/sweep_hdn_betaKL.yaml
+#
+# base_config points to the shared training config used for every generated
+# run. Each entry under runs only lists the overrides to apply on top of it.
+# ========================================================
+base_config: examples/vim_hdn_unsup_betaKL05.yml
 
 runs:
   - run_name: HDN_betaKL04
